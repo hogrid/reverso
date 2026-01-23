@@ -4,6 +4,20 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3001,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
@@ -15,9 +29,12 @@ export default defineConfig({
       external: [
         'react',
         'react-dom',
+        'react-router-dom',
         '@reverso/core',
         '@reverso/blocks',
         '@reverso/forms',
+        '@tanstack/react-query',
+        'zustand',
       ],
       output: {
         globals: {
