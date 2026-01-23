@@ -1,0 +1,53 @@
+{
+  "name": "reverso",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The front-to-back CMS for modern web development",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hogrid/reverso.git"
+  },
+  "homepage": "https://reverso.dev",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "author": "Emerson Nunes <emerson@hogrid.com>",
+  "license": "MIT",
+  "keywords": [
+    "cms",
+    "headless-cms",
+    "react",
+    "nextjs",
+    "typescript",
+    "content-management"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.27.12",
+    "@types/node": "^22.10.7",
+    "husky": "^9.1.7",
+    "turbo": "^2.3.4",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
