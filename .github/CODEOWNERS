@@ -1,0 +1,20 @@
+# Default owners for everything
+* @hogrid
+
+# Specific packages
+/packages/core/ @hogrid
+/packages/scanner/ @hogrid
+/packages/db/ @hogrid
+/packages/api/ @hogrid
+/packages/admin/ @hogrid
+/packages/blocks/ @hogrid
+/packages/forms/ @hogrid
+/packages/cli/ @hogrid
+/packages/mcp/ @hogrid
+/packages/create-reverso/ @hogrid
+
+# Documentation
+/apps/docs/ @hogrid
+
+# CI/CD
+/.github/ @hogrid

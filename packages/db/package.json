@@ -1,0 +1,54 @@
+{
+  "name": "@reverso/db",
+  "version": "0.0.0",
+  "description": "Database schema and migrations for Reverso CMS using Drizzle ORM",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@reverso/core": "workspace:*",
+    "drizzle-orm": "^0.38.4",
+    "better-sqlite3": "^11.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.7",
+    "drizzle-kit": "^0.30.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hogrid/reverso.git",
+    "directory": "packages/db"
+  },
+  "keywords": ["reverso", "cms", "database", "drizzle", "orm"],
+  "author": "Emerson Nunes <emerson@hogrid.com>",
+  "license": "MIT"
+}
