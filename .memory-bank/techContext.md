@@ -1,5 +1,64 @@
 # Technical Context - Reverso CMS
 
+## Visual Identity & Design System
+
+### Brand Assets
+Located in `public/img/`:
+- `logo.svg` - Main logo (SVG, scalable)
+- `logo.png` - Logo rasterized (PNG fallback)
+
+### Typography
+Located in `public/fonts/`:
+
+| Font | Usage | Files |
+|------|-------|-------|
+| **Instrument Serif** | Títulos, headings, destaque | `InstrumentSerif-Regular.ttf`, `InstrumentSerif-Italic.ttf` |
+| **Plus Jakarta Sans** | Corpo, UI, textos gerais | `PlusJakartaSans-VariableFont_wght.ttf`, `PlusJakartaSans-Italic-VariableFont_wght.ttf` |
+
+### CSS Font Implementation
+```css
+/* Instrument Serif - Títulos */
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/InstrumentSerif-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/InstrumentSerif-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Plus Jakarta Sans - Corpo */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-VariableFont_wght.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: italic;
+}
+```
+
+### Tailwind Configuration
+```js
+// tailwind.config.js
+fontFamily: {
+  serif: ['Instrument Serif', 'Georgia', 'serif'],
+  sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+}
+```
+
+---
+
 ## Tech Stack
 
 ### Monorepo

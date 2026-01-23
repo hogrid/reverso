@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.svg" alt="Reverso CMS" width="400" />
+  <img src="./public/img/logo.svg" alt="Reverso CMS" width="400" />
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/hogrid/reverso/actions/workflows/ci.yml">
-    <img src="https://github.com/hogrid/reverso/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
+    <img src="https://img.shields.io/badge/CI-disabled-lightgrey.svg" alt="CI Status" />
   </a>
   <a href="https://www.npmjs.com/package/create-reverso">
     <img src="https://img.shields.io/npm/v/create-reverso.svg" alt="npm version" />
@@ -55,10 +55,10 @@
   This is the hero description that editors can change.
 </p>
 
-<img 
-  data-reverso="home.hero.image" 
+<img
+  data-reverso="home.hero.image"
   data-reverso-type="image"
-  src="/placeholder.jpg" 
+  src="/placeholder.jpg"
   alt="Hero image"
 />
 ```

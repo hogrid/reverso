@@ -109,6 +109,22 @@ interface FieldSchema {
 }
 ```
 
+## Visual Design System
+
+### Typography
+| Element | Font | Weight | Usage |
+|---------|------|--------|-------|
+| H1-H3 | Instrument Serif | 400 | Page titles, section headings |
+| H4-H6 | Plus Jakarta Sans | 600-700 | Subheadings, labels |
+| Body | Plus Jakarta Sans | 400 | Paragraphs, UI text |
+| UI | Plus Jakarta Sans | 500 | Buttons, inputs, navigation |
+
+### Brand Assets
+- Logo: `public/img/logo.svg` (primary), `public/img/logo.png` (fallback)
+- Fonts: `public/fonts/` directory
+
+---
+
 ## Design Decisions
 
 ### 1. ts-morph for AST Parsing
