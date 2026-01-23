@@ -1,0 +1,46 @@
+{
+  "name": "@reverso/scanner",
+  "version": "0.0.0",
+  "description": "AST parser for detecting data-reverso markers in React/Next.js code",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@reverso/core": "workspace:*",
+    "ts-morph": "^24.0.0",
+    "glob": "^11.0.0",
+    "chokidar": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hogrid/reverso.git",
+    "directory": "packages/scanner"
+  },
+  "keywords": ["reverso", "cms", "scanner", "ast", "parser"],
+  "author": "Emerson Nunes <emerson@hogrid.com>",
+  "license": "MIT"
+}

@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        patterns:
+          - '*'
+        exclude-patterns:
+          - '@types/*'
+          - 'eslint*'
+          - 'prettier'
+          - 'vitest'
+          - '@biomejs/*'
+      dev-dependencies:
+        patterns:
+          - '@types/*'
+          - 'vitest'
+          - '@biomejs/*'
+        dependency-type: 'development'
+    commit-message:
+      prefix: 'chore(deps):'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    commit-message:
+      prefix: 'chore(ci):'
