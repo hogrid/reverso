@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    ["@reverso/core", "@reverso/scanner", "@reverso/db", "@reverso/api", "@reverso/admin", "@reverso/blocks", "@reverso/forms", "@reverso/cli", "@reverso/mcp", "create-reverso"]
+  ],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": ["@reverso/docs", "@reverso/playground"]
+}
