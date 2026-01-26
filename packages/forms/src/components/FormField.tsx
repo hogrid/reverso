@@ -12,8 +12,8 @@ import {
   NumberField,
   RadioField,
   SelectField,
-  TextareaField,
   TextField,
+  TextareaField,
 } from './fields';
 
 /**

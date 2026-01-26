@@ -223,10 +223,7 @@ export async function bulkCreateRedirects(
 /**
  * Get redirect count.
  */
-export async function getRedirectCount(
-  db: DrizzleDatabase,
-  isEnabled?: boolean
-): Promise<number> {
+export async function getRedirectCount(db: DrizzleDatabase, isEnabled?: boolean): Promise<number> {
   let query = db.select({ count: count() }).from(redirects);
 
   if (isEnabled !== undefined) {
