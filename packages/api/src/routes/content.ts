@@ -125,7 +125,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: bodyResult.error.errors[0]?.message ?? 'Invalid request body',
+          message: bodyResult.error.issues[0]?.message ?? 'Invalid request body',
         });
       }
 
@@ -185,7 +185,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: bodyResult.error.errors[0]?.message ?? 'Invalid request body',
+          message: bodyResult.error.issues[0]?.message ?? 'Invalid request body',
         });
       }
 

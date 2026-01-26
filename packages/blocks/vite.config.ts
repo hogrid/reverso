@@ -12,7 +12,13 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '@reverso/core'],
+      external: [
+        'react',
+        'react-dom',
+        '@reverso/core',
+        /^@tiptap\/.*/,
+        /^@dnd-kit\/.*/,
+      ],
       output: {
         globals: {
           react: 'React',

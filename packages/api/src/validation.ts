@@ -193,7 +193,172 @@ export const localeQuerySchema = z.object({
   locale: z.string().regex(LOCALE_REGEX).optional().default('default'),
 });
 
+// ============================================
+// FORMS VALIDATION
+// ============================================
+
+/**
+ * Form status enum.
+ */
+export const formStatusSchema = z.enum(['draft', 'published', 'archived']);
+
+/**
+ * Form step schema.
+ */
+export const formStepSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+});
+
+/**
+ * Form settings schema.
+ */
+export const formSettingsSchema = z.object({
+  submitButtonText: z.string().max(100).optional(),
+  successMessage: z.string().max(1000).optional(),
+  redirectUrl: z.string().url().optional(),
+});
+
+/**
+ * Form create schema.
+ */
+export const formCreateSchema = z.object({
+  name: z.string().min(1).max(200),
+  slug: z.string().regex(SLUG_REGEX, 'Invalid slug format').min(1).max(100),
+  description: z.string().max(1000).optional(),
+  status: formStatusSchema.optional(),
+  isMultiStep: z.boolean().optional(),
+  steps: z.array(formStepSchema).optional(),
+  settings: formSettingsSchema.optional(),
+  notifyEmails: z.array(z.string().email()).optional(),
+  notifyOnSubmission: z.boolean().optional(),
+  webhookUrl: z.string().url().optional(),
+  webhookSecret: z.string().max(500).optional(),
+  webhookEnabled: z.boolean().optional(),
+  honeypotEnabled: z.boolean().optional(),
+  rateLimitPerMinute: z.number().int().min(1).max(1000).optional(),
+});
+
+/**
+ * Form update schema.
+ */
+export const formUpdateSchema = formCreateSchema.partial();
+
+/**
+ * Form field type enum.
+ */
+export const formFieldTypeSchema = z.enum([
+  'text',
+  'email',
+  'textarea',
+  'number',
+  'select',
+  'checkbox',
+  'radio',
+  'date',
+  'file',
+  'hidden',
+]);
+
+/**
+ * Field condition schema.
+ */
+export const fieldConditionSchema = z.object({
+  field: z.string().min(1),
+  operator: z.enum(['equals', 'notEquals', 'contains', 'notContains', 'isEmpty', 'isNotEmpty']),
+  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
+});
+
+/**
+ * Field config schema.
+ */
+export const fieldConfigSchema = z.object({
+  options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  accept: z.string().optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  minLength: z.number().int().min(0).optional(),
+  maxLength: z.number().int().min(0).optional(),
+  pattern: z.string().optional(),
+  rows: z.number().int().min(1).optional(),
+  multiple: z.boolean().optional(),
+});
+
+/**
+ * Form field create schema.
+ */
+export const formFieldCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: formFieldTypeSchema,
+  label: z.string().max(200).optional(),
+  placeholder: z.string().max(500).optional(),
+  help: z.string().max(500).optional(),
+  required: z.boolean().optional(),
+  validation: z.string().max(2000).optional(),
+  config: fieldConfigSchema.optional(),
+  width: z.number().int().min(1).max(12).optional(),
+  step: z.number().int().min(1).optional(),
+  sortOrder: z.number().int().min(0).optional(),
+  condition: fieldConditionSchema.optional(),
+});
+
+/**
+ * Form field update schema.
+ */
+export const formFieldUpdateSchema = formFieldCreateSchema.partial();
+
+/**
+ * Form submission create schema (public).
+ */
+export const formSubmissionCreateSchema = z.object({
+  data: z.record(z.string(), z.unknown()),
+  honeypot: z.string().optional(),
+});
+
+// ============================================
+// REDIRECTS VALIDATION
+// ============================================
+
+/**
+ * Redirect status code enum.
+ */
+export const redirectStatusCodeSchema = z.union([
+  z.literal(301),
+  z.literal(302),
+  z.literal(307),
+  z.literal(308),
+]);
+
+/**
+ * Redirect create schema.
+ */
+export const redirectCreateSchema = z.object({
+  fromPath: z.string().min(1).max(2000).refine((val) => val.startsWith('/'), {
+    message: 'fromPath must start with /',
+  }),
+  toPath: z.string().min(1).max(2000),
+  statusCode: redirectStatusCodeSchema.optional(),
+  isEnabled: z.boolean().optional(),
+});
+
+/**
+ * Redirect update schema.
+ */
+export const redirectUpdateSchema = redirectCreateSchema.partial();
+
+// ============================================
+// TYPE EXPORTS
+// ============================================
+
 export type ContentUpdateInput = z.infer<typeof contentUpdateSchema>;
 export type BulkContentUpdateInput = z.infer<typeof bulkContentUpdateSchema>;
 export type SchemaSyncInput = z.infer<typeof schemaSyncSchema>;
 export type MediaUpdateInput = z.infer<typeof mediaUpdateSchema>;
+export type FormCreateInput = z.infer<typeof formCreateSchema>;
+export type FormUpdateInput = z.infer<typeof formUpdateSchema>;
+export type FormFieldCreateInput = z.infer<typeof formFieldCreateSchema>;
+export type FormFieldUpdateInput = z.infer<typeof formFieldUpdateSchema>;
+export type FormSubmissionCreateInput = z.infer<typeof formSubmissionCreateSchema>;
+export type RedirectCreateInput = z.infer<typeof redirectCreateSchema>;
+export type RedirectUpdateInput = z.infer<typeof redirectUpdateSchema>;

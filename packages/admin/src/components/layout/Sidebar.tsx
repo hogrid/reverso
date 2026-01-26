@@ -8,7 +8,9 @@ import { useUIStore } from '@/stores/ui';
 import {
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   FileText,
+  FormInput,
   Image,
   Layers,
   LayoutDashboard,
@@ -26,6 +28,8 @@ const mainNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'Pages', href: '/pages', icon: FileText },
   { title: 'Media', href: '/media', icon: Image },
+  { title: 'Forms', href: '/forms', icon: FormInput },
+  { title: 'Redirects', href: '/redirects', icon: ExternalLink },
 ];
 
 const bottomNavItems: NavItem[] = [{ title: 'Settings', href: '/settings', icon: Settings }];

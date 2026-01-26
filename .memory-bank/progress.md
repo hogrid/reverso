@@ -114,33 +114,65 @@
     - [x] RepeaterField, FlexibleField
     - [x] RelationField, MapField
 
-- [ ] **Phase 3D: Media Library** ⏳ PENDING
+- [x] **Phase 3D: Media Library** ✅ COMPLETE
   - [x] MediaPage (basic implementation)
-  - [ ] MediaLibrary modal for field selection
-  - [ ] MediaUploader with drag-drop and progress
-  - [ ] MediaGrid with selection and actions
+  - [x] MediaLibrary modal for field selection
+  - [x] MediaUploader with drag-drop and real API
+  - [x] MediaGrid with selection and actions
+  - [x] Integrated with ImageField, FileField, GalleryField
 
-- [ ] **Phase 3E: Polish** ⏳ PENDING
-  - [ ] Autosave hook
-  - [ ] Unsaved changes guard
-  - [ ] Keyboard shortcuts
-  - [ ] Unit tests (60%+ coverage)
+#### @reverso/blocks ✅ COMPLETE
+- [x] Tiptap-based block editor
+- [x] Rich text editing (bold, italic, underline, strike, code, highlight)
+- [x] Headings (h1-h3), blockquote, code blocks
+- [x] Lists (bullet, ordered)
+- [x] Text alignment
+- [x] Links and images
+- [x] Tables with headers
+- [x] Undo/redo
+- [x] Integrated with admin BlocksField
 
-#### @reverso/blocks ⏳ PENDING
-- [ ] Tiptap-based block editor
-- [ ] Rich text editing
-- [ ] Custom blocks
-- [ ] Image/video embedding
+- [x] **Phase 3E: Polish** ✅ COMPLETE
+  - [x] Autosave hook (useAutosave.ts)
+  - [x] Unsaved changes guard (useUnsavedChangesGuard.ts)
+  - [x] Keyboard shortcuts (useKeyboardShortcuts.ts)
+  - [ ] Unit tests (60%+ coverage) - Pending
 
-### Phase 4: Forms + SEO ⏳ PENDING
-- [ ] @reverso/forms - Form builder
-  - [ ] Field components
-  - [ ] Validation integration
-  - [ ] Conditional logic
-- [ ] SEO features
-  - [ ] Meta tags management
-  - [ ] Sitemap generation
-  - [ ] Open Graph support
+### Phase 4: Forms + SEO ✅ COMPLETE
+
+#### @reverso/db - Forms & Redirects Schema ✅
+- [x] Forms table (id, name, slug, status, isMultiStep, steps, settings, webhooks, honeypot)
+- [x] Form fields table (id, formId, name, type, validation, conditions, sortOrder)
+- [x] Form submissions table (id, formId, data, status, webhookSentAt)
+- [x] Redirects table (id, fromPath, toPath, statusCode, hitCount)
+- [x] CRUD queries for all entities
+- [x] Bulk import for redirects
+
+#### @reverso/api - Forms & SEO Routes ✅
+- [x] Forms CRUD endpoints (/forms, /forms/:id)
+- [x] Form fields CRUD (/forms/:id/fields)
+- [x] Form submissions (/forms/:id/submissions)
+- [x] Public form submit (/public/forms/:slug/submit)
+- [x] Redirects CRUD (/redirects, /redirects/:id)
+- [x] Bulk import/export for redirects
+- [x] Dynamic sitemap (/sitemap.xml) with 1-hour cache
+
+#### @reverso/admin - Forms Management ✅
+- [x] FormsListPage with create/duplicate dialogs
+- [x] FormBuilderPage with field management
+- [x] FormSubmissionsPage with filtering
+- [x] RedirectsPage with bulk import/export
+- [x] API hooks (useForms, useRedirects)
+- [x] Sidebar navigation for Forms and Redirects
+
+#### @reverso/forms - Form Builder Package ✅
+- [x] Types (FormConfig, FormFieldConfig, FormSubmissionData)
+- [x] Zod schema builder from field configs
+- [x] useReversoForm hook with multi-step support
+- [x] useConditionalFields hook for conditional logic
+- [x] 10 field components (Text, Email, Textarea, Number, Select, Checkbox, Radio, Date, File, Hidden)
+- [x] FormField dispatcher, FormProgress, FormStep components
+- [x] Main Form component with honeypot, multi-step, validation
 
 ### Phase 5: CLI + Wizard ⏳ PENDING
 - [ ] @reverso/cli - CLI commands
@@ -199,9 +231,9 @@
 | @reverso/scanner | 59 | ✅ Passing |
 | @reverso/db | 32 | ✅ Passing |
 | @reverso/api | 18 | ✅ Passing |
-| @reverso/admin | 0 | 🚧 Building (tests pending) |
-| @reverso/blocks | 0 | ⏳ Phase 3 |
-| @reverso/forms | 0 | ⏳ Phase 4 |
+| @reverso/admin | 0 | ✅ Built (tests pending) |
+| @reverso/blocks | 0 | ✅ Built |
+| @reverso/forms | 0 | ✅ Built |
 | @reverso/cli | 0 | ⏳ Phase 5 |
 
 **Total: 201 tests**
@@ -209,6 +241,36 @@
 ---
 
 ## Recent Changes
+
+### 2026-01-26 (Phase 4 - Forms + SEO)
+- **@reverso/db - Forms & Redirects Schema**
+  - Created forms, form_fields, form_submissions, redirects tables
+  - Implemented CRUD queries for all entities
+  - Added bulk import/export for redirects
+  - Hit tracking for redirects
+
+- **@reverso/api - Forms & SEO Routes**
+  - Forms CRUD with field management
+  - Submissions management with status changes
+  - Public form submission endpoint (no auth)
+  - Redirects CRUD with bulk operations
+  - Dynamic sitemap.xml with 1-hour cache
+
+- **@reverso/admin - Forms Management Pages**
+  - FormsListPage with create/duplicate dialogs
+  - FormBuilderPage with field management
+  - FormSubmissionsPage with filtering
+  - RedirectsPage with bulk import/export
+  - Added Table component (shadcn pattern)
+  - Updated Sidebar with Forms and Redirects links
+
+- **@reverso/forms - Form Builder Package**
+  - Complete form rendering system
+  - Multi-step forms support
+  - Conditional field visibility
+  - 10 field components
+  - Zod validation from field configs
+  - Honeypot spam protection
 
 ### 2026-01-23 (Phase 3 - Admin Panel + Code Quality)
 - **@reverso/admin implementation complete**

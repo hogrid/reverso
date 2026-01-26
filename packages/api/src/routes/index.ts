@@ -5,9 +5,12 @@
 
 import type { FastifyInstance } from 'fastify';
 import contentRoutes from './content.js';
+import formsRoutes from './forms.js';
 import mediaRoutes from './media.js';
 import pagesRoutes from './pages.js';
+import redirectsRoutes from './redirects.js';
 import schemaRoutes from './schema.js';
+import sitemapRoutes from './sitemap.js';
 
 /**
  * Register all API routes.
@@ -22,9 +25,20 @@ export async function registerRoutes(
       await instance.register(pagesRoutes);
       await instance.register(contentRoutes);
       await instance.register(mediaRoutes);
+      await instance.register(formsRoutes);
+      await instance.register(redirectsRoutes);
+      await instance.register(sitemapRoutes);
     },
     { prefix }
   );
 }
 
-export { schemaRoutes, pagesRoutes, contentRoutes, mediaRoutes };
+export {
+  schemaRoutes,
+  pagesRoutes,
+  contentRoutes,
+  mediaRoutes,
+  formsRoutes,
+  redirectsRoutes,
+  sitemapRoutes,
+};

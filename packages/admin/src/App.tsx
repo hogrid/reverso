@@ -1,5 +1,15 @@
 import { RootLayout } from '@/components/layout';
-import { DashboardPage, MediaPage, NotFoundPage, PageEditorPage, PagesListPage } from '@/pages';
+import {
+  DashboardPage,
+  FormBuilderPage,
+  FormsListPage,
+  FormSubmissionsPage,
+  MediaPage,
+  NotFoundPage,
+  PageEditorPage,
+  PagesListPage,
+  RedirectsPage,
+} from '@/pages';
 import { initializeTheme } from '@/stores/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -31,6 +41,10 @@ export function App() {
             <Route path="pages" element={<PagesListPage />} />
             <Route path="pages/:slug" element={<PageEditorPage />} />
             <Route path="media" element={<MediaPage />} />
+            <Route path="forms" element={<FormsListPage />} />
+            <Route path="forms/:id" element={<FormBuilderPage />} />
+            <Route path="forms/:id/submissions" element={<FormSubmissionsPage />} />
+            <Route path="redirects" element={<RedirectsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
