@@ -15,6 +15,29 @@ export {
 } from './content-history.js';
 export { media, type Media, type NewMedia } from './media.js';
 
+// Forms Tables
+export { forms, type Form, type NewForm, type FormStatus } from './forms.js';
+export {
+  formFields,
+  type FormField,
+  type NewFormField,
+  type FormFieldType,
+} from './form-fields.js';
+export {
+  formSubmissions,
+  type FormSubmission,
+  type NewFormSubmission,
+  type FormSubmissionStatus,
+} from './form-submissions.js';
+
+// SEO Tables
+export {
+  redirects,
+  type Redirect,
+  type NewRedirect,
+  type RedirectStatusCode,
+} from './redirects.js';
+
 // Auth Tables
 export {
   users,
@@ -35,9 +58,13 @@ import { accounts, sessions, users, verifications } from './auth.js';
 import { contentHistory } from './content-history.js';
 import { content } from './content.js';
 import { fields } from './fields.js';
+import { formFields } from './form-fields.js';
+import { formSubmissions } from './form-submissions.js';
+import { forms } from './forms.js';
 import { media } from './media.js';
 // Import all tables for schema object
 import { pages } from './pages.js';
+import { redirects } from './redirects.js';
 import { sections } from './sections.js';
 
 /**
@@ -50,6 +77,10 @@ export const allTables = {
   content,
   contentHistory,
   media,
+  forms,
+  formFields,
+  formSubmissions,
+  redirects,
   users,
   sessions,
   accounts,

@@ -1,3 +1,5 @@
+import { type MediaItem, mediaToImageValue } from '@/api/hooks/useMedia';
+import { MediaLibraryModal } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,13 +13,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { ImageValue } from '@reverso/core';
-import { Edit2, Image, X } from 'lucide-react';
+import { Edit2, FolderOpen, Image, X } from 'lucide-react';
 import { useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 export function ImageField({ field, value, onChange, disabled }: FieldRendererProps) {
   const imageValue = value as ImageValue | null;
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [tempAlt, setTempAlt] = useState(imageValue?.alt || '');
 
   const handleRemove = () => {
@@ -39,6 +42,12 @@ export function ImageField({ field, value, onChange, disabled }: FieldRendererPr
       } as ImageValue);
     } else {
       onChange(null);
+    }
+  };
+
+  const handleLibrarySelect = (items: MediaItem[]) => {
+    if (items.length > 0 && items[0]) {
+      onChange(mediaToImageValue(items[0]));
     }
   };
 
@@ -112,11 +121,10 @@ export function ImageField({ field, value, onChange, disabled }: FieldRendererPr
           disabled={disabled}
           className="flex-1"
         />
-        {/* TODO: Add media library button */}
-        {/* <Button variant="outline" disabled={disabled}>
-          <Upload className="h-4 w-4 mr-2" />
+        <Button variant="outline" onClick={() => setLibraryOpen(true)} disabled={disabled}>
+          <FolderOpen className="h-4 w-4 mr-2" />
           Browse
-        </Button> */}
+        </Button>
       </div>
 
       {/* Edit dialog */}
@@ -156,6 +164,16 @@ export function ImageField({ field, value, onChange, disabled }: FieldRendererPr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Media library modal */}
+      <MediaLibraryModal
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        onSelect={handleLibrarySelect}
+        mimeTypeFilter="image/*"
+        title="Select Image"
+        description="Choose an image from your media library or upload a new one."
+      />
     </div>
   );
 }

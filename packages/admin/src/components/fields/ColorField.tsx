@@ -2,8 +2,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
+
+// Validate hex color format
+function isValidHexColor(color: string): boolean {
+  return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
+}
+
+// Normalize partial hex input (add # if missing, etc.)
+function normalizeHexInput(input: string): string {
+  let normalized = input.trim();
+  if (!normalized.startsWith('#')) {
+    normalized = `#${normalized}`;
+  }
+  return normalized.toUpperCase();
+}
 
 // Common color presets
 const colorPresets = [
@@ -22,6 +36,34 @@ const colorPresets = [
 export function ColorField({ field, value, onChange, disabled }: FieldRendererProps) {
   const colorValue = String(value ?? '#000000');
   const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(colorValue);
+
+  // Handle hex input changes - only update parent if valid
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
+      setInputValue(newValue);
+
+      // Only call onChange if it's a valid hex color
+      const normalized = normalizeHexInput(newValue);
+      if (isValidHexColor(normalized)) {
+        onChange(normalized);
+      }
+    },
+    [onChange]
+  );
+
+  // Handle blur - normalize the input value
+  const handleInputBlur = useCallback(() => {
+    const normalized = normalizeHexInput(inputValue);
+    if (isValidHexColor(normalized)) {
+      setInputValue(normalized);
+      onChange(normalized);
+    } else {
+      // Reset to the last valid value
+      setInputValue(colorValue);
+    }
+  }, [inputValue, colorValue, onChange]);
 
   return (
     <div className="flex items-center gap-2">
@@ -77,8 +119,9 @@ export function ColorField({ field, value, onChange, disabled }: FieldRendererPr
       {/* Hex input */}
       <Input
         id={field.path}
-        value={colorValue}
-        onChange={(e) => onChange(e.target.value)}
+        value={inputValue}
+        onChange={handleInputChange}
+        onBlur={handleInputBlur}
         placeholder="#000000"
         disabled={disabled}
         className="flex-1 font-mono uppercase"

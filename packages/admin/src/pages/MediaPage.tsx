@@ -1,14 +1,12 @@
 import {
-  type MediaItem,
   useBulkDeleteMedia,
   useDeleteMedia,
   useMedia,
-  useUploadMedia,
 } from '@/api/hooks/useMedia';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
-import { Badge } from '@/components/ui/badge';
+import { MediaGridItem, MediaListItem, MediaUploader } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,27 +22,21 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn, formatFileSize, isImageFile } from '@/lib/utils';
 import {
-  Download,
   FileText,
   Film,
   Filter,
   Grid,
   Image as ImageIcon,
   List,
-  MoreVertical,
   Music,
   Search,
   Trash2,
-  Upload,
 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 type ViewMode = 'grid' | 'list';
 type MediaType = 'all' | 'image' | 'video' | 'audio' | 'document';
@@ -86,29 +78,8 @@ export function MediaPage() {
     pageSize: 50,
   });
 
-  const uploadMedia = useUploadMedia();
   const deleteMedia = useDeleteMedia();
   const bulkDeleteMedia = useBulkDeleteMedia();
-
-  const handleFileUpload = useCallback(
-    async (files: FileList | null) => {
-      if (!files) return;
-      await uploadMedia.mutateAsync(Array.from(files));
-    },
-    [uploadMedia]
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      handleFileUpload(e.dataTransfer.files);
-    },
-    [handleFileUpload]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
 
   const toggleSelection = (id: string) => {
     const newSelection = new Set(selectedItems);
@@ -179,18 +150,6 @@ export function MediaPage() {
               </Button>
             </>
           )}
-          <Button asChild>
-            <label className="cursor-pointer">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Files
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => handleFileUpload(e.target.files)}
-              />
-            </label>
-          </Button>
         </div>
       </div>
 
@@ -244,28 +203,8 @@ export function MediaPage() {
         </div>
       </div>
 
-      {/* Drop zone */}
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        className={cn(
-          'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
-          uploadMedia.isPending
-            ? 'border-primary bg-primary/5'
-            : 'border-muted-foreground/25 hover:border-primary/50'
-        )}
-      >
-        {uploadMedia.isPending ? (
-          <LoadingState size="sm" message="Uploading files..." />
-        ) : (
-          <>
-            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Drag and drop files here, or click the upload button
-            </p>
-          </>
-        )}
-      </div>
+      {/* Upload area */}
+      <MediaUploader onUploadComplete={() => refetch()} />
 
       {/* Media grid/list */}
       {media?.items && media.items.length > 0 ? (
@@ -348,129 +287,5 @@ export function MediaPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-interface MediaItemProps {
-  item: MediaItem;
-  selected: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-}
-
-function MediaGridItem({ item, selected, onSelect, onDelete }: MediaItemProps) {
-  const isImage = isImageFile(item.filename);
-
-  return (
-    <Card
-      className={cn(
-        'group relative overflow-hidden cursor-pointer transition-all',
-        selected && 'ring-2 ring-primary'
-      )}
-    >
-      <div className="aspect-square relative">
-        {isImage ? (
-          <img
-            src={item.url}
-            alt={item.alt || item.filename}
-            className="object-cover w-full h-full"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-muted">
-            <FileText className="h-12 w-12 text-muted-foreground" />
-          </div>
-        )}
-
-        {/* Selection checkbox */}
-        <div className="absolute top-2 left-2">
-          <Checkbox checked={selected} onCheckedChange={onSelect} className="bg-background" />
-        </div>
-
-        {/* Actions */}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={item.url} download={item.filename}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      <CardContent className="p-2">
-        <p className="text-xs font-medium truncate">{item.filename}</p>
-        <p className="text-xs text-muted-foreground">{formatFileSize(item.size)}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function MediaListItem({ item, selected, onSelect, onDelete }: MediaItemProps) {
-  const isImage = isImageFile(item.filename);
-
-  return (
-    <Card className={cn('transition-all', selected && 'ring-2 ring-primary')}>
-      <CardContent className="flex items-center gap-4 p-3">
-        <Checkbox checked={selected} onCheckedChange={onSelect} />
-
-        <div className="h-12 w-12 rounded overflow-hidden flex-shrink-0">
-          {isImage ? (
-            <img
-              src={item.url}
-              alt={item.alt || item.filename}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-muted">
-              <FileText className="h-6 w-6 text-muted-foreground" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{item.filename}</p>
-          <p className="text-sm text-muted-foreground">
-            {formatFileSize(item.size)} &middot; {new Date(item.createdAt).toLocaleDateString()}
-          </p>
-        </div>
-
-        <Badge variant="secondary">{item.mimeType.split('/')[0]}</Badge>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <a href={item.url} download={item.filename}>
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </CardContent>
-    </Card>
   );
 }

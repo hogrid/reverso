@@ -3,4 +3,8 @@ export * from './DashboardPage';
 export * from './PagesListPage';
 export * from './PageEditorPage';
 export * from './MediaPage';
+export * from './FormsListPage';
+export * from './FormBuilderPage';
+export * from './FormSubmissionsPage';
+export * from './RedirectsPage';
 export * from './NotFoundPage';

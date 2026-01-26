@@ -54,7 +54,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: queryResult.error.errors[0]?.message ?? 'Invalid query parameters',
+          message: queryResult.error.issues[0]?.message ?? 'Invalid query parameters',
         });
       }
 
@@ -107,7 +107,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: queryResult.error.errors[0]?.message ?? 'Invalid query parameters',
+          message: queryResult.error.issues[0]?.message ?? 'Invalid query parameters',
         });
       }
 
@@ -350,7 +350,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: bodyResult.error.errors[0]?.message ?? 'Invalid request body',
+          message: bodyResult.error.issues[0]?.message ?? 'Invalid request body',
         });
       }
 

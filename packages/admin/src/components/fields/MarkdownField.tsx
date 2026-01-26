@@ -16,7 +16,7 @@ import {
   Quote,
   Strikethrough,
 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 // Escape HTML special characters to prevent XSS
@@ -29,6 +29,21 @@ function escapeHtml(text: string): string {
     "'": '&#x27;',
   };
   return text.replace(/[&<>"']/g, (char) => escapeMap[char] || char);
+}
+
+// Validate URL to prevent XSS via javascript:/data: protocols
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, 'https://example.com');
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol);
+  } catch {
+    // If parsing fails, check if it's a relative URL (starts with / or ./)
+    return url.startsWith('/') || url.startsWith('./') || url.startsWith('../');
+  }
+}
+
+function sanitizeUrl(url: string): string {
+  return isValidUrl(url) ? url : '#';
 }
 
 // Simple markdown to HTML converter for preview
@@ -67,11 +82,11 @@ function markdownToHtml(markdown: string): string {
 
   // Links and images - validate URLs to prevent javascript: injection
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
-    const safeUrl = url.replace(/javascript:/gi, '').replace(/data:/gi, '');
+    const safeUrl = sanitizeUrl(url.trim());
     return `<img src="${safeUrl}" alt="${escapeHtml(alt)}" class="max-w-full rounded my-2" />`;
   });
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
-    const safeUrl = url.replace(/javascript:/gi, '').replace(/data:/gi, '');
+    const safeUrl = sanitizeUrl(url.trim());
     return `<a href="${safeUrl}" class="text-primary underline" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
   });
 
@@ -89,9 +104,19 @@ function markdownToHtml(markdown: string): string {
 
 export function MarkdownField({ field, value, onChange, disabled }: FieldRendererProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<'write' | 'preview'>('write');
 
   const markdown = (value as string) || '';
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const insertMarkdown = useCallback(
     (before: string, after = '', placeholder = '') => {
@@ -106,8 +131,13 @@ export function MarkdownField({ field, value, onChange, disabled }: FieldRendere
 
       onChange(newText);
 
+      // Clear previous timeout if any
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
       // Restore cursor position
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         textarea.focus();
         const newCursorPos = start + before.length + selectedText.length;
         textarea.setSelectionRange(newCursorPos, newCursorPos);

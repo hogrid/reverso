@@ -1,6 +1,7 @@
+import { type MediaItem, mediaToImageValue, useUploadMedia } from '@/api/hooks/useMedia';
+import { MediaLibraryModal } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
   DndContext,
@@ -19,8 +20,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Image as ImageIcon, Plus, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { FolderOpen, GripVertical, Image as ImageIcon, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 interface GalleryImage {
@@ -85,23 +86,13 @@ function SortableImage({
 
 export function GalleryField({ field, value, onChange, disabled }: FieldRendererProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
+  const uploadMedia = useUploadMedia();
   const images: GalleryImage[] = Array.isArray(value) ? (value as GalleryImage[]) : [];
   const accept = field.accept || 'image/*';
   const maxItems = field.max || 20;
-
-  // Cleanup intervals and timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -129,42 +120,33 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
 
       if (filesToUpload.length === 0) return;
 
-      // Clear any existing timers
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-      setUploading(true);
-      setUploadProgress(0);
-
-      // Simulate upload progress
-      intervalRef.current = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 100);
-
-      // Simulate upload completion
-      timeoutRef.current = setTimeout(() => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setUploadProgress(100);
-
-        const newImages: GalleryImage[] = filesToUpload.map((file, idx) => ({
-          id: `temp-${Date.now()}-${idx}`,
-          url: URL.createObjectURL(file),
-          filename: file.name,
+      try {
+        const uploaded = await uploadMedia.mutateAsync(filesToUpload);
+        const newImages: GalleryImage[] = uploaded.map((media) => ({
+          id: media.id,
+          url: media.url,
+          alt: media.alt,
+          filename: media.filename,
         }));
-
         onChange([...images, ...newImages]);
-        setUploading(false);
-        setUploadProgress(0);
-      }, 1000);
+      } catch (error) {
+        console.error('Failed to upload files:', error);
+      }
     },
-    [onChange, disabled, images, maxItems]
+    [onChange, disabled, images, maxItems, uploadMedia]
   );
+
+  const handleLibrarySelect = (items: MediaItem[]) => {
+    const remainingSlots = maxItems - images.length;
+    const itemsToAdd = items.slice(0, remainingSlots);
+    const newImages: GalleryImage[] = itemsToAdd.map((media) => ({
+      id: media.id,
+      url: media.url,
+      alt: media.alt,
+      filename: media.filename,
+    }));
+    onChange([...images, ...newImages]);
+  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -228,14 +210,13 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
             isDragOver
               ? 'border-primary bg-primary/5'
               : 'border-muted-foreground/25 hover:border-primary/50',
-            disabled && 'opacity-50 cursor-not-allowed'
+            (disabled || uploadMedia.isPending) && 'opacity-50 cursor-not-allowed'
           )}
         >
-          {uploading ? (
+          {uploadMedia.isPending ? (
             <div className="space-y-3">
-              <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground animate-pulse" />
+              <Loader2 className="h-6 w-6 mx-auto text-muted-foreground animate-spin" />
               <p className="text-sm text-muted-foreground">Uploading images...</p>
-              <Progress value={uploadProgress} className="w-[60%] mx-auto" />
             </div>
           ) : (
             <>
@@ -257,8 +238,23 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
         </div>
       )}
 
+      {/* Add from library button */}
+      {images.length < maxItems && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLibraryOpen(true)}
+            disabled={disabled}
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Add from Library
+          </Button>
+        </div>
+      )}
+
       {/* Empty state */}
-      {images.length === 0 && !uploading && (
+      {images.length === 0 && !uploadMedia.isPending && (
         <Card className="border-dashed">
           <CardContent className="py-8 text-center">
             <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
@@ -266,6 +262,18 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
           </CardContent>
         </Card>
       )}
+
+      {/* Media library modal */}
+      <MediaLibraryModal
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        onSelect={handleLibrarySelect}
+        multiple
+        maxSelect={maxItems - images.length}
+        mimeTypeFilter="image/*"
+        title="Select Images"
+        description="Choose images from your media library or upload new ones."
+      />
     </div>
   );
 }

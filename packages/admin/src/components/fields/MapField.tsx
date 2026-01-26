@@ -19,8 +19,18 @@ const DEFAULT_ZOOM = 13;
 
 export function MapField({ field, value, onChange, disabled }: FieldRendererProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Parse current value
   const mapValue: MapValue = (value as MapValue) || {
@@ -49,10 +59,15 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() || disabled) return;
 
+    // Clear previous timeout if any
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     setIsSearching(true);
     // In production, this would call a geocoding API
     // For now, simulate a search delay and use mock coordinates
-    setTimeout(() => {
+    searchTimeoutRef.current = setTimeout(() => {
       // Mock geocoding result
       const mockResults: Record<string, MapValue> = {
         'new york': { lat: 40.7128, lng: -74.006, address: 'New York, NY, USA' },
@@ -94,9 +109,6 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
       }
     );
   }, [disabled, onChange]);
-
-  // Generate static map URL for preview
-  const mapImageUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+ef4444(${mapValue.lng},${mapValue.lat})/${mapValue.lng},${mapValue.lat},${mapValue.zoom || DEFAULT_ZOOM},0/400x200@2x?access_token=pk.placeholder`;
 
   return (
     <div className="space-y-4">
