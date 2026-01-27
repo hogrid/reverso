@@ -187,10 +187,18 @@ async function createProject(config: ProjectConfig): Promise<void> {
     generateGitignore()
   );
 
-  // Example component
+  // Example components
   writeFileSync(
     join(projectPath, 'src', 'components', `Hero.${config.typescript ? 'tsx' : 'jsx'}`),
-    generateExampleComponent(config)
+    generateHeroComponent(config)
+  );
+  writeFileSync(
+    join(projectPath, 'src', 'components', `Features.${config.typescript ? 'tsx' : 'jsx'}`),
+    generateFeaturesComponent(config)
+  );
+  writeFileSync(
+    join(projectPath, 'src', 'components', `About.${config.typescript ? 'tsx' : 'jsx'}`),
+    generateAboutComponent(config)
   );
 
   // Framework-specific files
@@ -385,13 +393,13 @@ npm-debug.log*
 }
 
 /**
- * Generate example component with Reverso markers.
+ * Generate Hero component with Reverso markers.
  */
-function generateExampleComponent(config: ProjectConfig): string {
+function generateHeroComponent(config: ProjectConfig): string {
   const props = config.typescript ? ': { className?: string }' : '';
 
   return `/**
- * Example Hero component with Reverso CMS markers.
+ * Hero component with Reverso CMS markers.
  *
  * The data-reverso attribute follows the pattern: page.section.field
  * Example: home.hero.title = page "home", section "hero", field "title"
@@ -417,12 +425,145 @@ export function Hero({ className }${props}) {
       />
 
       <a
-        data-reverso="home.hero.cta"
-        data-reverso-type="link"
+        data-reverso="home.hero.ctaText"
+        data-reverso-type="text"
         href="#"
       >
         Get Started
       </a>
+    </section>
+  );
+}
+`;
+}
+
+/**
+ * Generate Features component with repeater pattern.
+ */
+function generateFeaturesComponent(config: ProjectConfig): string {
+  const props = config.typescript ? ': { className?: string }' : '';
+  const featureType = config.typescript ? ': { icon: string; title: string; description: string }' : '';
+
+  return `/**
+ * Features component demonstrating repeater pattern.
+ *
+ * The $ symbol in the path indicates a repeater item:
+ * home.features.$.title = each item in the "features" repeater has a "title"
+ */
+
+export function Features({ className }${props}) {
+  // Example features - content comes from CMS
+  const features${config.typescript ? ': Array<{ icon: string; title: string; description: string }>' : ''} = [
+    { icon: '🚀', title: 'Fast', description: 'Lightning fast performance' },
+    { icon: '🔒', title: 'Secure', description: 'Enterprise-grade security' },
+    { icon: '🎨', title: 'Beautiful', description: 'Modern, responsive design' },
+  ];
+
+  return (
+    <section className={className}>
+      <h2 data-reverso="home.features.heading" data-reverso-type="text">
+        Why Choose Us
+      </h2>
+      <p data-reverso="home.features.subheading" data-reverso-type="textarea">
+        Everything you need to build amazing websites.
+      </p>
+
+      <div className="grid">
+        {features.map((feature, index) => (
+          <div key={index} className="feature-card">
+            <span
+              data-reverso="home.features.$.icon"
+              data-reverso-type="icon"
+            >
+              {feature.icon}
+            </span>
+            <h3
+              data-reverso="home.features.$.title"
+              data-reverso-type="text"
+            >
+              {feature.title}
+            </h3>
+            <p
+              data-reverso="home.features.$.description"
+              data-reverso-type="textarea"
+            >
+              {feature.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+`;
+}
+
+/**
+ * Generate About component with various field types.
+ */
+function generateAboutComponent(config: ProjectConfig): string {
+  const props = config.typescript ? ': { className?: string }' : '';
+
+  return `/**
+ * About component demonstrating various field types.
+ */
+
+export function About({ className }${props}) {
+  return (
+    <section className={className}>
+      <h2 data-reverso="about.intro.title" data-reverso-type="text">
+        About Us
+      </h2>
+
+      <div
+        data-reverso="about.intro.content"
+        data-reverso-type="wysiwyg"
+        data-reverso-label="About Content"
+      >
+        <p>We are a passionate team dedicated to building great products.</p>
+        <p>Our mission is to make content management simple and intuitive.</p>
+      </div>
+
+      <div className="stats">
+        <div>
+          <span
+            data-reverso="about.stats.years"
+            data-reverso-type="number"
+            data-reverso-label="Years in Business"
+          >
+            10
+          </span>
+          <span>Years</span>
+        </div>
+        <div>
+          <span
+            data-reverso="about.stats.clients"
+            data-reverso-type="number"
+            data-reverso-label="Happy Clients"
+          >
+            500
+          </span>
+          <span>Clients</span>
+        </div>
+        <div>
+          <span
+            data-reverso="about.stats.projects"
+            data-reverso-type="number"
+            data-reverso-label="Completed Projects"
+          >
+            1000
+          </span>
+          <span>Projects</span>
+        </div>
+      </div>
+
+      <img
+        data-reverso="about.team.photo"
+        data-reverso-type="image"
+        data-reverso-label="Team Photo"
+        src="/team.jpg"
+        alt="Our team"
+      />
     </section>
   );
 }
@@ -455,11 +596,15 @@ function generateNextJsFiles(projectPath: string, config: ProjectConfig): void {
   writeFileSync(
     join(projectPath, 'src', 'app', `page.${ext}`),
     `import { Hero } from '@/components/Hero';
+import { Features } from '@/components/Features';
+import { About } from '@/components/About';
 
 export default function HomePage() {
   return (
     <main>
       <Hero />
+      <Features />
+      <About />
     </main>
   );
 }
@@ -522,11 +667,15 @@ export default defineConfig({
     `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Hero } from './components/Hero';
+import { Features } from './components/Features';
+import { About } from './components/About';
 
 ReactDOM.createRoot(document.getElementById('root')${config.typescript ? '!' : ''}).render(
   <React.StrictMode>
     <main>
       <Hero />
+      <Features />
+      <About />
     </main>
   </React.StrictMode>
 );
@@ -558,6 +707,8 @@ export default defineConfig({
     join(projectPath, 'src', 'pages', 'index.astro'),
     `---
 import { Hero } from '../components/Hero';
+import { Features } from '../components/Features';
+import { About } from '../components/About';
 ---
 
 <html lang="en">
@@ -569,6 +720,8 @@ import { Hero } from '../components/Hero';
   <body>
     <main>
       <Hero client:load />
+      <Features client:load />
+      <About client:load />
     </main>
   </body>
 </html>

@@ -1,14 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-
-function App() {
-  return (
-    <div>
-      <h1>Reverso Playground</h1>
-      <p>Interactive demo coming soon...</p>
-    </div>
-  );
-}
+import App from './App';
+import './styles.css';
 
 const root = document.getElementById('root');
 if (root) {
