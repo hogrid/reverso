@@ -7,8 +7,10 @@ import { join } from 'node:path';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import authPlugin, { type AuthPluginOptions } from './plugins/auth.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -25,6 +27,10 @@ export interface ServerConfig {
   logger?: boolean;
   /** API prefix */
   prefix?: string;
+  /** API key for authentication */
+  apiKey?: string;
+  /** Enable authentication (default: true in production) */
+  authEnabled?: boolean;
 }
 
 export interface CorsOptions {
@@ -59,6 +65,8 @@ const defaultConfig: Required<ServerConfig> = {
   uploadsDir: '.reverso/uploads',
   logger: true,
   prefix: '/api/reverso',
+  apiKey: process.env.REVERSO_API_KEY || '',
+  authEnabled: process.env.NODE_ENV === 'production',
 };
 
 /**
@@ -85,16 +93,25 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Register CORS
   if (opts.cors) {
+    // In production, require explicit origin configuration
+    const isProduction = process.env.NODE_ENV === 'production';
+    const defaultOrigin = isProduction
+      ? process.env.REVERSO_CORS_ORIGIN || 'http://localhost:3000'
+      : true;
+
     const corsOptions =
       typeof opts.cors === 'object'
         ? {
-            origin: opts.cors.origin ?? true,
-            methods: opts.cors.methods ?? ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+            origin: opts.cors.origin ?? defaultOrigin,
+            methods: opts.cors.methods ?? ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
             credentials: opts.cors.credentials ?? true,
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
           }
         : {
-            origin: true,
+            origin: defaultOrigin,
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
             credentials: true,
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
           };
 
     await server.register(cors, corsOptions);
@@ -106,12 +123,45 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
+  // Register rate limiting
+  await server.register(rateLimit, {
+    max: 100, // Max 100 requests per window
+    timeWindow: '1 minute',
+    // Stricter limits for specific routes
+    keyGenerator: (request) => {
+      // Use API key or IP for rate limiting
+      return (
+        request.headers['x-api-key']?.toString() ||
+        request.headers['x-forwarded-for']?.toString() ||
+        request.ip
+      );
+    },
+    // Skip rate limiting for health checks
+    allowList: ['/health'],
+    // Custom error response
+    errorResponseBuilder: () => ({
+      success: false,
+      error: 'Too Many Requests',
+      message: 'Rate limit exceeded. Please try again later.',
+    }),
+  });
+
   // Register multipart for file uploads
   await server.register(multipart, {
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB
       files: 10,
     },
+  });
+
+  // Register authentication plugin
+  await server.register(authPlugin, {
+    apiKey: opts.apiKey,
+    enabled: opts.authEnabled,
+    publicPaths: [
+      /^\/api\/reverso\/public\//,
+      /^\/sitemap\.xml$/,
+    ],
   });
 
   // Ensure uploads directory exists

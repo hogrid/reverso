@@ -132,7 +132,26 @@ export function useReversoForm({
             setState((prev) => ({ ...prev, isSubmitting: false, isSubmitted: true }));
 
             if (result.redirectUrl) {
-              window.location.href = result.redirectUrl;
+              // Validate redirect URL to prevent open redirect attacks
+              const isSafeRedirect = (url: string): boolean => {
+                // Allow relative paths
+                if (url.startsWith('/') && !url.startsWith('//')) {
+                  return true;
+                }
+                // Allow same-origin URLs
+                try {
+                  const parsed = new URL(url, window.location.origin);
+                  return parsed.origin === window.location.origin;
+                } catch {
+                  return false;
+                }
+              };
+
+              if (isSafeRedirect(result.redirectUrl)) {
+                window.location.href = result.redirectUrl;
+              } else {
+                console.warn('Blocked unsafe redirect URL:', result.redirectUrl);
+              }
             }
           } else {
             setState((prev) => ({

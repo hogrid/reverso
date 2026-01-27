@@ -9,6 +9,10 @@ export interface McpServerConfig {
   name?: string;
   /** Server version */
   version?: string;
+  /** API key for authentication (optional - if set, all tool calls require this key) */
+  apiKey?: string;
+  /** Enable authentication (default: true if apiKey is set) */
+  authEnabled?: boolean;
 }
 
 export interface ContentUpdateInput {

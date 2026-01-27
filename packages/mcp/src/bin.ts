@@ -34,7 +34,7 @@ function parseArgs(args: string[]): { database: string; help: boolean; version: 
 }
 
 function printHelp(): void {
-  console.log(`
+  console.info(`
 Reverso MCP Server - AI integration for Reverso CMS
 
 Usage:
@@ -65,7 +65,7 @@ MCP Configuration:
 }
 
 function printVersion(): void {
-  console.log(`reverso-mcp v${VERSION}`);
+  console.info(`reverso-mcp v${VERSION}`);
 }
 
 async function main(): Promise<void> {

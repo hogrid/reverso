@@ -86,15 +86,25 @@ export function devCommand(program: Command): void {
 
         // Open browser if requested
         if (options.open) {
-          const { exec } = await import('node:child_process');
-          const url = `http://${options.host}:${port}`;
-          const command =
+          const { spawn } = await import('node:child_process');
+
+          // Validate host to prevent command injection
+          const safeHost = /^[a-zA-Z0-9.-]+$/.test(options.host) ? options.host : 'localhost';
+          const safePort = Number.isInteger(port) && port > 0 && port < 65536 ? port : 3001;
+          const url = `http://${safeHost}:${safePort}`;
+
+          // Use spawn with separate arguments (no shell) to prevent injection
+          const openCommand =
             process.platform === 'darwin'
-              ? `open ${url}`
+              ? { cmd: 'open', args: [url] }
               : process.platform === 'win32'
-                ? `start ${url}`
-                : `xdg-open ${url}`;
-          exec(command);
+                ? { cmd: 'cmd', args: ['/c', 'start', '', url] }
+                : { cmd: 'xdg-open', args: [url] };
+
+          spawn(openCommand.cmd, openCommand.args, {
+            detached: true,
+            stdio: 'ignore'
+          }).unref();
         }
 
         // Handle shutdown

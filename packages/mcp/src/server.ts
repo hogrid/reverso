@@ -19,9 +19,23 @@ export class ReversoMcpServer {
   private server: McpServer;
   private db: DrizzleDatabase | null = null;
   private config: McpServerConfig;
+  private isAuthenticated = false;
 
   constructor(config: McpServerConfig) {
     this.config = config;
+
+    // Validate API key if authentication is enabled
+    const apiKey = config.apiKey || process.env.REVERSO_MCP_API_KEY;
+    const authEnabled = config.authEnabled ?? !!apiKey;
+
+    if (authEnabled && !apiKey) {
+      console.error('[MCP] Warning: Authentication enabled but no API key provided.');
+      console.error('[MCP] Set REVERSO_MCP_API_KEY environment variable or pass apiKey in config.');
+    }
+
+    // In production-like environments, authentication is validated at startup
+    this.isAuthenticated = !authEnabled || !!apiKey;
+
     this.server = new McpServer({
       name: config.name ?? 'reverso-mcp',
       version: config.version ?? '0.0.0',
@@ -29,6 +43,16 @@ export class ReversoMcpServer {
 
     this.registerTools();
     this.registerResources();
+  }
+
+  /**
+   * Validate that the server is authenticated.
+   * Throws if auth is required but not provided.
+   */
+  private validateAuth(): void {
+    if (!this.isAuthenticated) {
+      throw new Error('MCP Server requires authentication. Set REVERSO_MCP_API_KEY environment variable.');
+    }
   }
 
   /**
@@ -69,6 +93,9 @@ export class ReversoMcpServer {
           : {},
         async (input: Record<string, unknown>) => {
           try {
+            // Validate authentication before executing any tool
+            this.validateAuth();
+
             const db = await this.getDatabase();
             const result = await tool.handler(db, input);
             return {

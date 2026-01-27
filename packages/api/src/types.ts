@@ -5,23 +5,16 @@
 import type { ContentValue, ProjectSchema } from '@reverso/core';
 import type { DrizzleDatabase } from '@reverso/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { AuthUser } from './plugins/auth.js';
+
+// Re-export for convenience
+export type { AuthUser };
 
 /**
  * Extended FastifyRequest with database.
  */
 export interface ApiRequest extends FastifyRequest {
   db: DrizzleDatabase;
-  user?: AuthUser;
-}
-
-/**
- * Authenticated user from session.
- */
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: 'user' | 'admin' | 'editor';
 }
 
 /**

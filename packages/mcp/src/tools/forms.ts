@@ -58,7 +58,7 @@ export const formsTools = {
         throw new Error('Either id or slug must be provided');
       }
 
-      let form;
+      let form: Form | null = null;
       if (input.id) {
         form = await getFormById(db, input.id);
       } else if (input.slug) {

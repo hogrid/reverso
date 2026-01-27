@@ -236,6 +236,12 @@ export {
   type CreateRedirectInput,
   type UpdateRedirectInput,
   type RedirectListOptions,
+  // Sessions
+  getSessionByToken,
+  deleteSessionByToken,
+  deleteUserSessions,
+  getUserById,
+  type SessionWithUser,
 } from './queries/index.js';
 
 // Service exports
