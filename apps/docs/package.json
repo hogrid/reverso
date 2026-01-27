@@ -1,0 +1,25 @@
+{
+  "name": "@reverso/docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Documentation site for Reverso CMS built with Astro Starlight",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "lint": "biome check src/",
+    "clean": "rm -rf dist .turbo .astro"
+  },
+  "dependencies": {
+    "astro": "^5.1.5",
+    "@astrojs/starlight": "^0.31.1",
+    "@astrojs/check": "^0.9.4",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3"
+  }
+}

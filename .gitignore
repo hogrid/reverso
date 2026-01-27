@@ -59,8 +59,9 @@ uploads/
 .eslintcache
 
 
-# Docs
-docs/
+# Docs (build output, not source)
+apps/docs/dist/
+apps/docs/.astro/
 
 # IA
 CLAUDE.*

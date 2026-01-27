@@ -1,0 +1,34 @@
+---
+title: Reverso CMS
+description: The front-to-back CMS for modern web development
+template: splash
+hero:
+  tagline: Add markers to your React code. Get a fully-featured CMS automatically.
+  actions:
+    - text: Get Started
+      link: /getting-started/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/hogrid/reverso
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why Reverso?
+
+<CardGrid stagger>
+  <Card title="Front-to-Back" icon="pencil">
+    Write your frontend code normally, add `data-reverso` markers, and your CMS is ready.
+  </Card>
+  <Card title="Full TypeScript" icon="seti:typescript">
+    Complete type safety from database to frontend. No more runtime surprises.
+  </Card>
+  <Card title="35+ Field Types" icon="list-format">
+    From simple text to complex repeaters and flexible content blocks.
+  </Card>
+  <Card title="AI Ready" icon="rocket">
+    Built-in MCP Server for seamless AI assistant integration.
+  </Card>
+</CardGrid>

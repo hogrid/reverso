@@ -277,7 +277,7 @@ export function RedirectsPage() {
               <TableRow>
                 <TableHead className="w-[80px]">Status</TableHead>
                 <TableHead>From</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[50px]" />
                 <TableHead>To</TableHead>
                 <TableHead className="w-[80px]">Code</TableHead>
                 <TableHead className="w-[100px]">Hits</TableHead>

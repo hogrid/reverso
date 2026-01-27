@@ -6,30 +6,56 @@
     "useIgnoreFile": true
   },
   "organizeImports": {
-    "enabled": true
+    "enabled": false
   },
   "linter": {
     "enabled": true,
     "rules": {
       "recommended": true,
       "complexity": {
-        "noForEach": "off"
+        "noForEach": "off",
+        "noBannedTypes": "warn"
       },
       "style": {
         "noNonNullAssertion": "warn",
-        "useNodejsImportProtocol": "error"
+        "noUnusedTemplateLiteral": "warn",
+        "useNodejsImportProtocol": "error",
+        "noImplicitBoolean": "off",
+        "useImportType": "warn",
+        "useTemplate": "warn",
+        "useNumberNamespace": "warn"
+      },
+      "correctness": {
+        "noUnusedVariables": "warn",
+        "noUnusedImports": "warn",
+        "useImportExtensions": "off"
+      },
+      "performance": {
+        "noBarrelFile": "off"
+      },
+      "nursery": {
+        "noMissingVarFunction": "off"
+      },
+      "a11y": {
+        "useKeyWithClickEvents": "warn",
+        "noRedundantRoles": "warn",
+        "useSemanticElements": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn"
       },
       "suspicious": {
         "noExplicitAny": "warn",
-        "noConsoleLog": "warn"
+        "noConsoleLog": "warn",
+        "noArrayIndexKey": "warn",
+        "noGlobalIsNan": "warn",
+        "noMisleadingCharacterClass": "warn",
+        "noImplicitAnyLet": "warn"
       }
     }
   },
   "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
+    "enabled": false
   },
   "javascript": {
     "formatter": {
