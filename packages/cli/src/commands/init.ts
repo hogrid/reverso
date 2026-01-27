@@ -5,9 +5,11 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import prompts from 'prompts';
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { showBanner, showSuccess, showNextSteps } from '../ui/index.js';
+import { execSync, spawn } from 'node:child_process';
+import { showBanner, showSuccess, showTip } from '../ui/index.js';
 
 const CONFIG_TEMPLATE = `import { defineConfig } from '@reverso/core';
 
@@ -55,17 +57,62 @@ export function Hero() {
 }
 `;
 
+type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
+
+function detectPackageManager(cwd: string): PackageManager {
+  if (existsSync(resolve(cwd, 'bun.lockb'))) return 'bun';
+  if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(resolve(cwd, 'yarn.lock'))) return 'yarn';
+  return 'npm';
+}
+
+function getInstallCommand(pm: PackageManager, packages: string[]): string {
+  const pkgList = packages.join(' ');
+  switch (pm) {
+    case 'bun':
+      return `bun add ${pkgList}`;
+    case 'pnpm':
+      return `pnpm add ${pkgList}`;
+    case 'yarn':
+      return `yarn add ${pkgList}`;
+    default:
+      return `npm install ${pkgList}`;
+  }
+}
+
+function runCommand(command: string, cwd: string): boolean {
+  try {
+    execSync(command, { cwd, stdio: 'inherit' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function openBrowser(url: string): void {
+  const platform = process.platform;
+  const command =
+    platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+
+  try {
+    execSync(`${command} ${url}`, { stdio: 'ignore' });
+  } catch {
+    // Ignore errors opening browser
+  }
+}
+
 export function initCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize Reverso in an existing project')
     .option('-f, --force', 'Overwrite existing configuration', false)
     .option('--example', 'Create an example component with markers', false)
-    .action(async (options: { force: boolean; example: boolean }) => {
+    .option('-y, --yes', 'Skip prompts and use defaults', false)
+    .action(async (options: { force: boolean; example: boolean; yes: boolean }) => {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.2' });
+      showBanner({ version: '0.1.4' });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
@@ -75,8 +122,17 @@ export function initCommand(program: Command): void {
       try {
         cwd = process.cwd();
       } catch {
-        console.log(chalk.red('✖ Error: Current directory does not exist.'));
+        console.log(chalk.red('Error: Current directory does not exist.'));
         console.log(chalk.gray('  Please navigate to a valid directory and try again.'));
+        process.exit(1);
+      }
+
+      // Check if package.json exists
+      const packageJsonPath = resolve(cwd, 'package.json');
+      if (!existsSync(packageJsonPath)) {
+        console.log(chalk.red('Error: No package.json found.'));
+        console.log(chalk.gray('  Please run this command in a Node.js project directory.'));
+        console.log(chalk.gray('  Or create a new project with: npx create-reverso@latest'));
         process.exit(1);
       }
 
@@ -85,11 +141,16 @@ export function initCommand(program: Command): void {
 
       // Check if config already exists
       if (!options.force && (existsSync(configPath) || existsSync(configPathJs))) {
-        console.log(chalk.yellow('⚠ Configuration file already exists.'));
+        console.log(chalk.yellow('Configuration file already exists.'));
         console.log(chalk.gray('  Use --force to overwrite.'));
         console.log();
         return;
       }
+
+      // Detect package manager
+      const packageManager = detectPackageManager(cwd);
+      console.log(chalk.gray(`Detected package manager: ${packageManager}`));
+      console.log();
 
       // Create config file
       spinner.start('Creating configuration file...');
@@ -157,18 +218,114 @@ export function initCommand(program: Command): void {
         spinner.info('Could not update .gitignore');
       }
 
+      console.log();
+
+      // Install dependencies
+      const installDeps = options.yes || (await prompts({
+        type: 'confirm',
+        name: 'value',
+        message: 'Install Reverso dependencies?',
+        initial: true,
+      })).value;
+
+      if (installDeps) {
+        console.log();
+        spinner.start('Installing dependencies...');
+        const installCmd = getInstallCommand(packageManager, ['@reverso/core', '@reverso/cli']);
+        spinner.text = `Running: ${chalk.gray(installCmd)}`;
+
+        try {
+          execSync(installCmd, { cwd, stdio: 'pipe' });
+          spinner.succeed('Dependencies installed');
+        } catch (error) {
+          spinner.fail('Failed to install dependencies');
+          console.log(chalk.gray('  You can install manually:'));
+          console.log(chalk.cyan(`  ${installCmd}`));
+        }
+      }
+
       // Show success message
+      console.log();
       showSuccess('Reverso initialized successfully!', [
         `${chalk.cyan('Config:')} reverso.config.ts`,
         `${chalk.cyan('Output:')} .reverso/`,
       ]);
 
-      // Show next steps
-      showNextSteps([
-        { step: 'Install dependencies', command: 'npm install @reverso/core' },
-        { step: 'Add markers to your components', command: '<h1 data-reverso="page.section.field" data-reverso-type="text">' },
-        { step: 'Scan and start the dev server', command: 'npx reverso scan && npx reverso dev' },
-        { step: 'Open admin panel', command: 'http://localhost:4000/admin' },
-      ]);
+      // Ask about scanning
+      const runScan = options.yes || (await prompts({
+        type: 'confirm',
+        name: 'value',
+        message: 'Scan your project for data-reverso markers now?',
+        initial: true,
+      })).value;
+
+      if (runScan) {
+        console.log();
+        spinner.start('Scanning project...');
+
+        try {
+          execSync('npx reverso scan', { cwd, stdio: 'pipe' });
+          spinner.succeed('Project scanned');
+        } catch {
+          spinner.warn('No markers found yet. Add data-reverso attributes to your components.');
+        }
+
+        // Ask about starting dev server
+        const startDev = options.yes || (await prompts({
+          type: 'confirm',
+          name: 'value',
+          message: 'Start the development server?',
+          initial: true,
+        })).value;
+
+        if (startDev) {
+          console.log();
+          console.log(chalk.blue.bold('Starting Reverso dev server...'));
+          console.log();
+          console.log(chalk.gray('  Admin panel: ') + chalk.cyan.underline('http://localhost:4000/admin'));
+          console.log(chalk.gray('  API:         ') + chalk.cyan.underline('http://localhost:4000/api'));
+          console.log();
+          showTip('Press Ctrl+C to stop the server');
+          console.log();
+
+          // Open browser after a short delay
+          setTimeout(() => {
+            openBrowser('http://localhost:4000/admin');
+          }, 2000);
+
+          // Start dev server (this will block)
+          const child = spawn('npx', ['reverso', 'dev'], {
+            cwd,
+            stdio: 'inherit',
+            shell: true,
+          });
+
+          child.on('error', () => {
+            console.log(chalk.red('Failed to start dev server'));
+          });
+
+          // Keep process running
+          process.on('SIGINT', () => {
+            child.kill('SIGINT');
+            process.exit(0);
+          });
+
+          return; // Don't show next steps since we're running dev
+        }
+      }
+
+      // Show next steps only if not starting dev
+      console.log();
+      console.log(chalk.bold('Next steps:'));
+      console.log();
+      console.log(chalk.gray('  1. Add markers to your components:'));
+      console.log(chalk.cyan('     <h1 data-reverso="page.section.field" data-reverso-type="text">'));
+      console.log();
+      console.log(chalk.gray('  2. Start the development server:'));
+      console.log(chalk.cyan('     npx reverso dev'));
+      console.log();
+      console.log(chalk.gray('  3. Open the admin panel:'));
+      console.log(chalk.cyan('     http://localhost:4000/admin'));
+      console.log();
     });
 }

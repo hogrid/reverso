@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.4
+
+### Patch Changes
+
+- Make init command interactive with auto-install, scan and dev server
+
 ## 0.1.3
 
 ### Patch Changes
