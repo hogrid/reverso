@@ -66,6 +66,10 @@ uploads/
 apps/docs/dist/
 apps/docs/.astro/
 
-# IA
+# IA / Memory Bank
 CLAUDE.*
 .claude/
+.memory-bank/
+
+# Internal docs (not public)
+docs/
