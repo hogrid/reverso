@@ -6,11 +6,19 @@ import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { hostname } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { showBanner, showSuccess, showTip } from '../ui/index.js';
+
+// Get CLI version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const pkgPath = join(__dirname, '../../package.json');
+const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+const CLI_VERSION = pkg.version;
 
 const CONFIG_TEMPLATE = `import { defineConfig } from '@reverso/core';
 
@@ -93,7 +101,7 @@ export function initCommand(program: Command): void {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.9' });
+      showBanner({ version: CLI_VERSION });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
