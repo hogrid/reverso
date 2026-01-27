@@ -63,7 +63,7 @@ export const mediaTools = {
         throw new Error('Either id or filename must be provided');
       }
 
-      let media;
+      let media: Media | null | undefined = null;
       if (input.id) {
         media = await getMediaById(db, input.id);
       } else if (input.filename) {

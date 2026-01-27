@@ -79,7 +79,8 @@ export class ReversoMcpServer {
    * Register a group of tools.
    */
   private registerToolGroup(
-    tools: Record<string, { description: string; inputSchema: z.ZodType; handler: Function }>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools: Record<string, { description: string; inputSchema: z.ZodType; handler: (db: DrizzleDatabase, input: any) => Promise<unknown> }>,
     prefix: string
   ): void {
     for (const [name, tool] of Object.entries(tools)) {
