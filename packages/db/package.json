@@ -1,6 +1,6 @@
 {
   "name": "@reverso/db",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Database schema and migrations for Reverso CMS using Drizzle ORM",
   "homepage": "https://reverso.dev/docs/packages/db",
   "bugs": {
@@ -22,7 +22,10 @@
       "import": "./dist/schema.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
@@ -55,7 +58,13 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/db"
   },
-  "keywords": ["reverso", "cms", "database", "drizzle", "orm"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "database",
+    "drizzle",
+    "orm"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }

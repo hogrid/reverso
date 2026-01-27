@@ -1,6 +1,6 @@
 {
   "name": "@reverso/blocks",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Block editor component for Reverso CMS built with Tiptap",
   "homepage": "https://reverso.dev/docs/packages/blocks",
   "bugs": {
@@ -19,7 +19,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "dev": "vite",
@@ -72,7 +75,14 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/blocks"
   },
-  "keywords": ["reverso", "cms", "blocks", "editor", "tiptap", "wysiwyg"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "blocks",
+    "editor",
+    "tiptap",
+    "wysiwyg"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }

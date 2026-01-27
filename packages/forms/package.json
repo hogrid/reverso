@@ -1,6 +1,6 @@
 {
   "name": "@reverso/forms",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Form builder system for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/forms",
   "bugs": {
@@ -19,7 +19,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "dev": "vite",
@@ -58,7 +61,13 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/forms"
   },
-  "keywords": ["reverso", "cms", "forms", "builder", "react"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "forms",
+    "builder",
+    "react"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }

@@ -1,6 +1,6 @@
 {
   "name": "@reverso/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "MCP Server for AI integration with Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/mcp",
   "bugs": {
@@ -21,7 +21,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
@@ -50,7 +53,13 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/mcp"
   },
-  "keywords": ["reverso", "cms", "mcp", "ai", "model-context-protocol"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "mcp",
+    "ai",
+    "model-context-protocol"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }

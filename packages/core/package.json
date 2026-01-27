@@ -1,6 +1,6 @@
 {
   "name": "@reverso/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Core types, utilities, and configuration system for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/core",
   "bugs": {
@@ -18,7 +18,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
@@ -44,7 +47,12 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/core"
   },
-  "keywords": ["reverso", "cms", "core", "types"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "core",
+    "types"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }

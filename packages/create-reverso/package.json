@@ -1,6 +1,6 @@
 {
   "name": "create-reverso",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "CLI installer for Reverso CMS - The front-to-back CMS",
   "homepage": "https://reverso.dev/docs/packages/create-reverso",
   "bugs": {
@@ -21,7 +21,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "templates", "README.md"],
+  "files": [
+    "dist",
+    "templates",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
@@ -56,7 +60,13 @@
     "url": "https://github.com/hogrid/reverso.git",
     "directory": "packages/create-reverso"
   },
-  "keywords": ["reverso", "cms", "create", "installer", "cli"],
+  "keywords": [
+    "reverso",
+    "cms",
+    "create",
+    "installer",
+    "cli"
+  ],
   "author": "Emerson Nunes <emerson@hogrid.com>",
   "license": "MIT"
 }
