@@ -20,4 +20,4 @@
 export const VERSION = '0.0.0';
 
 // Export commands for programmatic use
-export { scanCommand, devCommand, migrateCommand } from './commands/index.js';
+export { initCommand, scanCommand, devCommand, migrateCommand } from './commands/index.js';

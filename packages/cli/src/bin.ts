@@ -6,6 +6,7 @@
 import { program } from 'commander';
 import { buildCommand } from './commands/build.js';
 import { devCommand } from './commands/dev.js';
+import { initCommand } from './commands/init.js';
 import { migrateCommand } from './commands/migrate.js';
 import { scanCommand } from './commands/scan.js';
 import { startCommand } from './commands/start.js';
@@ -17,6 +18,7 @@ program
   .version(VERSION);
 
 // Register commands
+initCommand(program);
 scanCommand(program);
 devCommand(program);
 buildCommand(program);

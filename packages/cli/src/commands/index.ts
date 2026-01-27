@@ -2,6 +2,7 @@
  * CLI commands.
  */
 
+export { initCommand } from './init.js';
 export { scanCommand } from './scan.js';
 export { devCommand } from './dev.js';
 export { buildCommand } from './build.js';
