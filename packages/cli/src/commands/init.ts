@@ -112,7 +112,7 @@ export function initCommand(program: Command): void {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.4' });
+      showBanner({ version: '0.1.6' });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
@@ -289,6 +289,16 @@ export function initCommand(program: Command): void {
         })).value;
 
         if (startDev) {
+          // Rebuild native modules before starting dev
+          spinner.start('Preparing native modules...');
+          try {
+            const rebuildCmd = packageManager === 'npm' ? 'npm rebuild' : `${packageManager} rebuild`;
+            execSync(rebuildCmd, { cwd, stdio: 'pipe' });
+            spinner.succeed('Native modules ready');
+          } catch {
+            spinner.warn('Native modules may need rebuild if dev fails');
+          }
+
           console.log();
           console.log(chalk.blue.bold('Starting Reverso dev server...'));
           console.log();
@@ -303,8 +313,11 @@ export function initCommand(program: Command): void {
             openBrowser('http://localhost:4000/admin');
           }, 2000);
 
-          // Start dev server (this will block)
-          const child = spawn('npx', ['reverso', 'dev'], {
+          // Start dev server directly instead of via npx to avoid cache issues
+          const child = spawn(process.execPath, [
+            resolve(cwd, 'node_modules/@reverso/cli/dist/bin.js'),
+            'dev'
+          ], {
             cwd,
             stdio: 'inherit',
           });

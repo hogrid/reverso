@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.6
+
+### Patch Changes
+
+- Run native module rebuild before starting dev server in init command
+
 ## 0.1.5
 
 ### Patch Changes
