@@ -149,14 +149,14 @@ importers:
         specifier: ^1.1.6
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@reverso/blocks':
-        specifier: workspace:*
-        version: link:../blocks
+        specifier: ^0.1.1
+        version: 0.1.1(@tiptap/extensions@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       '@reverso/forms':
-        specifier: workspace:*
-        version: link:../forms
+        specifier: ^0.1.1
+        version: 0.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-query':
         specifier: ^5.90.20
         version: 5.90.20(react@19.2.3)
@@ -255,11 +255,11 @@ importers:
         specifier: ^9.0.0
         version: 9.0.0
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       '@reverso/db':
-        specifier: workspace:*
-        version: link:../db
+        specifier: ^0.1.1
+        version: 0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -304,8 +304,8 @@ importers:
         specifier: ^10.0.0
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       '@tiptap/core':
         specifier: ^3.17.1
         version: 3.17.1(@tiptap/pm@3.17.1)
@@ -383,17 +383,20 @@ importers:
   packages/cli:
     dependencies:
       '@reverso/api':
-        specifier: workspace:*
-        version: link:../api
+        specifier: ^0.1.1
+        version: 0.1.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(gel@2.2.0)(graphql@16.12.0)(kysely@0.28.10)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       '@reverso/db':
-        specifier: workspace:*
-        version: link:../db
+        specifier: ^0.1.1
+        version: 0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)
       '@reverso/scanner':
-        specifier: workspace:*
-        version: link:../scanner
+        specifier: ^0.1.1
+        version: 0.1.1
+      boxen:
+        specifier: ^8.0.1
+        version: 8.0.1
       chalk:
         specifier: ^5.4.1
         version: 5.6.2
@@ -403,6 +406,12 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      figlet:
+        specifier: ^1.10.0
+        version: 1.10.0
+      gradient-string:
+        specifier: ^3.0.0
+        version: 3.0.0
       ora:
         specifier: ^9.1.0
         version: 9.1.0
@@ -410,6 +419,12 @@ importers:
         specifier: ^2.4.2
         version: 2.4.2
     devDependencies:
+      '@types/figlet':
+        specifier: ^1.7.0
+        version: 1.7.0
+      '@types/gradient-string':
+        specifier: ^1.1.6
+        version: 1.1.6
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.7
@@ -442,8 +457,8 @@ importers:
   packages/create-reverso:
     dependencies:
       '@reverso/cli':
-        specifier: workspace:*
-        version: link:../cli
+        specifier: ^0.1.1
+        version: 0.1.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(gel@2.2.0)(graphql@16.12.0)(kysely@0.28.10)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))
       chalk:
         specifier: ^5.4.1
         version: 5.6.2
@@ -485,8 +500,8 @@ importers:
   packages/db:
     dependencies:
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       better-sqlite3:
         specifier: ^12.6.2
         version: 12.6.2
@@ -516,8 +531,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.1(react@19.2.3))
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       react:
         specifier: ^19.0.0
         version: 19.2.3
@@ -559,11 +574,11 @@ importers:
         specifier: ^1.4.0
         version: 1.25.3(hono@4.11.5)(zod@4.3.6)
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       '@reverso/db':
-        specifier: workspace:*
-        version: link:../db
+        specifier: ^0.1.1
+        version: 0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -581,8 +596,8 @@ importers:
   packages/scanner:
     dependencies:
       '@reverso/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -2531,6 +2546,41 @@ packages:
   '@remirror/core-constants@3.0.0':
     resolution: {integrity: sha512-42aWfPrimMfDKDi4YegyS7x+/0tlzaqwPQCULLanv3DMIlu96KTJR0fM5isWX2UViOqlGnX6YFgqWepcX+XMNg==}
 
+  '@reverso/api@0.1.1':
+    resolution: {integrity: sha512-ppWu9Pw4z057QSiF07aUkYOjSCWcN4bWO3+5l/En0pobxjGGQ3M0d1jJMC+AiTUycLi6qxM2mV5NQvFKkpefsg==}
+    engines: {node: '>=20.0.0'}
+
+  '@reverso/blocks@0.1.1':
+    resolution: {integrity: sha512-Hwb2JF2kQ+GWY8RzEIfGPD82Itnf3vMDfXTLrptqOrndnCwfL0i0TbjQmaTaoYNohb3S13K2hxz+leBH/onWbw==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
+  '@reverso/cli@0.1.1':
+    resolution: {integrity: sha512-9WCS/VZ4xqmFNwUp4lXkcaGooberg8Ot0uw25hZg3WN0OTi5UI7pE6u9u4lGYDZtarziUqLxJ3TXCw3nymT5HQ==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+
+  '@reverso/core@0.1.1':
+    resolution: {integrity: sha512-8PSbc0cZk+ElW2J0D8ZSsWSiS2o46KAbwO0ozG1iA0yGmg7Cmq6Gm7x360IYQY9u5zO7hgZTLRLckYHD6j3YSw==}
+    engines: {node: '>=20.0.0'}
+
+  '@reverso/db@0.1.1':
+    resolution: {integrity: sha512-ymrvE54kbEZ2Jmrlta381na9xDAQK5xg2iV0xO53+oO0dGRI0kp+Yd0ulnGNPhirz6kqKhNx0D766Hlhsil2QA==}
+    engines: {node: '>=20.0.0'}
+
+  '@reverso/forms@0.1.1':
+    resolution: {integrity: sha512-djVr3tZqZdWmd9g1OXRKp4lymzlSVIjXxgQn3BSbr44l3Q1UeAfBCUxE7JPW3//0rLHSEWORRyj4ZsLM7uspBQ==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
+  '@reverso/scanner@0.1.1':
+    resolution: {integrity: sha512-RG3NBchEdMqDd8d1JWDmbUiFVkwtU1uZ0j6qjYiJ4EgrZMf0pO9U4o0u9HyhcOrwCvHS8ZszUQCKoaqxbgvbcA==}
+    engines: {node: '>=20.0.0'}
+
   '@rolldown/pluginutils@1.0.0-beta.53':
     resolution: {integrity: sha512-vENRlFU4YbrwVqNDZ7fLvy+JR1CRkyr01jhSiDpE1u6py3OMzQfztQU2jxykW3ALNxO4kSlqIDeYyD0Y9RcQeQ==}
 
@@ -2941,8 +2991,14 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/figlet@1.7.0':
+    resolution: {integrity: sha512-KwrT7p/8Eo3Op/HBSIwGXOsTZKYiM9NpWRBJ5sVjWP/SmlS+oxxRvJht/FNAtliJvja44N3ul1yATgohnVBV0Q==}
+
   '@types/fs-extra@11.0.4':
     resolution: {integrity: sha512-yTbItCNreRooED33qjunPthRcSjERP1r4MqCZc7wv0u2sUkzTFp45tgUfS5+r7FrZPdmCCNflLhVSP/o+SemsQ==}
+
+  '@types/gradient-string@1.1.6':
+    resolution: {integrity: sha512-LkaYxluY4G5wR1M4AKQUal2q61Di1yVVCw42ImFTuaIoQVgmV0WP1xUaLB8zwb47mp82vWTpePI9JmrjEnJ7nQ==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -2996,6 +3052,9 @@ packages:
 
   '@types/sax@1.2.7':
     resolution: {integrity: sha512-rO73L89PJxeYM3s3pPPjiPgVVcymqU490g0YO5n5By0k2Erzj6tay/4lr1CHAAU4JyOWd1rpQ8bCf6cZfHU96A==}
+
+  '@types/tinycolor2@1.4.6':
+    resolution: {integrity: sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -4015,6 +4074,11 @@ packages:
       picomatch:
         optional: true
 
+  figlet@1.10.0:
+    resolution: {integrity: sha512-aktIwEZZ6Gp9AWdMXW4YCi0J2Ahuxo67fNJRUIWD81w8pQ0t9TS8FFpbl27ChlTLF06VkwjDesZSzEVzN75rzA==}
+    engines: {node: '>= 17.0.0'}
+    hasBin: true
+
   file-uri-to-path@1.0.0:
     resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
 
@@ -4147,6 +4211,10 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  gradient-string@3.0.0:
+    resolution: {integrity: sha512-frdKI4Qi8Ihp4C6wZNB565de/THpIaw3DjP5ku87M+N9rNSGmPTjfkq61SdRXB7eCaL8O1hkKDvf6CDMtOzIAg==}
+    engines: {node: '>=14'}
 
   graphql-jit@0.8.7:
     resolution: {integrity: sha512-KGzCrsxQPfEiXOUIJCexWKiWF6ycjO89kAO6SdO8OWRGwYXbG0hsLuTnbFfMq0gj7d7/ib/Gh7jtst7FHZEEjw==}
@@ -5829,6 +5897,9 @@ packages:
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
+  tinycolor2@1.6.0:
+    resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==}
+
   tinyexec@0.3.2:
     resolution: {integrity: sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA==}
 
@@ -5839,6 +5910,9 @@ packages:
   tinyglobby@0.2.15:
     resolution: {integrity: sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ==}
     engines: {node: '>=12.0.0'}
+
+  tinygradient@1.1.5:
+    resolution: {integrity: sha512-8nIfc2vgQ4TeLnk2lFj4tRLvvJwEfQuabdsmvDdQPT0xlk9TaNtpGd6nNRxXoK6vQhN6RSzj+Cnp5tTQmpxmbw==}
 
   tinypool@1.1.1:
     resolution: {integrity: sha512-Zba82s87IFq9A9XmjiX5uZA/ARWDrB03OHlq+Vw1fSdt0I+4/Kutwy8BP4Y/y/aORMo61FQ0vIb5j44vSo5Pkg==}
@@ -8340,6 +8414,214 @@ snapshots:
 
   '@remirror/core-constants@3.0.0': {}
 
+  '@reverso/api@0.1.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(gel@2.2.0)(graphql@16.12.0)(kysely@0.28.10)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))':
+    dependencies:
+      '@fastify/cookie': 11.0.2
+      '@fastify/cors': 11.2.0
+      '@fastify/csrf-protection': 7.1.0
+      '@fastify/helmet': 13.0.2
+      '@fastify/multipart': 9.4.0
+      '@fastify/rate-limit': 10.3.0
+      '@fastify/static': 9.0.0
+      '@reverso/core': 0.1.1
+      '@reverso/db': 0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)
+      bcrypt: 6.0.0
+      better-auth: 1.4.17(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))
+      fastify: 5.7.2
+      fastify-plugin: 5.1.0
+      mercurius: 16.7.0(graphql@16.12.0)
+      pino-pretty: 13.1.3
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@lynx-js/react'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@sveltejs/kit'
+      - '@tanstack/react-start'
+      - '@tanstack/solid-start'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bufferutil
+      - bun-types
+      - drizzle-kit
+      - drizzle-orm
+      - expo-sqlite
+      - gel
+      - graphql
+      - knex
+      - kysely
+      - mongodb
+      - mysql2
+      - next
+      - pg
+      - postgres
+      - prisma
+      - react
+      - react-dom
+      - solid-js
+      - sql.js
+      - sqlite3
+      - svelte
+      - utf-8-validate
+      - vitest
+      - vue
+
+  '@reverso/blocks@0.1.1(@tiptap/extensions@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@dnd-kit/core': 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@dnd-kit/sortable': 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      '@reverso/core': 0.1.1
+      '@tiptap/core': 3.17.1(@tiptap/pm@3.17.1)
+      '@tiptap/extension-highlight': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))
+      '@tiptap/extension-image': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))
+      '@tiptap/extension-link': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1)
+      '@tiptap/extension-placeholder': 3.17.1(@tiptap/extensions@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))
+      '@tiptap/extension-table': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1)
+      '@tiptap/extension-table-cell': 3.17.1(@tiptap/extension-table@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))
+      '@tiptap/extension-table-header': 3.17.1(@tiptap/extension-table@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))
+      '@tiptap/extension-table-row': 3.17.1(@tiptap/extension-table@3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1))
+      '@tiptap/extension-text-align': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))
+      '@tiptap/extension-underline': 3.17.1(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))
+      '@tiptap/pm': 3.17.1
+      '@tiptap/react': 3.17.1(@floating-ui/dom@1.7.4)(@tiptap/core@3.17.1(@tiptap/pm@3.17.1))(@tiptap/pm@3.17.1)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tiptap/starter-kit': 3.17.1
+      lucide-react: 0.511.0(react@19.2.3)
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+    transitivePeerDependencies:
+      - '@floating-ui/dom'
+      - '@tiptap/extensions'
+      - '@types/react'
+      - '@types/react-dom'
+
+  '@reverso/cli@0.1.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(gel@2.2.0)(graphql@16.12.0)(kysely@0.28.10)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))':
+    dependencies:
+      '@reverso/api': 0.1.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10))(gel@2.2.0)(graphql@16.12.0)(kysely@0.28.10)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@22.19.7)(lightningcss@1.30.2))
+      '@reverso/core': 0.1.1
+      '@reverso/db': 0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)
+      '@reverso/scanner': 0.1.1
+      chalk: 5.6.2
+      commander: 14.0.2
+      dotenv: 17.2.3
+      ora: 9.1.0
+      prompts: 2.4.2
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@lynx-js/react'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@sveltejs/kit'
+      - '@tanstack/react-start'
+      - '@tanstack/solid-start'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bufferutil
+      - bun-types
+      - drizzle-kit
+      - drizzle-orm
+      - expo-sqlite
+      - gel
+      - graphql
+      - knex
+      - kysely
+      - mongodb
+      - mysql2
+      - next
+      - pg
+      - postgres
+      - prisma
+      - react
+      - react-dom
+      - solid-js
+      - sql.js
+      - sqlite3
+      - svelte
+      - utf-8-validate
+      - vitest
+      - vue
+
+  '@reverso/core@0.1.1':
+    dependencies:
+      zod: 4.3.6
+
+  '@reverso/db@0.1.1(@types/better-sqlite3@7.6.13)(gel@2.2.0)(kysely@0.28.10)':
+    dependencies:
+      '@reverso/core': 0.1.1
+      better-sqlite3: 12.6.2
+      drizzle-orm: 0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(gel@2.2.0)(kysely@0.28.10)
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - postgres
+      - prisma
+      - sql.js
+      - sqlite3
+
+  '@reverso/forms@0.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@hookform/resolvers': 5.2.2(react-hook-form@7.71.1(react@19.2.3))
+      '@reverso/core': 0.1.1
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      react-hook-form: 7.71.1(react@19.2.3)
+      zod: 4.3.6
+
+  '@reverso/scanner@0.1.1':
+    dependencies:
+      '@reverso/core': 0.1.1
+      chokidar: 5.0.0
+      glob: 13.0.0
+      ts-morph: 27.0.2
+
   '@rolldown/pluginutils@1.0.0-beta.53': {}
 
   '@rollup/pluginutils@5.3.0(rollup@4.56.0)':
@@ -8757,10 +9039,16 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/figlet@1.7.0': {}
+
   '@types/fs-extra@11.0.4':
     dependencies:
       '@types/jsonfile': 6.1.4
       '@types/node': 22.19.7
+
+  '@types/gradient-string@1.1.6':
+    dependencies:
+      '@types/tinycolor2': 1.4.6
 
   '@types/hast@3.0.4':
     dependencies:
@@ -8817,6 +9105,8 @@ snapshots:
   '@types/sax@1.2.7':
     dependencies:
       '@types/node': 22.19.7
+
+  '@types/tinycolor2@1.4.6': {}
 
   '@types/trusted-types@2.0.7':
     optional: true
@@ -9934,6 +10224,10 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.3
 
+  figlet@1.10.0:
+    dependencies:
+      commander: 14.0.2
+
   file-uri-to-path@1.0.0: {}
 
   fill-range@7.1.1:
@@ -10082,6 +10376,11 @@ snapshots:
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
+
+  gradient-string@3.0.0:
+    dependencies:
+      chalk: 5.6.2
+      tinygradient: 1.1.5
 
   graphql-jit@0.8.7(graphql@16.12.0):
     dependencies:
@@ -12324,6 +12623,8 @@ snapshots:
 
   tinybench@2.9.0: {}
 
+  tinycolor2@1.6.0: {}
+
   tinyexec@0.3.2: {}
 
   tinyexec@1.0.2: {}
@@ -12332,6 +12633,11 @@ snapshots:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
+
+  tinygradient@1.1.5:
+    dependencies:
+      '@types/tinycolor2': 1.4.6
+      tinycolor2: 1.6.0
 
   tinypool@1.1.1: {}
 

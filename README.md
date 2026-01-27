@@ -103,13 +103,26 @@ Reverso covers everything you need from WordPress + Advanced Custom Fields:
 
 ## Quick Start
 
-### 1. Create a new project
+### Option A: Add to an existing project (recommended)
+
+```bash
+# In your existing React/Next.js project
+npx @reverso/cli init
+```
+
+This will create:
+- `reverso.config.ts` — Configuration file
+- `.reverso/` — Output directory for generated files
+
+### Option B: Create a new project from scratch
 
 ```bash
 npx create-reverso@latest
 ```
 
-### 2. Add markers to your components
+---
+
+### Add markers to your components
 
 ```tsx
 // app/page.tsx
@@ -127,7 +140,7 @@ export default function Home() {
 }
 ```
 
-### 3. Scan and start
+### Scan and start
 
 ```bash
 # Scan your code for markers
@@ -137,7 +150,7 @@ npx reverso scan
 npx reverso dev
 ```
 
-### 4. Edit content
+### Edit content
 
 Open `http://localhost:3001/admin` and start editing!
 
@@ -235,6 +248,11 @@ Reverso is a monorepo with the following packages:
 ## CLI Commands
 
 ```bash
+# Setup
+reverso init          # Initialize Reverso in an existing project
+reverso init --force  # Overwrite existing configuration
+reverso init --example # Create example component with markers
+
 # Development
 reverso scan          # Scan code for markers
 reverso scan --watch  # Watch mode for continuous scanning

@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { showBanner, showSuccess, showNextSteps } from '../ui/index.js';
 
 const CONFIG_TEMPLATE = `import { defineConfig } from '@reverso/core';
 
@@ -63,12 +64,24 @@ export function initCommand(program: Command): void {
     .action(async (options: { force: boolean; example: boolean }) => {
       const spinner = ora();
 
-      console.log();
+      // Show branded banner
+      showBanner({ version: '0.1.2' });
+
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
 
-      const configPath = resolve('reverso.config.ts');
-      const configPathJs = resolve('reverso.config.js');
+      // Verify current directory exists
+      let cwd: string;
+      try {
+        cwd = process.cwd();
+      } catch {
+        console.log(chalk.red('✖ Error: Current directory does not exist.'));
+        console.log(chalk.gray('  Please navigate to a valid directory and try again.'));
+        process.exit(1);
+      }
+
+      const configPath = resolve(cwd, 'reverso.config.ts');
+      const configPathJs = resolve(cwd, 'reverso.config.js');
 
       // Check if config already exists
       if (!options.force && (existsSync(configPath) || existsSync(configPathJs))) {
@@ -91,7 +104,7 @@ export function initCommand(program: Command): void {
       // Create .reverso directory
       spinner.start('Creating .reverso directory...');
       try {
-        const reversoDir = resolve('.reverso');
+        const reversoDir = resolve(cwd, '.reverso');
         if (!existsSync(reversoDir)) {
           mkdirSync(reversoDir, { recursive: true });
         }
@@ -104,7 +117,7 @@ export function initCommand(program: Command): void {
       if (options.example) {
         spinner.start('Creating example component...');
         try {
-          const srcDir = resolve('src');
+          const srcDir = resolve(cwd, 'src');
           const componentsDir = join(srcDir, 'components');
 
           if (!existsSync(componentsDir)) {
@@ -126,7 +139,7 @@ export function initCommand(program: Command): void {
       // Add to .gitignore if it exists
       spinner.start('Updating .gitignore...');
       try {
-        const gitignorePath = resolve('.gitignore');
+        const gitignorePath = resolve(cwd, '.gitignore');
         if (existsSync(gitignorePath)) {
           const { readFileSync, appendFileSync } = await import('node:fs');
           const content = readFileSync(gitignorePath, 'utf-8');
@@ -144,23 +157,18 @@ export function initCommand(program: Command): void {
         spinner.info('Could not update .gitignore');
       }
 
-      console.log();
-      console.log(chalk.green.bold('✓ Reverso initialized successfully!'));
-      console.log();
-      console.log(chalk.bold('Next steps:'));
-      console.log();
-      console.log(chalk.gray('  1. Install dependencies:'));
-      console.log(chalk.cyan('     npm install @reverso/core'));
-      console.log();
-      console.log(chalk.gray('  2. Add markers to your components:'));
-      console.log(chalk.cyan('     <h1 data-reverso="page.section.field" data-reverso-type="text">'));
-      console.log();
-      console.log(chalk.gray('  3. Scan and start:'));
-      console.log(chalk.cyan('     npx reverso scan'));
-      console.log(chalk.cyan('     npx reverso dev'));
-      console.log();
-      console.log(chalk.gray('  4. Open admin panel:'));
-      console.log(chalk.cyan('     http://localhost:4000/admin'));
-      console.log();
+      // Show success message
+      showSuccess('Reverso initialized successfully!', [
+        `${chalk.cyan('Config:')} reverso.config.ts`,
+        `${chalk.cyan('Output:')} .reverso/`,
+      ]);
+
+      // Show next steps
+      showNextSteps([
+        { step: 'Install dependencies', command: 'npm install @reverso/core' },
+        { step: 'Add markers to your components', command: '<h1 data-reverso="page.section.field" data-reverso-type="text">' },
+        { step: 'Scan and start the dev server', command: 'npx reverso scan && npx reverso dev' },
+        { step: 'Open admin panel', command: 'http://localhost:4000/admin' },
+      ]);
     });
 }
