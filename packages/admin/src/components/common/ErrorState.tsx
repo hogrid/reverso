@@ -16,15 +16,20 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   return (
-    <div className={cn('flex flex-col items-center justify-center p-8 text-center', className)}>
-      <div className="rounded-full bg-destructive/10 p-3 mb-4">
+    <div
+      role="alert"
+      aria-live="assertive"
+      data-testid="error-message"
+      className={cn('flex flex-col items-center justify-center p-8 text-center', className)}
+    >
+      <div className="rounded-full bg-destructive/10 p-3 mb-4" aria-hidden="true">
         <AlertCircle className="h-8 w-8 text-destructive" />
       </div>
       <h3 className="text-lg font-semibold mb-1">{title}</h3>
       <p className="text-sm text-muted-foreground mb-4 max-w-md">{message}</p>
       {onRetry && (
-        <Button variant="outline" onClick={onRetry}>
-          <RefreshCw className="mr-2 h-4 w-4" />
+        <Button variant="outline" onClick={onRetry} aria-label="Retry loading">
+          <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
           Try again
         </Button>
       )}

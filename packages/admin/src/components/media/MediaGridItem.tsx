@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn, formatFileSize, isImageFile } from '@/lib/utils';
 import { Check, Download, FileText, MoreVertical, Trash2 } from 'lucide-react';
+import { memo } from 'react';
 
 export interface MediaGridItemProps {
   item: MediaItem;
@@ -21,7 +22,7 @@ export interface MediaGridItemProps {
   selectMode?: 'checkbox' | 'click';
 }
 
-export function MediaGridItem({
+export const MediaGridItem = memo(function MediaGridItem({
   item,
   selected = false,
   onSelect,
@@ -51,6 +52,8 @@ export function MediaGridItem({
           <img
             src={item.url}
             alt={item.alt || item.filename}
+            loading="lazy"
+            decoding="async"
             className="object-cover w-full h-full"
           />
         ) : (
@@ -119,4 +122,4 @@ export function MediaGridItem({
       </CardContent>
     </Card>
   );
-}
+});

@@ -22,8 +22,12 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div className={cn('flex flex-col items-center justify-center p-8 text-center', className)}>
-      <div className="rounded-full bg-muted p-3 mb-4">
+    <div
+      role="status"
+      aria-label={title}
+      className={cn('flex flex-col items-center justify-center p-8 text-center', className)}
+    >
+      <div className="rounded-full bg-muted p-3 mb-4" aria-hidden="true">
         <Icon className="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 className="text-lg font-semibold mb-1">{title}</h3>

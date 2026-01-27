@@ -12,6 +12,9 @@ build/
 # Testing
 coverage/
 .vitest/
+playwright-report/
+test-results/
+blob-report/
 
 # Environment files
 .env
