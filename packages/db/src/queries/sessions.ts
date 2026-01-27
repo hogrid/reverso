@@ -12,7 +12,9 @@ export interface SessionWithUser extends Session {
 }
 
 /**
- * Get session by token.
+ * Get session by token with expiration validation.
+ * Returns null if session doesn't exist or has expired.
+ * Automatically deletes expired sessions when found.
  */
 export async function getSessionByToken(
   db: DrizzleDatabase,
@@ -34,6 +36,14 @@ export async function getSessionByToken(
 
   const row = result[0];
   if (!row) return null;
+
+  // Validate session expiration
+  const now = new Date();
+  if (row.session.expiresAt && row.session.expiresAt < now) {
+    // Session expired - delete it and return null
+    await db.delete(sessions).where(eq(sessions.token, token));
+    return null;
+  }
 
   return {
     ...row.session,

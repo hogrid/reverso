@@ -13,73 +13,21 @@ import {
   createSession,
   deleteSessionByToken,
   getSessionWithUser,
+  isLockedOut,
+  recordFailedLoginAttempt,
+  clearLoginAttempts,
+  type DrizzleDatabase,
 } from '@reverso/db';
 import { z } from 'zod';
 
 const SALT_ROUNDS = 12;
 const SESSION_DURATION_DAYS = 30;
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MINUTES = 15;
-
-// In-memory store for login attempts (use Redis in production)
-const loginAttempts = new Map<string, { count: number; lockedUntil: number | null }>();
 
 /**
  * Generate a secure session token.
  */
 function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
-}
-
-/**
- * Check if an IP/email is locked out due to failed attempts.
- */
-function isLockedOut(key: string): boolean {
-  const attempts = loginAttempts.get(key);
-  if (!attempts) return false;
-
-  if (attempts.lockedUntil && attempts.lockedUntil > Date.now()) {
-    return true;
-  }
-
-  // Reset if lockout expired
-  if (attempts.lockedUntil && attempts.lockedUntil <= Date.now()) {
-    loginAttempts.delete(key);
-  }
-
-  return false;
-}
-
-/**
- * Record a failed login attempt.
- */
-function recordFailedAttempt(key: string): void {
-  const attempts = loginAttempts.get(key) || { count: 0, lockedUntil: null };
-  attempts.count++;
-
-  if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-    attempts.lockedUntil = Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000;
-  }
-
-  loginAttempts.set(key, attempts);
-}
-
-/**
- * Clear failed login attempts.
- */
-function clearAttempts(key: string): void {
-  loginAttempts.delete(key);
-}
-
-/**
- * Get remaining lockout time in seconds.
- */
-function getLockoutRemaining(key: string): number {
-  const attempts = loginAttempts.get(key);
-  if (!attempts?.lockedUntil) return 0;
-
-  const remaining = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
-  return remaining > 0 ? remaining : 0;
 }
 
 // Validation schemas
@@ -99,18 +47,18 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
    * POST /auth/login - Login with email and password.
    */
   fastify.post('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
-    const db = (request as unknown as { db: Parameters<typeof getUserByEmail>[0] }).db;
+    const db = (request as unknown as { db: DrizzleDatabase }).db;
     const ip = request.ip;
 
-    // Check lockout
+    // Check lockout (persistent in database)
     const lockoutKey = `login:${ip}`;
-    if (isLockedOut(lockoutKey)) {
-      const remaining = getLockoutRemaining(lockoutKey);
+    const lockoutStatus = await isLockedOut(db, lockoutKey);
+    if (lockoutStatus.locked) {
       return reply.status(429).send({
         success: false,
         error: 'Too many failed attempts',
-        message: `Account temporarily locked. Try again in ${Math.ceil(remaining / 60)} minutes.`,
-        retryAfter: remaining,
+        message: `Account temporarily locked. Try again in ${Math.ceil(lockoutStatus.remainingSeconds / 60)} minutes.`,
+        retryAfter: lockoutStatus.remainingSeconds,
       });
     }
 
@@ -129,7 +77,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Find user
     const user = await getUserByEmail(db, email);
     if (!user) {
-      recordFailedAttempt(lockoutKey);
+      await recordFailedLoginAttempt(db, lockoutKey);
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -140,7 +88,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Get account with password
     const account = await getAccountByUserId(db, user.id, 'credential');
     if (!account || !account.password) {
-      recordFailedAttempt(lockoutKey);
+      await recordFailedLoginAttempt(db, lockoutKey);
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -151,7 +99,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Verify password
     const passwordValid = await bcrypt.compare(password, account.password);
     if (!passwordValid) {
-      recordFailedAttempt(lockoutKey);
+      await recordFailedLoginAttempt(db, lockoutKey);
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -160,7 +108,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     }
 
     // Clear failed attempts on successful login
-    clearAttempts(lockoutKey);
+    await clearLoginAttempts(db, lockoutKey);
 
     // Create session
     const token = generateSessionToken();
@@ -206,7 +154,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
    * POST /auth/logout - Logout and invalidate session.
    */
   fastify.post('/auth/logout', async (request: FastifyRequest, reply: FastifyReply) => {
-    const db = (request as unknown as { db: Parameters<typeof deleteSessionByToken>[0] }).db;
+    const db = (request as unknown as { db: DrizzleDatabase }).db;
 
     // Get token from cookie or header
     const token =
@@ -230,7 +178,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
    * GET /auth/me - Get current authenticated user.
    */
   fastify.get('/auth/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    const db = (request as unknown as { db: Parameters<typeof getSessionWithUser>[0] }).db;
+    const db = (request as unknown as { db: DrizzleDatabase }).db;
 
     // Get token from cookie or header
     const token =
@@ -271,7 +219,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
    * POST /auth/register - Register a new user (admin only or first user).
    */
   fastify.post('/auth/register', async (request: FastifyRequest, reply: FastifyReply) => {
-    const db = (request as unknown as { db: Parameters<typeof getUserByEmail>[0] }).db;
+    const db = (request as unknown as { db: DrizzleDatabase }).db;
 
     // Validate input
     const parseResult = registerSchema.safeParse(request.body);

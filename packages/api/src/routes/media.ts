@@ -40,6 +40,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /media
    * List all media files.
+   * Requires: viewer, editor, or admin role
    */
   fastify.get<{
     Querystring: {
@@ -47,7 +48,9 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       limit?: string;
       offset?: string;
     };
-  }>('/media', async (request, reply) => {
+  }>('/media', {
+    preHandler: fastify.requireAuth(['viewer', 'editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const queryResult = mediaListQuerySchema.safeParse(request.query);
       if (!queryResult.success) {
@@ -97,10 +100,13 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /media/images
    * List only image files.
+   * Requires: viewer, editor, or admin role
    */
   fastify.get<{
     Querystring: { limit?: string; offset?: string };
-  }>('/media/images', async (request, reply) => {
+  }>('/media/images', {
+    preHandler: fastify.requireAuth(['viewer', 'editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const queryResult = paginationSchema.safeParse(request.query);
       if (!queryResult.success) {
@@ -148,8 +154,11 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /media/:id
    * Get media by ID.
+   * Requires: viewer, editor, or admin role
    */
-  fastify.get<{ Params: { id: string } }>('/media/:id', async (request, reply) => {
+  fastify.get<{ Params: { id: string } }>('/media/:id', {
+    preHandler: fastify.requireAuth(['viewer', 'editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = idParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -203,8 +212,11 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * POST /media
    * Upload a file.
+   * Requires: editor or admin role
    */
-  fastify.post('/media', async (request, reply) => {
+  fastify.post('/media', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const db = request.db;
 
@@ -330,11 +342,14 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * PATCH /media/:id
    * Update media metadata.
+   * Requires: editor or admin role
    */
   fastify.patch<{
     Params: { id: string };
     Body: { alt?: string; caption?: string };
-  }>('/media/:id', async (request, reply) => {
+  }>('/media/:id', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = idParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -391,8 +406,11 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * DELETE /media/:id
    * Delete media.
+   * Requires: admin role only
    */
-  fastify.delete<{ Params: { id: string } }>('/media/:id', async (request, reply) => {
+  fastify.delete<{ Params: { id: string } }>('/media/:id', {
+    preHandler: fastify.requireAuth(['admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = idParamSchema.safeParse(request.params);
       if (!paramResult.success) {

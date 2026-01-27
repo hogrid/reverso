@@ -28,11 +28,14 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /content/:path
    * Get content by field path.
+   * Requires: viewer, editor, or admin role
    */
   fastify.get<{
     Params: { path: string };
     Querystring: { locale?: string };
-  }>('/content/:path', async (request, reply) => {
+  }>('/content/:path', {
+    preHandler: fastify.requireAuth(['viewer', 'editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = pathParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -105,11 +108,14 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * PUT /content/:path
    * Update content by field path.
+   * Requires: editor or admin role
    */
   fastify.put<{
     Params: { path: string };
     Body: ContentUpdateBody;
-  }>('/content/:path', async (request, reply) => {
+  }>('/content/:path', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = pathParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -177,8 +183,11 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * POST /content/bulk
    * Bulk update content.
+   * Requires: editor or admin role
    */
-  fastify.post<{ Body: BulkContentUpdateBody }>('/content/bulk', async (request, reply) => {
+  fastify.post<{ Body: BulkContentUpdateBody }>('/content/bulk', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const bodyResult = bulkContentUpdateSchema.safeParse(request.body);
       if (!bodyResult.success) {
@@ -227,11 +236,14 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /content/page/:slug
    * Get all content for a page.
+   * Requires: viewer, editor, or admin role
    */
   fastify.get<{
     Params: { slug: string };
     Querystring: { locale?: string };
-  }>('/content/page/:slug', async (request, reply) => {
+  }>('/content/page/:slug', {
+    preHandler: fastify.requireAuth(['viewer', 'editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = slugParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -283,8 +295,11 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * POST /content/:path/publish
    * Publish content.
+   * Requires: editor or admin role
    */
-  fastify.post<{ Params: { path: string } }>('/content/:path/publish', async (request, reply) => {
+  fastify.post<{ Params: { path: string } }>('/content/:path/publish', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = pathParamSchema.safeParse(request.params);
       if (!paramResult.success) {
@@ -331,8 +346,11 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * POST /content/:path/unpublish
    * Unpublish content.
+   * Requires: editor or admin role
    */
-  fastify.post<{ Params: { path: string } }>('/content/:path/unpublish', async (request, reply) => {
+  fastify.post<{ Params: { path: string } }>('/content/:path/unpublish', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
     try {
       const paramResult = pathParamSchema.safeParse(request.params);
       if (!paramResult.success) {

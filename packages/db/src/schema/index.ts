@@ -54,7 +54,15 @@ export {
   type NewVerification,
 } from './auth.js';
 
+// Security Tables
+export {
+  loginAttempts,
+  type LoginAttempt,
+  type NewLoginAttempt,
+} from './login-attempts.js';
+
 import { accounts, sessions, users, verifications } from './auth.js';
+import { loginAttempts } from './login-attempts.js';
 import { contentHistory } from './content-history.js';
 import { content } from './content.js';
 import { fields } from './fields.js';
@@ -85,4 +93,5 @@ export const allTables = {
   sessions,
   accounts,
   verifications,
+  loginAttempts,
 };

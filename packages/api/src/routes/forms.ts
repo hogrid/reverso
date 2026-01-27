@@ -45,6 +45,11 @@ import {
   paginationSchema,
   slugParamSchema,
 } from '../validation.js';
+import {
+  isUrlSafeForSSRF,
+  isRedirectUrlSafe,
+  generateWebhookSignature,
+} from '../utils/security.js';
 
 const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // ============================================
@@ -931,9 +936,19 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * POST /public/forms/:slug/submit
    * Public form submission endpoint (no auth required).
+   * Rate limited: 10 submissions per minute per IP.
    */
   fastify.post<{ Params: { slug: string } }>(
     '/public/forms/:slug/submit',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+          keyGenerator: (request: { ip: string }) => request.ip,
+        },
+      },
+    },
     async (request, reply) => {
       try {
         const paramResult = slugParamSchema.safeParse(request.params);
@@ -996,39 +1011,75 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
         // Send webhook if enabled
         if (form.webhookEnabled && form.webhookUrl) {
-          try {
-            const webhookResponse = await fetch(form.webhookUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(form.webhookSecret && { 'X-Webhook-Secret': form.webhookSecret }),
-              },
-              body: JSON.stringify({
+          // SSRF Protection: Validate webhook URL
+          const urlCheck = isUrlSafeForSSRF(form.webhookUrl);
+          if (!urlCheck.safe) {
+            fastify.log.warn({ url: form.webhookUrl, reason: urlCheck.reason }, 'Blocked unsafe webhook URL');
+          } else {
+            try {
+              const timestamp = Date.now();
+              const webhookPayload = JSON.stringify({
                 formId: form.id,
                 formSlug: form.slug,
                 submissionId: submission.id,
                 data,
                 submittedAt: submission.createdAt,
-              }),
-            });
+                timestamp,
+              });
 
-            await recordWebhookSent(db, submission.id, {
-              status: webhookResponse.status,
-              ok: webhookResponse.ok,
-            });
-          } catch (webhookError) {
-            fastify.log.error(webhookError, 'Failed to send webhook');
+              // Build headers with optional HMAC signature
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'X-Webhook-Timestamp': String(timestamp),
+              };
+
+              if (form.webhookSecret) {
+                // Use HMAC-SHA256 signature instead of plain secret
+                headers['X-Webhook-Signature'] = generateWebhookSignature(webhookPayload, form.webhookSecret);
+              }
+
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+              const webhookResponse = await fetch(form.webhookUrl, {
+                method: 'POST',
+                headers,
+                body: webhookPayload,
+                signal: controller.signal,
+                redirect: 'error', // Don't follow redirects
+              });
+
+              clearTimeout(timeout);
+
+              await recordWebhookSent(db, submission.id, {
+                status: webhookResponse.status,
+                ok: webhookResponse.ok,
+              });
+            } catch (webhookError) {
+              fastify.log.error(webhookError, 'Failed to send webhook');
+            }
           }
         }
 
         const settings = parseFormSettings(form);
+
+        // Open Redirect Protection: Validate redirect URL
+        let safeRedirectUrl: string | undefined;
+        if (settings.redirectUrl) {
+          const redirectCheck = isRedirectUrlSafe(settings.redirectUrl);
+          if (redirectCheck.safe) {
+            safeRedirectUrl = settings.redirectUrl;
+          } else {
+            fastify.log.warn({ url: settings.redirectUrl, reason: redirectCheck.reason }, 'Blocked unsafe redirect URL');
+          }
+        }
 
         return {
           success: true,
           data: {
             id: submission.id,
             message: settings.successMessage ?? 'Form submitted successfully',
-            redirectUrl: settings.redirectUrl,
+            redirectUrl: safeRedirectUrl,
           },
         };
       } catch (error) {

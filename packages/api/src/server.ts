@@ -142,8 +142,9 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
-  // Register CSRF protection (only for production or when explicitly enabled)
-  if (process.env.NODE_ENV === 'production' || process.env.REVERSO_CSRF_ENABLED === 'true') {
+  // Register CSRF protection (enabled by default, can be disabled in dev with env var)
+  const csrfEnabled = process.env.REVERSO_CSRF_DISABLED !== 'true';
+  if (csrfEnabled) {
     await server.register(csrfProtection, {
       sessionPlugin: '@fastify/cookie',
       cookieOpts: {

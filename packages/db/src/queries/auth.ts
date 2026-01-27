@@ -119,36 +119,5 @@ export async function getSessionWithUser(
   return { session: row.session, user: row.user };
 }
 
-/**
- * Count failed login attempts for an email within a time window.
- */
-export async function getFailedLoginAttempts(
-  db: DrizzleDatabase,
-  _email: string,
-  _windowMinutes = 15
-): Promise<number> {
-  // For now, return 0 - implement with a login_attempts table if needed
-  // This is a simplified version - in production, track attempts in a separate table
-  return 0;
-}
-
-/**
- * Record a failed login attempt.
- */
-export async function recordFailedLoginAttempt(
-  db: DrizzleDatabase,
-  _email: string,
-  _ipAddress: string
-): Promise<void> {
-  // Simplified - in production, insert into a login_attempts table
-}
-
-/**
- * Clear failed login attempts for an email.
- */
-export async function clearFailedLoginAttempts(
-  db: DrizzleDatabase,
-  _email: string
-): Promise<void> {
-  // Simplified - in production, delete from login_attempts table
-}
+// Note: Login attempt tracking is now handled by dedicated login-attempts.ts
+// functions: isLockedOut, recordFailedLoginAttempt, clearLoginAttempts

@@ -87,6 +87,9 @@ export {
   type NewAccount,
   type Verification,
   type NewVerification,
+  loginAttempts,
+  type LoginAttempt,
+  type NewLoginAttempt,
 } from './schema/index.js';
 
 // Query exports
@@ -249,6 +252,12 @@ export {
   createAccount,
   createSession,
   getSessionWithUser,
+  // Login Attempts (Brute Force Protection)
+  getLoginAttempt,
+  isLockedOut,
+  recordFailedLoginAttempt,
+  clearLoginAttempts,
+  cleanupOldLoginAttempts,
 } from './queries/index.js';
 
 // Service exports
