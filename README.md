@@ -11,17 +11,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hogrid/reverso/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/badge/CI-disabled-lightgrey.svg" alt="CI Status" />
-  </a>
   <a href="https://www.npmjs.com/package/create-reverso">
-    <img src="https://img.shields.io/npm/v/create-reverso.svg" alt="npm version" />
+    <img src="https://img.shields.io/npm/v/create-reverso.svg?color=blue" alt="npm version" />
   </a>
   <a href="https://github.com/hogrid/reverso/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
   </a>
-  <a href="https://discord.gg/reverso">
-    <img src="https://img.shields.io/discord/1234567890?color=7289da&label=discord" alt="Discord" />
+  <a href="https://www.npmjs.com/package/@reverso/core">
+    <img src="https://img.shields.io/npm/dm/@reverso/core.svg?color=green" alt="Downloads" />
+  </a>
+  <a href="https://github.com/hogrid/reverso">
+    <img src="https://img.shields.io/github/stars/hogrid/reverso?style=social" alt="GitHub Stars" />
   </a>
 </p>
 
@@ -235,24 +235,20 @@ Reverso is a monorepo with the following packages:
 ## CLI Commands
 
 ```bash
-reverso init          # Initialize a new project
+# Development
 reverso scan          # Scan code for markers
-reverso dev           # Start development server
+reverso scan --watch  # Watch mode for continuous scanning
+reverso dev           # Start development server (API + scanner)
+
+# Production
 reverso build         # Build for production
 reverso start         # Start production server
 
-reverso db:migrate    # Run database migrations
-reverso db:seed       # Seed initial data
-reverso db:studio     # Open Drizzle Studio
-reverso db:backup     # Backup database & media
-reverso db:restore    # Restore from backup
-
-reverso generate      # Generate TypeScript types
-reverso user:create   # Create admin user
-reverso export        # Export content as JSON
-reverso import        # Import content from JSON
-reverso update        # Update Reverso
-reverso doctor        # Diagnose issues
+# Database
+reverso migrate           # Run database migrations
+reverso migrate:create    # Create new migration file
+reverso migrate:status    # Show migration status
+reverso migrate:reset     # Reset database
 ```
 
 ---
@@ -273,30 +269,30 @@ See the [deployment guide](https://docs.reverso.dev/deployment) for detailed ins
 
 ## Roadmap
 
-### v1.0 (Current)
+### v0.1.0 (Current)
 - [x] Scanner and field detection
 - [x] 35+ field types
 - [x] Admin panel
 - [x] Block editor
 - [x] Forms system
-- [x] REST & GraphQL APIs
+- [x] REST API
 - [x] CLI tools
 - [x] Documentation
+- [x] MCP Server for AI integration
 
-### v1.1
+### v0.2.0
+- [ ] GraphQL API
 - [ ] VSCode extension
-- [ ] Online playground
-- [ ] More examples
+- [ ] More examples and templates
 
-### v1.2
+### v0.3.0
 - [ ] WordPress importer
 - [ ] React hooks (`@reverso/react`)
 - [ ] Scheduled publishing UI
 
-### v2.0
+### v1.0.0
 - [ ] Plugin system
 - [ ] Marketplace
-- [ ] Reverso Cloud
 - [ ] Multi-tenancy
 
 See the full [roadmap](https://github.com/hogrid/reverso/blob/main/ROADMAP.md).
