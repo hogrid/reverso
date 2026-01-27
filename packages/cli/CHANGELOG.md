@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.8
+
+### Patch Changes
+
+- Fix port number in init command messages (3001 instead of 4000)
+
 ## 0.1.7
 
 ### Patch Changes

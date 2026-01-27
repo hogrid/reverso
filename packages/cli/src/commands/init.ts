@@ -112,7 +112,7 @@ export function initCommand(program: Command): void {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.7' });
+      showBanner({ version: '0.1.8' });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
@@ -323,16 +323,11 @@ export function initCommand(program: Command): void {
           console.log();
           console.log(chalk.blue.bold('Starting Reverso dev server...'));
           console.log();
-          console.log(chalk.gray('  Admin panel: ') + chalk.cyan.underline('http://localhost:4000/admin'));
-          console.log(chalk.gray('  API:         ') + chalk.cyan.underline('http://localhost:4000/api'));
+          console.log(chalk.gray('  API:       ') + chalk.cyan.underline('http://localhost:3001/api/reverso'));
+          console.log(chalk.gray('  Health:    ') + chalk.cyan.underline('http://localhost:3001/health'));
           console.log();
           showTip('Press Ctrl+C to stop the server');
           console.log();
-
-          // Open browser after a short delay
-          setTimeout(() => {
-            openBrowser('http://localhost:4000/admin');
-          }, 2000);
 
           // Start dev server directly instead of via npx to avoid cache issues
           const child = spawn(process.execPath, [
