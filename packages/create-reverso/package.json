@@ -2,6 +2,13 @@
   "name": "create-reverso",
   "version": "0.0.0",
   "description": "CLI installer for Reverso CMS - The front-to-back CMS",
+  "homepage": "https://reverso.dev/docs/packages/create-reverso",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

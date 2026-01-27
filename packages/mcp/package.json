@@ -2,6 +2,13 @@
   "name": "@reverso/mcp",
   "version": "0.0.0",
   "description": "MCP Server for AI integration with Reverso CMS",
+  "homepage": "https://reverso.dev/docs/packages/mcp",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

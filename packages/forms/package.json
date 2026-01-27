@@ -2,6 +2,14 @@
   "name": "@reverso/forms",
   "version": "0.0.0",
   "description": "Form builder system for Reverso CMS",
+  "homepage": "https://reverso.dev/docs/packages/forms",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

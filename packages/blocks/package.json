@@ -2,6 +2,14 @@
   "name": "@reverso/blocks",
   "version": "0.0.0",
   "description": "Block editor component for Reverso CMS built with Tiptap",
+  "homepage": "https://reverso.dev/docs/packages/blocks",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -2,6 +2,13 @@
   "name": "@reverso/scanner",
   "version": "0.0.0",
   "description": "AST parser for detecting data-reverso markers in React/Next.js code",
+  "homepage": "https://reverso.dev/docs/packages/scanner",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

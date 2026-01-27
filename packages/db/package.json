@@ -2,6 +2,13 @@
   "name": "@reverso/db",
   "version": "0.0.0",
   "description": "Database schema and migrations for Reverso CMS using Drizzle ORM",
+  "homepage": "https://reverso.dev/docs/packages/db",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

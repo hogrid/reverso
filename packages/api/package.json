@@ -2,6 +2,13 @@
   "name": "@reverso/api",
   "version": "0.0.0",
   "description": "REST and GraphQL API server for Reverso CMS using Fastify",
+  "homepage": "https://reverso.dev/docs/packages/api",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
