@@ -237,6 +237,16 @@ export function initCommand(program: Command): void {
         try {
           execSync(installCmd, { cwd, stdio: 'pipe' });
           spinner.succeed('Dependencies installed');
+
+          // Rebuild native modules (better-sqlite3 requires this)
+          spinner.start('Building native modules...');
+          try {
+            const rebuildCmd = packageManager === 'npm' ? 'npm rebuild' : `${packageManager} rebuild`;
+            execSync(rebuildCmd, { cwd, stdio: 'pipe' });
+            spinner.succeed('Native modules built');
+          } catch {
+            spinner.warn('Native modules may need manual rebuild: pnpm rebuild better-sqlite3');
+          }
         } catch (error) {
           spinner.fail('Failed to install dependencies');
           console.log(chalk.gray('  You can install manually:'));
@@ -297,7 +307,6 @@ export function initCommand(program: Command): void {
           const child = spawn('npx', ['reverso', 'dev'], {
             cwd,
             stdio: 'inherit',
-            shell: true,
           });
 
           child.on('error', () => {

@@ -1,5 +1,17 @@
 # @reverso/cli
 
+## 0.1.5
+
+### Patch Changes
+
+- Auto-fix common errors in dev command:
+  - Auto-rebuild native modules (better-sqlite3)
+  - Auto-install missing dependencies
+  - Auto-find available port if default is in use
+  - Auto-create .reverso directory
+  - Auto-run init if no config found
+  - Handle permission and database lock errors gracefully
+
 ## 0.1.4
 
 ### Patch Changes
