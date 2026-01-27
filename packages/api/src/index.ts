@@ -22,6 +22,8 @@
  * ```
  */
 
+console.log('[api/index] Module loaded from:', import.meta.url);
+
 export const VERSION = '0.0.0';
 
 // Server exports

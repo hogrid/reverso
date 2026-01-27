@@ -79,6 +79,7 @@ const defaultConfig: Required<ServerConfig> = {
  * Create a Fastify server instance.
  */
 export async function createServer(config: ServerConfig = {}): Promise<FastifyInstance> {
+  console.log('\n========== REVERSO API SERVER STARTING ==========\n');
   const opts = { ...defaultConfig, ...config };
 
   const fastifyOptions: FastifyServerOptions = {
@@ -241,30 +242,27 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Serve admin panel static files
   const adminDistPath = findAdminDistPath();
+  console.log('[api] Admin dist path:', adminDistPath || 'NOT FOUND');
   if (adminDistPath) {
-    // Serve admin assets first (more specific path)
+    // Serve admin assets (CSS, JS, images)
     await server.register(fastifyStatic, {
       root: join(adminDistPath, 'assets'),
       prefix: '/admin/assets/',
       decorateReply: false,
     });
 
-    // Serve admin root (index.html, etc.)
-    await server.register(fastifyStatic, {
-      root: adminDistPath,
-      prefix: '/admin/',
-      decorateReply: false,
+    // Serve admin index.html for the root path
+    server.get('/admin', async (request, reply) => {
+      const indexPath = join(adminDistPath, 'index.html');
+      const content = readFileSync(indexPath, 'utf-8');
+      return reply.type('text/html').send(content);
     });
 
-    // SPA fallback - serve index.html for admin routes
-    server.setNotFoundHandler(async (request, reply) => {
-      // Only serve index.html for admin routes (deep links for SPA routing)
-      if (request.url.startsWith('/admin')) {
-        const indexPath = join(adminDistPath, 'index.html');
-        const content = readFileSync(indexPath, 'utf-8');
-        return reply.type('text/html').send(content);
-      }
-      return reply.status(404).send({ error: 'Not found' });
+    // SPA fallback - serve index.html for all admin sub-routes
+    server.get('/admin/*', async (request, reply) => {
+      const indexPath = join(adminDistPath, 'index.html');
+      const content = readFileSync(indexPath, 'utf-8');
+      return reply.type('text/html').send(content);
     });
   }
 
@@ -294,10 +292,19 @@ function findAdminDistPath(): string | null {
     join(process.cwd(), '../admin/dist'),
     // Relative to API package (monorepo development)
     join(__dirname, '../../admin/dist'),
+    // Relative to API dist folder (when running locally)
+    join(__dirname, '../../../admin/dist'),
   ];
 
+  console.log('[api] Searching admin dist in:', possiblePaths);
+  console.log('[api] __dirname:', __dirname);
+  console.log('[api] process.cwd():', process.cwd());
+
   for (const p of possiblePaths) {
-    if (existsSync(join(p, 'index.html'))) {
+    const indexPath = join(p, 'index.html');
+    const exists = existsSync(indexPath);
+    console.log(`[api] Checking ${indexPath}: ${exists ? 'FOUND' : 'not found'}`);
+    if (exists) {
       return p;
     }
   }
