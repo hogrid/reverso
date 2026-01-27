@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.7
+
+### Patch Changes
+
+- Use node-gyp directly to rebuild better-sqlite3 native module instead of pnpm/npm rebuild
+
 ## 0.1.6
 
 ### Patch Changes

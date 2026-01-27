@@ -38,22 +38,30 @@ function getInstallCommand(pm: PackageManager, packages: string[]): string {
 
 async function rebuildNativeModules(spinner: ReturnType<typeof ora>): Promise<boolean> {
   const cwd = process.cwd();
-  const pm = detectPackageManager(cwd);
 
   spinner.start('Rebuilding native modules (better-sqlite3)...');
 
   try {
-    const rebuildCmd = pm === 'yarn'
-      ? 'yarn rebuild better-sqlite3'
-      : pm === 'bun'
-        ? 'bun rebuild'
-        : `${pm} rebuild better-sqlite3`;
+    // Find better-sqlite3 location and rebuild with node-gyp directly
+    const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
+    const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
 
-    execSync(rebuildCmd, { cwd, stdio: 'pipe' });
+    if (!bindingPath) {
+      spinner.fail('Could not find better-sqlite3 module');
+      return false;
+    }
+
+    const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
+    execSync('npx node-gyp rebuild', {
+      cwd: resolve(cwd, betterSqliteDir),
+      stdio: 'pipe',
+    });
+
     spinner.succeed('Native modules rebuilt');
     return true;
-  } catch {
+  } catch (error) {
     spinner.fail('Failed to rebuild native modules');
+    console.log(chalk.gray('  Try manually: cd node_modules/.pnpm/better-sqlite3*/node_modules/better-sqlite3 && npx node-gyp rebuild'));
     return false;
   }
 }
@@ -69,12 +77,20 @@ async function installMissingDependencies(spinner: ReturnType<typeof ora>, packa
     execSync(installCmd, { cwd, stdio: 'pipe' });
     spinner.succeed('Dependencies installed');
 
-    // Also rebuild native modules after install
+    // Also rebuild native modules after install using node-gyp
     spinner.start('Building native modules...');
     try {
-      const rebuildCmd = pm === 'npm' ? 'npm rebuild' : `${pm} rebuild`;
-      execSync(rebuildCmd, { cwd, stdio: 'pipe' });
-      spinner.succeed('Native modules built');
+      const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
+      const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
+
+      if (bindingPath) {
+        const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
+        execSync('npx node-gyp rebuild', {
+          cwd: resolve(cwd, betterSqliteDir),
+          stdio: 'pipe',
+        });
+        spinner.succeed('Native modules built');
+      }
     } catch {
       // Ignore rebuild errors here, will catch later if needed
     }

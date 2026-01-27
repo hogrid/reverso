@@ -107,7 +107,7 @@ Reverso covers everything you need from WordPress + Advanced Custom Fields:
 
 ```bash
 # In your existing React/Next.js project
-npx @reverso/cli init
+npx @reverso/cli@latest init
 ```
 
 This will create:

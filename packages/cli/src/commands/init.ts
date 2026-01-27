@@ -112,7 +112,7 @@ export function initCommand(program: Command): void {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.6' });
+      showBanner({ version: '0.1.7' });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
@@ -238,14 +238,24 @@ export function initCommand(program: Command): void {
           execSync(installCmd, { cwd, stdio: 'pipe' });
           spinner.succeed('Dependencies installed');
 
-          // Rebuild native modules (better-sqlite3 requires this)
-          spinner.start('Building native modules...');
+          // Rebuild native modules using node-gyp directly
+          spinner.start('Building native modules (better-sqlite3)...');
           try {
-            const rebuildCmd = packageManager === 'npm' ? 'npm rebuild' : `${packageManager} rebuild`;
-            execSync(rebuildCmd, { cwd, stdio: 'pipe' });
-            spinner.succeed('Native modules built');
+            const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
+            const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
+
+            if (bindingPath) {
+              const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
+              execSync('npx node-gyp rebuild', {
+                cwd: resolve(cwd, betterSqliteDir),
+                stdio: 'pipe',
+              });
+              spinner.succeed('Native modules built');
+            } else {
+              spinner.info('Native modules not found');
+            }
           } catch {
-            spinner.warn('Native modules may need manual rebuild: pnpm rebuild better-sqlite3');
+            spinner.warn('Native module build failed - will retry before starting dev');
           }
         } catch (error) {
           spinner.fail('Failed to install dependencies');
@@ -289,14 +299,25 @@ export function initCommand(program: Command): void {
         })).value;
 
         if (startDev) {
-          // Rebuild native modules before starting dev
-          spinner.start('Preparing native modules...');
+          // Rebuild native modules before starting dev using node-gyp directly
+          spinner.start('Building native modules (better-sqlite3)...');
           try {
-            const rebuildCmd = packageManager === 'npm' ? 'npm rebuild' : `${packageManager} rebuild`;
-            execSync(rebuildCmd, { cwd, stdio: 'pipe' });
-            spinner.succeed('Native modules ready');
+            // Find better-sqlite3 location and rebuild with node-gyp
+            const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
+            const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
+
+            if (bindingPath) {
+              const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
+              execSync('npx node-gyp rebuild', {
+                cwd: resolve(cwd, betterSqliteDir),
+                stdio: 'pipe',
+              });
+              spinner.succeed('Native modules built');
+            } else {
+              spinner.info('Native modules not found, skipping rebuild');
+            }
           } catch {
-            spinner.warn('Native modules may need rebuild if dev fails');
+            spinner.warn('Native module build failed - may need manual rebuild');
           }
 
           console.log();
