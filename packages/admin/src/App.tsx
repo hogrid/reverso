@@ -1,9 +1,11 @@
+import { ProtectedRoute } from '@/components/auth';
 import { RootLayout } from '@/components/layout';
 import {
   DashboardPage,
   FormBuilderPage,
   FormsListPage,
   FormSubmissionsPage,
+  LoginPage,
   MediaPage,
   NotFoundPage,
   PageEditorPage,
@@ -36,7 +38,18 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<RootLayout />}>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <RootLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<DashboardPage />} />
             <Route path="pages" element={<PagesListPage />} />
             <Route path="pages/:slug" element={<PageEditorPage />} />

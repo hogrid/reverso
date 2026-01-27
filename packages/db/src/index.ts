@@ -242,6 +242,13 @@ export {
   deleteUserSessions,
   getUserById,
   type SessionWithUser,
+  // Auth
+  getUserByEmail,
+  createUser,
+  getAccountByUserId,
+  createAccount,
+  createSession,
+  getSessionWithUser,
 } from './queries/index.js';
 
 // Service exports

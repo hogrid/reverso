@@ -1,0 +1,63 @@
+# Docker ignore file
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs (we rebuild in Docker)
+dist
+*.tsbuildinfo
+
+# Development files
+.reverso
+.turbo
+.cache
+
+# Test files
+coverage
+*.test.ts
+*.spec.ts
+__tests__
+.test
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+docs
+*.md
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+Makefile
+*.bak
+*.tmp

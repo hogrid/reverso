@@ -4,9 +4,11 @@
  */
 
 import { program } from 'commander';
+import { buildCommand } from './commands/build.js';
 import { devCommand } from './commands/dev.js';
 import { migrateCommand } from './commands/migrate.js';
 import { scanCommand } from './commands/scan.js';
+import { startCommand } from './commands/start.js';
 import { VERSION } from './index.js';
 
 program
@@ -17,6 +19,8 @@ program
 // Register commands
 scanCommand(program);
 devCommand(program);
+buildCommand(program);
+startCommand(program);
 migrateCommand(program);
 
 program.parse();

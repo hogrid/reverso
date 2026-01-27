@@ -1,0 +1,67 @@
+# Reverso CMS Docker Compose Configuration
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  reverso:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reverso-cms
+    restart: unless-stopped
+    ports:
+      - "${REVERSO_PORT:-3001}:3001"
+    volumes:
+      # Persist database and uploads
+      - reverso-data:/app/.reverso
+    environment:
+      NODE_ENV: production
+      REVERSO_PORT: 3001
+      REVERSO_HOST: 0.0.0.0
+      REVERSO_DB_PATH: /app/.reverso/reverso.db
+      REVERSO_COOKIE_SECRET: ${REVERSO_COOKIE_SECRET:?Cookie secret is required}
+      REVERSO_API_KEY: ${REVERSO_API_KEY:-}
+      REVERSO_CORS_ORIGIN: ${REVERSO_CORS_ORIGIN:-http://localhost:3000}
+      REVERSO_CSRF_ENABLED: ${REVERSO_CSRF_ENABLED:-true}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - reverso-network
+
+  # Optional: PostgreSQL for production
+  postgres:
+    image: postgres:16-alpine
+    container_name: reverso-postgres
+    restart: unless-stopped
+    profiles:
+      - postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-reverso}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Postgres password is required}
+      POSTGRES_DB: ${POSTGRES_DB:-reverso}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reverso}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reverso-network
+
+volumes:
+  reverso-data:
+    driver: local
+  postgres-data:
+    driver: local
+
+networks:
+  reverso-network:
+    driver: bridge

@@ -6,6 +6,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
+import csrfProtection from '@fastify/csrf-protection';
+import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
@@ -117,11 +119,67 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     await server.register(cors, corsOptions);
   }
 
+  // Register security headers (helmet)
+  await server.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Disable for media uploads
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin for assets
+  });
+
   // Register cookies
   await server.register(cookie, {
     secret: opts.cookieSecret,
     parseOptions: {},
   });
+
+  // Register CSRF protection (only for production or when explicitly enabled)
+  if (process.env.NODE_ENV === 'production' || process.env.REVERSO_CSRF_ENABLED === 'true') {
+    await server.register(csrfProtection, {
+      sessionPlugin: '@fastify/cookie',
+      cookieOpts: {
+        signed: true,
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+      },
+      // Skip CSRF for public endpoints and API key authentication
+      getToken: (request) => {
+        return (
+          request.headers['x-csrf-token']?.toString() ||
+          request.headers['csrf-token']?.toString()
+        );
+      },
+    });
+
+    // Add hook to skip CSRF for safe methods and API key auth
+    server.addHook('onRequest', async (request, reply) => {
+      const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+      if (safeMethods.includes(request.method)) return;
+
+      // Skip CSRF if API key is provided
+      if (request.headers['x-api-key']) return;
+
+      // Skip CSRF for public form submissions (they have their own validation)
+      if (request.url.startsWith('/api/reverso/public/')) return;
+    });
+
+    // Add CSRF token generation endpoint
+    server.get('/api/csrf-token', async (request, reply) => {
+      const token = await reply.generateCsrf();
+      return { csrfToken: token };
+    });
+  }
 
   // Register rate limiting
   await server.register(rateLimit, {

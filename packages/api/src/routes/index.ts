@@ -4,6 +4,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import authRoutes from './auth.js';
 import contentRoutes from './content.js';
 import formsRoutes from './forms.js';
 import mediaRoutes from './media.js';
@@ -19,6 +20,10 @@ export async function registerRoutes(
   server: FastifyInstance,
   prefix = '/api/reverso'
 ): Promise<void> {
+  // Auth routes (no prefix - uses /auth/*)
+  await server.register(authRoutes);
+
+  // CMS API routes
   await server.register(
     async (instance) => {
       await instance.register(schemaRoutes);
@@ -34,6 +39,7 @@ export async function registerRoutes(
 }
 
 export {
+  authRoutes,
   schemaRoutes,
   pagesRoutes,
   contentRoutes,

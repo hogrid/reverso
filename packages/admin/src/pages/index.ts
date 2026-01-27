@@ -7,4 +7,5 @@ export * from './FormsListPage';
 export * from './FormBuilderPage';
 export * from './FormSubmissionsPage';
 export * from './RedirectsPage';
+export * from './LoginPage';
 export * from './NotFoundPage';
