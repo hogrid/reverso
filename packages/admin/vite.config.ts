@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    exclude: ['**/node_modules/**', '**/e2e/**'],
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

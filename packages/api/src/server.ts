@@ -254,7 +254,8 @@ export async function startServer(
   server: FastifyInstance,
   config: ServerConfig = {}
 ): Promise<string> {
-  const opts = { ...defaultConfig, ...config };
+  // Use server's stored config as base, then override with passed config
+  const opts = { ...defaultConfig, ...server.config, ...config };
 
   try {
     const address = await server.listen({
