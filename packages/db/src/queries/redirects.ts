@@ -2,7 +2,7 @@
  * Redirects queries.
  */
 
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import {
   type NewRedirect,

@@ -57,7 +57,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <Suspense fallback={<LoadingPage />}>
           <Routes>
             {/* Public routes */}

@@ -3,7 +3,7 @@
  */
 
 import crypto from 'node:crypto';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, lt } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import { loginAttempts } from '../schema/login-attempts.js';
 import type { LoginAttempt } from '../schema/login-attempts.js';

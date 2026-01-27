@@ -14,14 +14,12 @@ import {
   type SchemaDiff,
 } from '@reverso/core';
 import {
-  type JsonWriterOptions,
-  type TypesWriterOptions,
   compareSchemas,
   readJsonSchema,
   writeJsonSchema,
   writeTypesFile,
 } from './output/index.js';
-import { type AstParser, type ParseResult, createParser } from './parser/index.js';
+import { type AstParser, createParser } from './parser/index.js';
 import { generateSchema, updateSchemaMeta } from './schema/index.js';
 import { type FileWatcher, type WatchEvent, createWatcher } from './watch/index.js';
 

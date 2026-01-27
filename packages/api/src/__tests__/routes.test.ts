@@ -4,7 +4,7 @@
 
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import type { ProjectSchema } from '@reverso/core';
-import { createDatabaseSchema, syncSchema } from '@reverso/db';
+import { createDatabaseSchema, } from '@reverso/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { databasePlugin } from '../plugins/index.js';
 import { registerRoutes } from '../routes/index.js';

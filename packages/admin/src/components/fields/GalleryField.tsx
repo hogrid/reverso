@@ -1,4 +1,4 @@
-import { type MediaItem, mediaToImageValue, useUploadMedia } from '@/api/hooks/useMedia';
+import { type MediaItem, useUploadMedia } from '@/api/hooks/useMedia';
 import { MediaLibraryModal } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

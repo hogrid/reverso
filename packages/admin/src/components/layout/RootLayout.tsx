@@ -21,7 +21,7 @@ function SkipLink() {
 export function RootLayout() {
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen overflow-hidden bg-background">
         {/* Skip link for keyboard users */}
         <SkipLink />
 
@@ -29,11 +29,11 @@ export function RootLayout() {
         <Sidebar />
 
         {/* Main content area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden bg-background">
           <Header />
           <main
             id="main-content"
-            className="flex-1 overflow-auto bg-muted/30"
+            className="flex-1 overflow-auto"
             tabIndex={-1}
             aria-label="Main content"
           >

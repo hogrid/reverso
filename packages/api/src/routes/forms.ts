@@ -17,7 +17,6 @@ import {
   getFormFields,
   getFormSubmissionById,
   getFormSubmissionStats,
-  getFormSubmissions,
   getFormSubmissionsByFormId,
   getForms,
   parseFormFieldConfig,

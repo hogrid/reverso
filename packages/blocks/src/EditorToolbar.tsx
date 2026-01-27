@@ -1,4 +1,4 @@
-import type { Editor } from '@tiptap/react';
+
 import {
   AlignCenter,
   AlignJustify,
@@ -24,8 +24,6 @@ import {
   Redo,
   RemoveFormatting,
   Strikethrough,
-  Subscript,
-  Superscript,
   Table,
   Underline,
   Undo,

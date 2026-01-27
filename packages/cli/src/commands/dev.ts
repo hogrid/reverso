@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 
 interface DevOptions {
   port: string;
@@ -17,6 +17,12 @@ interface DevOptions {
   open: boolean;
 }
 
+interface AdminCredentials {
+  name: string;
+  email: string;
+  password: string;
+}
+
 type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
 function detectPackageManager(cwd: string): PackageManager {
@@ -24,6 +30,26 @@ function detectPackageManager(cwd: string): PackageManager {
   if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
   if (existsSync(resolve(cwd, 'yarn.lock'))) return 'yarn';
   return 'npm';
+}
+
+async function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    import('node:net').then(({ createServer }) => {
+      const server = createServer();
+      server.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      });
+      server.once('listening', () => {
+        server.close();
+        resolve(false);
+      });
+      server.listen(port);
+    });
+  });
 }
 
 function getInstallCommand(pm: PackageManager, packages: string[]): string {
@@ -59,7 +85,7 @@ async function rebuildNativeModules(spinner: ReturnType<typeof ora>): Promise<bo
 
     spinner.succeed('Native modules rebuilt');
     return true;
-  } catch (error) {
+  } catch {
     spinner.fail('Failed to rebuild native modules');
     console.log(chalk.gray('  Try manually: cd node_modules/.pnpm/better-sqlite3*/node_modules/better-sqlite3 && npx node-gyp rebuild'));
     return false;
@@ -102,32 +128,28 @@ async function installMissingDependencies(spinner: ReturnType<typeof ora>, packa
   }
 }
 
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    import('node:net').then(({ createServer }) => {
-      const server = createServer();
-      server.once('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      });
-      server.once('listening', () => {
-        server.close();
-        resolve(false);
-      });
-      server.listen(port);
-    });
-  });
-}
-
 async function findAvailablePort(startPort: number): Promise<number> {
   let port = startPort;
   while (await isPortInUse(port) && port < startPort + 100) {
     port++;
   }
   return port;
+}
+
+/**
+ * Read admin credentials from .reverso/admin.json
+ */
+function readAdminCredentials(cwd: string): AdminCredentials | null {
+  try {
+    const adminConfigPath = resolve(cwd, '.reverso/admin.json');
+    if (!existsSync(adminConfigPath)) {
+      return null;
+    }
+    const content = readFileSync(adminConfigPath, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
 }
 
 export function devCommand(program: Command): void {
@@ -178,7 +200,7 @@ export function devCommand(program: Command): void {
       }
 
       // Check 3: Port availability
-      let port = parseInt(options.port, 10);
+      let port = Number.parseInt(options.port, 10);
       if (await isPortInUse(port)) {
         spinner.start(`Port ${port} is in use, finding available port...`);
         port = await findAvailablePort(port);
@@ -199,6 +221,20 @@ export function devCommand(program: Command): void {
         const { createDatabaseSchema } = await import('@reverso/db');
         await createDatabaseSchema(dbPath);
         spinner.succeed('Database initialized');
+
+        // Show admin credentials if available
+        const adminCreds = readAdminCredentials(cwd);
+        if (adminCreds) {
+          console.log();
+          console.log(chalk.gray('Admin credentials (for initial setup):'));
+          console.log(chalk.gray('  Name:     ') + chalk.cyan(adminCreds.name));
+          console.log(chalk.gray('  Email:    ') + chalk.cyan(adminCreds.email));
+          console.log(chalk.gray('  Password: ') + chalk.cyan(adminCreds.password));
+          console.log();
+          console.log(chalk.yellow('First time?') + chalk.gray(' Click "Create an account" in the admin panel'));
+          console.log(chalk.gray('to set up your admin user with these credentials.'));
+          console.log();
+        }
 
         // Start scanner in watch mode
         spinner.start('Starting file scanner...');
@@ -239,6 +275,7 @@ export function devCommand(program: Command): void {
         console.log(chalk.green.bold('Development server ready!'));
         console.log();
         console.log(chalk.bold('Endpoints:'));
+        console.log(chalk.gray(`  Admin:   `) + chalk.cyan.underline(`http://${options.host}:${port}/admin`));
         console.log(chalk.gray(`  API:     http://${options.host}:${port}/api/reverso`));
         console.log(chalk.gray(`  Health:  http://${options.host}:${port}/health`));
         console.log();
@@ -324,7 +361,7 @@ export function devCommand(program: Command): void {
           const missingPkgMatch = errorMsg.match(/Cannot find (?:package|module) ['"]?(@?[^'"\/\s]+(?:\/[^'"\/\s]+)?)/);
           const missingPackages: string[] = [];
 
-          if (missingPkgMatch && missingPkgMatch[1]) {
+          if (missingPkgMatch?.[1]) {
             const pkg = missingPkgMatch[1];
             if (pkg.startsWith('@reverso/')) {
               missingPackages.push(pkg);

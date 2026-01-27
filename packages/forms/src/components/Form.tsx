@@ -3,7 +3,7 @@
  */
 
 import { Controller } from 'react-hook-form';
-import { type UseReversoFormOptions, useReversoForm } from '../hooks/useReversoForm';
+import { useReversoForm } from '../hooks/useReversoForm';
 import type { FormConfig, FormFieldConfig, FormSubmissionData, FormSubmitResult } from '../types';
 import { FormField } from './FormField';
 import { FormProgress } from './FormProgress';

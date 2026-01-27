@@ -36,6 +36,8 @@ const DEFAULT_PUBLIC_PATHS = [
   /^\/uploads\//,
   /^\/sitemap\.xml$/,
   /^\/api\/reverso\/public\//,
+  /^\/admin\//, // Admin panel static files
+  /^\/auth\//,  // Auth routes (login, register, setup-status, etc) - always accessible
 ];
 
 async function authPlugin(

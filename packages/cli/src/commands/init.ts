@@ -9,6 +9,7 @@ import prompts from 'prompts';
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
+import { hostname } from 'node:os';
 import { showBanner, showSuccess, showTip } from '../ui/index.js';
 
 const CONFIG_TEMPLATE = `import { defineConfig } from '@reverso/core';
@@ -80,26 +81,6 @@ function getInstallCommand(pm: PackageManager, packages: string[]): string {
   }
 }
 
-function runCommand(command: string, cwd: string): boolean {
-  try {
-    execSync(command, { cwd, stdio: 'inherit' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function openBrowser(url: string): void {
-  const platform = process.platform;
-  const command =
-    platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
-
-  try {
-    execSync(`${command} ${url}`, { stdio: 'ignore' });
-  } catch {
-    // Ignore errors opening browser
-  }
-}
 
 export function initCommand(program: Command): void {
   program
@@ -112,7 +93,7 @@ export function initCommand(program: Command): void {
       const spinner = ora();
 
       // Show branded banner
-      showBanner({ version: '0.1.8' });
+      showBanner({ version: '0.1.9' });
 
       console.log(chalk.blue.bold('Initializing Reverso CMS...'));
       console.log();
@@ -220,6 +201,58 @@ export function initCommand(program: Command): void {
 
       console.log();
 
+      // Admin account setup
+      console.log(chalk.bold('Admin Account Setup'));
+      console.log();
+
+      const adminAnswers = await prompts([
+        {
+          type: 'text',
+          name: 'name',
+          message: 'Admin name',
+          initial: 'Admin',
+        },
+        {
+          type: 'text',
+          name: 'email',
+          message: 'Admin email',
+          initial: `admin@${hostname() || 'localhost'}`,
+          validate: (value: string) => value.includes('@') ? true : 'Invalid email',
+        },
+        {
+          type: 'password',
+          name: 'password',
+          message: 'Admin password (min 8 characters)',
+          validate: (value: string) => value.length >= 8 ? true : 'Password must be at least 8 characters',
+        },
+      ], {
+        onSubmit: () => {
+          // Clear line after prompt for cleaner output
+          console.log('');
+        }
+      });
+
+      if (!adminAnswers.name || !adminAnswers.email || !adminAnswers.password) {
+        console.log(chalk.red('Admin setup cancelled.'));
+        process.exit(1);
+      }
+
+      // Save admin credentials for dev server
+      spinner.start('Saving admin credentials...');
+      try {
+        const adminConfigPath = resolve(cwd, '.reverso/admin.json');
+        writeFileSync(adminConfigPath, JSON.stringify({
+          name: adminAnswers.name,
+          email: adminAnswers.email,
+          password: adminAnswers.password,
+        }, null, 2));
+        spinner.succeed('Admin credentials saved');
+      } catch {
+        spinner.warn('Could not save admin credentials');
+      }
+
+      console.log();
+
       // Install dependencies
       const installDeps = options.yes || (await prompts({
         type: 'confirm',
@@ -231,7 +264,13 @@ export function initCommand(program: Command): void {
       if (installDeps) {
         console.log();
         spinner.start('Installing dependencies...');
-        const installCmd = getInstallCommand(packageManager, ['@reverso/core', '@reverso/cli']);
+        const installCmd = getInstallCommand(packageManager, [
+          '@reverso/core',
+          '@reverso/cli',
+          '@reverso/db',
+          '@reverso/scanner',
+          '@reverso/api'
+        ]);
         spinner.text = `Running: ${chalk.gray(installCmd)}`;
 
         try {
@@ -257,7 +296,7 @@ export function initCommand(program: Command): void {
           } catch {
             spinner.warn('Native module build failed - will retry before starting dev');
           }
-        } catch (error) {
+        } catch {
           spinner.fail('Failed to install dependencies');
           console.log(chalk.gray('  You can install manually:'));
           console.log(chalk.cyan(`  ${installCmd}`));
@@ -323,6 +362,7 @@ export function initCommand(program: Command): void {
           console.log();
           console.log(chalk.blue.bold('Starting Reverso dev server...'));
           console.log();
+          console.log(chalk.gray('  Admin:     ') + chalk.cyan.underline('http://localhost:3001/admin'));
           console.log(chalk.gray('  API:       ') + chalk.cyan.underline('http://localhost:3001/api/reverso'));
           console.log(chalk.gray('  Health:    ') + chalk.cyan.underline('http://localhost:3001/health'));
           console.log();
@@ -363,7 +403,7 @@ export function initCommand(program: Command): void {
       console.log(chalk.cyan('     npx reverso dev'));
       console.log();
       console.log(chalk.gray('  3. Open the admin panel:'));
-      console.log(chalk.cyan('     http://localhost:4000/admin'));
+      console.log(chalk.cyan('     http://localhost:3001/admin'));
       console.log();
     });
 }

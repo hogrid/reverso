@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, sanitizeHtml } from '@/lib/utils';
-import { Bold, Code, Italic, Link, List, ListOrdered, Quote, Underline } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Bold, Code, Italic, List, ListOrdered, Quote, Underline } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 // Simple WYSIWYG toolbar actions

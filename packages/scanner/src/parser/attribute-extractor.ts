@@ -8,7 +8,6 @@ import type {
   JsxExpression,
   JsxOpeningElement,
   JsxSelfClosingElement,
-  JsxSpreadAttribute,
 } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 

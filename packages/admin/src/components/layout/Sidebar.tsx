@@ -1,3 +1,13 @@
+/**
+ * Sidebar - Refined minimal navigation
+ *
+ * Design principles:
+ * - Pure white background
+ * - Subtle borders and hover states
+ * - Smooth transitions
+ * - Clear visual hierarchy
+ */
+
 import { usePages } from '@/api/hooks';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -53,13 +63,14 @@ export function Sidebar() {
         to={item.href}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+          'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200',
+          'focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 focus:ring-offset-background',
           active
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            ? 'bg-accent text-accent-foreground font-medium'
+            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
         )}
       >
-        <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+        <Icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-105" aria-hidden="true" />
         {!sidebarCollapsed && <span>{item.title}</span>}
         {sidebarCollapsed && <span className="sr-only">{item.title}</span>}
       </Link>
@@ -69,7 +80,9 @@ export function Sidebar() {
       return (
         <Tooltip>
           <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-          <TooltipContent side="right">{item.title}</TooltipContent>
+          <TooltipContent side="right" className="font-normal text-xs px-2 py-1">
+            {item.title}
+          </TooltipContent>
         </Tooltip>
       );
     }
@@ -82,38 +95,52 @@ export function Sidebar() {
       aria-label="Main navigation"
       data-testid="sidebar"
       className={cn(
-        'hidden md:flex flex-col border-r bg-card transition-all duration-300',
-        sidebarCollapsed ? 'w-16' : 'w-64'
+        'hidden md:flex flex-col bg-background border-r border-border/60',
+        'transition-all duration-300 ease-out',
+        sidebarCollapsed ? 'w-16' : 'w-56'
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between border-b px-4">
+      <div className="flex h-14 items-center justify-between px-3 border-b border-border/50">
         {!sidebarCollapsed && (
-          <Link to="/" className="flex items-center gap-2">
-            <Layers className="h-6 w-6 text-primary" />
-            <span className="font-semibold text-lg">Reverso</span>
+          <Link
+            to="/"
+            className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/40 transition-colors duration-150"
+          >
+            <div className="w-5 h-5 rounded bg-foreground flex items-center justify-center">
+              <Layers className="h-3 w-3 text-background" strokeWidth={2.5} />
+            </div>
+            <span className="font-medium text-sm tracking-tight">Reverso</span>
           </Link>
         )}
         {sidebarCollapsed && (
-          <Link to="/" className="mx-auto">
-            <Layers className="h-6 w-6 text-primary" />
+          <Link
+            to="/"
+            className="mx-auto flex items-center justify-center w-9 h-9 rounded-md hover:bg-accent/40 transition-colors duration-150"
+          >
+            <div className="w-5 h-5 rounded bg-foreground flex items-center justify-center">
+              <Layers className="h-3 w-3 text-background" strokeWidth={2.5} />
+            </div>
           </Link>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className={cn('h-8 w-8', sidebarCollapsed && 'hidden')}
+          className={cn(
+            'h-7 w-7 rounded-md hover:bg-accent/40 transition-colors duration-150',
+            sidebarCollapsed && 'hidden'
+          )}
           onClick={() => setSidebarCollapsed(true)}
           aria-label="Collapse sidebar"
           aria-expanded={!sidebarCollapsed}
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 px-3 py-4">
-        <nav aria-label="Primary navigation" className="flex flex-col gap-1">
+      <ScrollArea className="flex-1 px-2.5 py-3">
+        <nav aria-label="Primary navigation" className="space-y-0.5">
           {mainNavItems.map((item) => (
             <NavLink key={item.href} item={item} />
           ))}
@@ -122,28 +149,29 @@ export function Sidebar() {
         {/* Pages submenu */}
         {!sidebarCollapsed && pages && pages.length > 0 && (
           <>
-            <Separator className="my-4" />
-            <nav aria-label="Content pages" className="space-y-1">
+            <Separator className="my-3 bg-border/50" />
+            <nav aria-label="Content pages" className="space-y-0.5">
               <h4
                 id="pages-nav-heading"
-                className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="px-3 mb-2 text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider"
               >
-                Content Pages
+                Pages
               </h4>
-              <ul aria-labelledby="pages-nav-heading" className="space-y-1">
+              <ul aria-labelledby="pages-nav-heading" className="space-y-0.5">
                 {pages.slice(0, 10).map((page) => (
                   <li key={page.slug}>
                     <Link
                       to={`/pages/${page.slug}`}
                       aria-current={location.pathname === `/pages/${page.slug}` ? 'page' : undefined}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+                        'group flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-all duration-200',
+                        'focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 focus:ring-offset-background',
                         location.pathname === `/pages/${page.slug}`
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                          ? 'bg-accent text-accent-foreground font-medium'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                       )}
                     >
-                      <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <FileText className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:scale-105" aria-hidden="true" />
                       <span className="truncate">{page.name}</span>
                     </Link>
                   </li>
@@ -152,9 +180,9 @@ export function Sidebar() {
                   <li>
                     <Link
                       to="/pages"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      className="group flex items-center gap-2.5 rounded-md px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
                     >
-                      View all {pages.length} pages...
+                      <span className="truncate">View all {pages.length} pages…</span>
                     </Link>
                   </li>
                 )}
@@ -165,8 +193,8 @@ export function Sidebar() {
       </ScrollArea>
 
       {/* Bottom nav */}
-      <div className="mt-auto border-t px-3 py-4">
-        <nav aria-label="Settings navigation" className="flex flex-col gap-1">
+      <div className="border-t border-border/50 px-2.5 py-3">
+        <nav aria-label="Settings navigation" className="space-y-0.5">
           {bottomNavItems.map((item) => (
             <NavLink key={item.href} item={item} />
           ))}
@@ -177,12 +205,12 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="icon"
-            className="mx-auto mt-2 h-8 w-8"
+            className="mx-auto mt-2 h-7 w-7 rounded-md hover:bg-accent/40 transition-colors duration-150"
             onClick={() => setSidebarCollapsed(false)}
             aria-label="Expand sidebar"
             aria-expanded={sidebarCollapsed}
           >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         )}
       </div>

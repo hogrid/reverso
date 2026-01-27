@@ -2,7 +2,7 @@
  * Form fields queries.
  */
 
-import { and, eq, gt, gte, sql } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import {
   type FormField,

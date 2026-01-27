@@ -1,4 +1,4 @@
-import type { FieldSchema, PageSchema, ProjectSchema, SectionSchema } from '@reverso/core';
+import type { FieldSchema, ProjectSchema, } from '@reverso/core';
 import { describe, expect, it } from 'vitest';
 import {
   deduplicateFields,

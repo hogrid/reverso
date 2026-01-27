@@ -4,7 +4,6 @@
  */
 
 import type { FieldSchema, PageSchema, ProjectSchema, SectionSchema } from '@reverso/core';
-import { getPageFromPath, getSectionFromPath } from '@reverso/core';
 import type { DrizzleDatabase } from '../connection.js';
 import { deleteField, getFieldsBySectionId, upsertField } from '../queries/fields.js';
 import { deletePage, getPages, upsertPage } from '../queries/pages.js';

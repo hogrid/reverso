@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  base: '/admin/',
   test: {
     exclude: ['**/node_modules/**', '**/e2e/**'],
   },
@@ -22,28 +23,11 @@ export default defineConfig({
     },
   },
   build: {
-    lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
-      name: 'ReversoAdmin',
-      fileName: 'index',
-      formats: ['es'],
-    },
+    outDir: 'dist',
+    emptyDirOnce: true,
     rollupOptions: {
-      external: [
-        'react',
-        'react-dom',
-        'react-router-dom',
-        '@reverso/core',
-        '@reverso/blocks',
-        '@reverso/forms',
-        '@tanstack/react-query',
-        'zustand',
-      ],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-        },
+      input: {
+        main: resolve(__dirname, 'index.html'),
       },
     },
   },

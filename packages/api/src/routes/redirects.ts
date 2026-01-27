@@ -9,7 +9,6 @@ import {
   deleteRedirect,
   disableRedirect,
   enableRedirect,
-  getEnabledRedirects,
   getRedirectByFromPath,
   getRedirectById,
   getRedirectStats,

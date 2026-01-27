@@ -3,7 +3,7 @@
  * Adds db instance to request.
  */
 
-import { type DatabaseConfig, type DrizzleDatabase, getDatabase, initDatabase } from '@reverso/db';
+import { type DatabaseConfig, type DrizzleDatabase, initDatabase } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 

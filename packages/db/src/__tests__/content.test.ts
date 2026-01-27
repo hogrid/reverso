@@ -9,7 +9,6 @@ import { createDatabase } from '../migrate.js';
 import {
   createContent,
   getContentByFieldId,
-  getContentById,
   getContentHistory,
   parseContentValue,
   updateContent,

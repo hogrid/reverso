@@ -4,7 +4,7 @@
 
 import type { ContentValue, ProjectSchema } from '@reverso/core';
 import type { DrizzleDatabase } from '@reverso/db';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import type { AuthUser } from './plugins/auth.js';
 
 // Re-export for convenience

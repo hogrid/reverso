@@ -2,7 +2,7 @@
  * FormField component - dispatches to appropriate field type.
  */
 
-import type { FormFieldConfig, FormFieldProps } from '../types';
+import type { FormFieldProps } from '../types';
 import {
   CheckboxField,
   DateField,

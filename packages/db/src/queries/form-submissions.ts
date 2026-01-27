@@ -2,7 +2,7 @@
  * Form submissions queries.
  */
 
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import {
   type FormSubmission,

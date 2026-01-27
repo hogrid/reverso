@@ -25,7 +25,7 @@ export function startCommand(program: Command): void {
       const spinner = ora();
 
       try {
-        const port = parseInt(options.port, 10);
+        const port = Number.parseInt(options.port, 10);
         const dbPath = resolve(options.database);
 
         // Validate database exists
@@ -42,9 +42,8 @@ export function startCommand(program: Command): void {
 
         // Initialize database
         spinner.start('Connecting to database...');
-        const { initDatabase, getDatabase } = await import('@reverso/db');
+        const { initDatabase } = await import('@reverso/db');
         initDatabase({ url: dbPath });
-        const db = getDatabase();
         spinner.succeed('Database connected');
 
         // Start API server

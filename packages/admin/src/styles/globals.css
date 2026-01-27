@@ -1,51 +1,103 @@
+/**
+ * Reverso Admin - Refined Minimal Theme
+ *
+ * Design philosophy: "Swiss Precision meets Digital Clarity"
+ * - Absolute minimalism with intentional details
+ * - High contrast for readability
+ * - Subtle interactions that feel premium
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    /* === Core Colors === */
+    --background: 0 0% 100%;           /* #FFFFFF - Pure white */
+    --foreground: 0 0% 12%;            /* #1F1F1F - Near black for text */
+
+    /* === Cards & Surfaces === */
+    --card: 0 0% 100%;                 /* White */
+    --card-foreground: 0 0% 12%;       /* #1F1F1F */
+
+    /* === Popovers === */
+    --popover: 0 0% 100%;              /* White */
+    --popover-foreground: 0 0% 12%;    /* #1F1F1F */
+
+    /* === Primary Actions === */
+    --primary: 0 0% 12%;               /* #1F1F1F - Black */
+    --primary-foreground: 0 0% 100%;   /* White */
+
+    /* === Secondary === */
+    --secondary: 210 20% 96%;          /* #F5F5F4 */
+    --secondary-foreground: 0 0% 12%;  /* #1F1F1F */
+
+    /* === Muted Content === */
+    --muted: 210 20% 97%;              /* #FAFAF9 - Very light gray */
+    --muted-foreground: 0 0% 40%;      /* #666666 - Medium gray */
+
+    /* === Accent States === */
+    --accent: 210 20% 95%;             /* #F1F0EF - Selection background */
+    --accent-foreground: 0 0% 12%;     /* #1F1F1F */
+
+    /* === Destructive === */
+    --destructive: 0 72% 51%;          /* #DC2626 - Clean red */
+    --destructive-foreground: 0 0% 100%;
+
+    /* === Borders === */
+    --border: 210 20% 88%;             /* #E3E2E0 - Subtle */
+    --input: 210 20% 88%;              /* Same as border */
+
+    /* === Focus Ring === */
+    --ring: 210 90% 52%;               /* #2563EB - Subtler blue, not neon */
+
+    /* === Radius === */
+    --radius: 0.375rem;                /* 6px - Refined small radius */
+
+    /* === Sidebar === */
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 0 0% 12%;
+    --sidebar-border: 210 20% 90%;
+    --sidebar-accent: 210 20% 94%;
+    --sidebar-accent-foreground: 0 0% 12%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --background: 0 0% 8%;             /* #141414 */
+    --foreground: 0 0% 98%;            /* #FAFAFA */
+
+    --card: 0 0% 8%;                   /* #141414 */
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+
+    --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+
+    --primary: 0 0% 98%;               /* #FAFAFA */
+    --primary-foreground: 0 0% 8%;     /* #141414 */
+
+    --secondary: 0 0% 15%;             /* #262626 */
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+
+    --muted: 0 0% 15%;                 /* #262626 */
+    --muted-foreground: 0 0% 55%;      /* #8C8C8C */
+
+    --accent: 0 0% 18%;                /* #2E2E2E */
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+
+    --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+
+    --border: 0 0% 18%;                /* #2E2E2E */
+    --input: 0 0% 18%;
+
+    --ring: 210 90% 60%;
+
+    --sidebar: 0 0% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
   }
 }
 
@@ -53,45 +105,69 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    font-variant-ligatures: common-ligatures;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Scrollbar styling */
+/* === Scrollbar === */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full;
+  background: hsl(var(--muted-foreground) / 0.15);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
+  background: hsl(var(--muted-foreground) / 0.25);
 }
 
-/* Focus ring */
+/* === Focus Utilities === */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+  @apply focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-1 focus:ring-offset-background;
 }
 
-/* Focus visible for keyboard navigation */
-.focus-visible-ring {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+/* === Animations === */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* Skip to main content link (visible only on focus) */
-.skip-link {
-  @apply sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary;
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Reduced motion preference */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+/* === Reduced Motion === */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -99,18 +175,45 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
 
-/* High contrast mode improvements */
+/* === High Contrast === */
 @media (prefers-contrast: high) {
   :root {
-    --border: 240 5.9% 50%;
-    --ring: 240 5.9% 10%;
+    --border: 0 0% 40%;
+    --ring: 0 0% 12%;
   }
 
   .dark {
-    --border: 240 3.7% 50%;
+    --border: 0 0% 40%;
   }
+}
+
+/* === Utility Classes === */
+.notion-shadow {
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.04),
+    0 1px 3px 0 rgb(0 0 0 / 0.03);
+}
+
+.notion-card {
+  @apply bg-card border border-border/80 rounded-lg;
+}
+
+/* === Loading Skeleton === */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }

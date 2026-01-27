@@ -1,3 +1,7 @@
+/**
+ * Theme Toggle - Refined minimal design
+ */
+
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -6,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { type Theme, useUIStore } from '@/stores/ui';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const themeIcons: Record<Theme, typeof Sun> = {
   light: Sun,
@@ -30,12 +35,13 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
+          className="h-8 w-8 rounded-md hover:bg-accent/50 text-muted-foreground"
           aria-label={`Change theme, current: ${themeLabels[theme]}`}
         >
-          <Icon className="h-5 w-5" aria-hidden="true" />
+          <Icon className="h-4 w-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-40 p-1">
         {(Object.keys(themeLabels) as Theme[]).map((t) => {
           const ItemIcon = themeIcons[t];
           const isSelected = theme === t;
@@ -43,11 +49,17 @@ export function ThemeToggle() {
             <DropdownMenuItem
               key={t}
               onClick={() => setTheme(t)}
-              className={isSelected ? 'bg-accent' : ''}
+              className={cn(
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer',
+                'focus:bg-accent focus:text-accent-foreground',
+                isSelected && 'bg-accent/50'
+              )}
             >
-              <ItemIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-              {themeLabels[t]}
-              {isSelected && <span className="sr-only">(current)</span>}
+              <ItemIcon className="h-4 w-4 opacity-60" aria-hidden="true" />
+              <span>{themeLabels[t]}</span>
+              {isSelected && (
+                <Check className="h-3.5 w-3.5 ml-auto text-foreground" aria-hidden="true" />
+              )}
             </DropdownMenuItem>
           );
         })}

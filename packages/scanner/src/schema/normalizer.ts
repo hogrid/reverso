@@ -9,7 +9,6 @@ import {
   type SectionSchema,
   formatLabel,
   parsePath,
-  sortPaths,
 } from '@reverso/core';
 
 /**

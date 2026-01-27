@@ -25,6 +25,20 @@ export async function getUserByEmail(
 }
 
 /**
+ * Get first user (to check if any users exist).
+ */
+export async function getFirstUser(
+  db: DrizzleDatabase
+): Promise<User | null> {
+  const result = await db
+    .select()
+    .from(users)
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+/**
  * Create a new user.
  */
 export async function createUser(

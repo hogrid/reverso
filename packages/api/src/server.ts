@@ -2,8 +2,12 @@
  * Fastify server setup.
  */
 
-import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import csrfProtection from '@fastify/csrf-protection';
@@ -12,7 +16,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import authPlugin, { type AuthPluginOptions } from './plugins/auth.js';
+import authPlugin from './plugins/auth.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -235,6 +239,35 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     decorateReply: false,
   });
 
+  // Serve admin panel static files
+  const adminDistPath = findAdminDistPath();
+  if (adminDistPath) {
+    // Serve admin assets first (more specific path)
+    await server.register(fastifyStatic, {
+      root: join(adminDistPath, 'assets'),
+      prefix: '/admin/assets/',
+      decorateReply: false,
+    });
+
+    // Serve admin root (index.html, etc.)
+    await server.register(fastifyStatic, {
+      root: adminDistPath,
+      prefix: '/admin/',
+      decorateReply: false,
+    });
+
+    // SPA fallback - serve index.html for admin routes
+    server.setNotFoundHandler(async (request, reply) => {
+      // Only serve index.html for admin routes (deep links for SPA routing)
+      if (request.url.startsWith('/admin')) {
+        const indexPath = join(adminDistPath, 'index.html');
+        const content = readFileSync(indexPath, 'utf-8');
+        return reply.type('text/html').send(content);
+      }
+      return reply.status(404).send({ error: 'Not found' });
+    });
+  }
+
   // Health check endpoint
   server.get('/health', async () => ({
     status: 'ok',
@@ -245,6 +278,60 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   server.decorate('config', opts);
 
   return server;
+}
+
+/**
+ * Find the admin panel dist path.
+ * Looks in node_modules/@reverso/admin/dist (works with npm, yarn, pnpm)
+ */
+function findAdminDistPath(): string | null {
+  const possiblePaths = [
+    // When running from user's project (npm, yarn, pnpm with hoisting)
+    join(process.cwd(), 'node_modules/@reverso/admin/dist'),
+    // When running from user's project (pnpm without hoisting - try to find in .pnpm)
+    ...findPnpmAdminPath(),
+    // When running from monorepo
+    join(process.cwd(), '../admin/dist'),
+    // Relative to API package (monorepo development)
+    join(__dirname, '../../admin/dist'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (existsSync(join(p, 'index.html'))) {
+      return p;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find admin dist path in pnpm's .pnpm directory.
+ * pnpm stores packages in .pnpm/@reverso+admin@version/node_modules/@reverso/admin/
+ */
+function findPnpmAdminPath(): string[] {
+  const paths: string[] = [];
+  const pnpmStore = join(process.cwd(), 'node_modules/.pnpm');
+
+  if (!existsSync(pnpmStore)) {
+    return paths;
+  }
+
+  try {
+    const entries = readdirSync(pnpmStore, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('@reverso+admin@')) {
+        const adminPath = join(pnpmStore, entry.name, 'node_modules/@reverso/admin/dist');
+        if (existsSync(join(adminPath, 'index.html'))) {
+          paths.push(adminPath);
+        }
+      }
+    }
+  } catch {
+    // Ignore errors reading .pnpm directory
+  }
+
+  return paths;
 }
 
 /**

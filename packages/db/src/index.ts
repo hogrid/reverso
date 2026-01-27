@@ -247,6 +247,7 @@ export {
   type SessionWithUser,
   // Auth
   getUserByEmail,
+  getFirstUser,
   createUser,
   getAccountByUserId,
   createAccount,

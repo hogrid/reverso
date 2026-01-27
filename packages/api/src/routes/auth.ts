@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import {
   getUserByEmail,
+  getFirstUser,
   getAccountByUserId,
   createUser,
   createAccount,
@@ -216,7 +217,24 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
   });
 
   /**
-   * POST /auth/register - Register a new user (admin only or first user).
+   * GET /auth/setup-status - Check if initial setup is needed (no users exist).
+   */
+  fastify.get('/auth/setup-status', async (request: FastifyRequest, reply: FastifyReply) => {
+    const db = (request as unknown as { db: DrizzleDatabase }).db;
+
+    const firstUser = await getFirstUser(db);
+    const needsSetup = !firstUser;
+
+    return reply.send({
+      success: true,
+      needsSetup,
+      canRegister: needsSetup,
+    });
+  });
+
+  /**
+   * POST /auth/register - Register a new user (only allowed when no users exist yet).
+   * This is WordPress-like behavior: registration is only open for the first admin setup.
    */
   fastify.post('/auth/register', async (request: FastifyRequest, reply: FastifyReply) => {
     const db = (request as unknown as { db: DrizzleDatabase }).db;
@@ -233,7 +251,17 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
 
     const { email, password, name } = parseResult.data;
 
-    // Check if user already exists
+    // WordPress-like behavior: only allow registration when no users exist yet
+    const firstUser = await getFirstUser(db);
+    if (firstUser) {
+      return reply.status(403).send({
+        success: false,
+        error: 'Registration closed',
+        message: 'An admin account already exists. Please sign in instead.',
+      });
+    }
+
+    // Check if user already exists (double-check, shouldn't happen if firstUser is null)
     const existingUser = await getUserByEmail(db, email);
     if (existingUser) {
       return reply.status(409).send({
