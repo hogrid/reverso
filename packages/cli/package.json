@@ -1,6 +1,6 @@
 {
   "name": "@reverso/cli",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Command line interface for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/cli",
   "bugs": {
@@ -35,9 +35,9 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/api": "^0.1.11",
+    "@reverso/api": "^0.1.12",
     "@reverso/core": "^0.1.1",
-    "@reverso/db": "^0.1.11",
+    "@reverso/db": "^0.1.12",
     "@reverso/scanner": "^0.1.1",
     "boxen": "^8.0.1",
     "chalk": "^5.4.1",

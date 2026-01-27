@@ -1,5 +1,40 @@
 # @reverso/api
 
+## 0.1.12
+
+### Patch Changes
+
+- feat(admin): redesign UI with Notion-inspired white theme
+
+  ### @reverso/admin
+
+  - Redesigned UI with clean, modern Notion-inspired white theme
+  - Added stagger animations to LoginPage for smoother UX
+  - Fixed auth store API_BASE endpoint configuration
+  - Added canRegister state for WordPress-like first-time setup flow
+  - Improved Button, Input, Card, and ThemeToggle components
+  - Better contrast and accessibility in color system
+
+  ### @reverso/api
+
+  - Added `/auth/setup-status` endpoint for setup detection
+  - Updated `/auth/register` to only allow registration when no users exist
+  - Improved error responses with proper 401 status codes
+
+  ### @reverso/cli
+
+  - Improved dev server messaging with clearer setup instructions
+  - Added admin credentials display on first-time setup
+  - Fixed lint issues and added biome.json configuration
+
+  ### @reverso/db
+
+  - Exported `getFirstUser` helper function for setup detection
+
+- Updated dependencies
+  - @reverso/admin@0.1.12
+  - @reverso/db@0.1.12
+
 ## 0.1.11
 
 ### Patch Changes
