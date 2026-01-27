@@ -1,6 +1,6 @@
 {
   "name": "@reverso/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP Server for AI integration with Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/mcp",
   "bugs": {
@@ -35,8 +35,8 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/core": "workspace:*",
-    "@reverso/db": "workspace:*",
+    "@reverso/core": "^0.1.1",
+    "@reverso/db": "^0.1.1",
     "@modelcontextprotocol/sdk": "^1.4.0",
     "zod": "^4.3.6"
   },

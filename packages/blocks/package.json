@@ -1,6 +1,6 @@
 {
   "name": "@reverso/blocks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Block editor component for Reverso CMS built with Tiptap",
   "homepage": "https://reverso.dev/docs/packages/blocks",
   "bugs": {
@@ -33,7 +33,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/core": "workspace:*",
+    "@reverso/core": "^0.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@tiptap/core": "^3.17.1",

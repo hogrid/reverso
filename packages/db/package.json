@@ -1,6 +1,6 @@
 {
   "name": "@reverso/db",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Database schema and migrations for Reverso CMS using Drizzle ORM",
   "homepage": "https://reverso.dev/docs/packages/db",
   "bugs": {
@@ -39,7 +39,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/core": "workspace:*",
+    "@reverso/core": "^0.1.1",
     "drizzle-orm": "^0.45.1",
     "better-sqlite3": "^12.6.2"
   },

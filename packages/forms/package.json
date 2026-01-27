@@ -1,6 +1,6 @@
 {
   "name": "@reverso/forms",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Form builder system for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/forms",
   "bugs": {
@@ -33,7 +33,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/core": "workspace:*",
+    "@reverso/core": "^0.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",

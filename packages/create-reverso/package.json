@@ -1,6 +1,6 @@
 {
   "name": "create-reverso",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI installer for Reverso CMS - The front-to-back CMS",
   "homepage": "https://reverso.dev/docs/packages/create-reverso",
   "bugs": {
@@ -36,7 +36,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/cli": "workspace:*",
+    "@reverso/cli": "^0.1.1",
     "commander": "^14.0.2",
     "chalk": "^5.4.1",
     "ora": "^9.1.0",

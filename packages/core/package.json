@@ -1,6 +1,6 @@
 {
   "name": "@reverso/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core types, utilities, and configuration system for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/core",
   "bugs": {
