@@ -1,5 +1,11 @@
 # @reverso/api
 
+## 0.1.16
+
+### Patch Changes
+
+- fix: disable CSRF temporarily and add detailed error logging
+
 ## 0.1.13
 
 ### Patch Changes

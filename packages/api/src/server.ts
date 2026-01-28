@@ -147,8 +147,9 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
-  // Register CSRF protection (enabled by default, can be disabled in dev with env var)
-  const csrfEnabled = process.env.REVERSO_CSRF_DISABLED !== 'true';
+  // Register CSRF protection (disabled for now - will enable when admin supports it)
+  // TODO: Enable CSRF when admin panel properly handles CSRF tokens
+  const csrfEnabled = false; // process.env.REVERSO_CSRF_DISABLED !== 'true';
   if (csrfEnabled) {
     await server.register(csrfProtection, {
       sessionPlugin: '@fastify/cookie',
@@ -166,18 +167,6 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
           request.headers['csrf-token']?.toString()
         );
       },
-    });
-
-    // Add hook to skip CSRF for safe methods and API key auth
-    server.addHook('onRequest', async (request, reply) => {
-      const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-      if (safeMethods.includes(request.method)) return;
-
-      // Skip CSRF if API key is provided
-      if (request.headers['x-api-key']) return;
-
-      // Skip CSRF for public form submissions (they have their own validation)
-      if (request.url.startsWith('/api/reverso/public/')) return;
     });
 
     // Add CSRF token generation endpoint
@@ -265,6 +254,24 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       return reply.type('text/html').send(content);
     });
   }
+
+  // Global error handler for debugging
+  server.setErrorHandler((error, request, reply) => {
+    const err = error as Error & { statusCode?: number };
+    console.error('[API ERROR]', {
+      url: request.url,
+      method: request.method,
+      error: err.message,
+      stack: err.stack,
+    });
+
+    reply.status(err.statusCode || 500).send({
+      success: false,
+      error: err.name || 'Internal Server Error',
+      message: err.message,
+      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    });
+  });
 
   // Health check endpoint
   server.get('/health', async () => ({
