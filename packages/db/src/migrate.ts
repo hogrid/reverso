@@ -205,6 +205,74 @@ export async function createDatabase(dbPath: string): Promise<void> {
       created_at INTEGER,
       updated_at INTEGER
     )`,
+    // Login attempts (brute force protection)
+    `CREATE TABLE IF NOT EXISTS login_attempts (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER,
+      first_attempt_at INTEGER NOT NULL,
+      last_attempt_at INTEGER NOT NULL
+    )`,
+    // Forms
+    `CREATE TABLE IF NOT EXISTS forms (
+      id TEXT PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'draft',
+      steps TEXT,
+      settings TEXT,
+      notify_emails TEXT,
+      webhook_url TEXT,
+      success_message TEXT,
+      redirect_url TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    // Form fields
+    `CREATE TABLE IF NOT EXISTS form_fields (
+      id TEXT PRIMARY KEY,
+      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      label TEXT,
+      placeholder TEXT,
+      required INTEGER DEFAULT 0,
+      config TEXT,
+      condition TEXT,
+      step INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    // Form submissions
+    `CREATE TABLE IF NOT EXISTS form_submissions (
+      id TEXT PRIMARY KEY,
+      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      status TEXT DEFAULT 'new',
+      ip_address TEXT,
+      user_agent TEXT,
+      referrer TEXT,
+      attachments TEXT,
+      webhook_sent INTEGER DEFAULT 0,
+      webhook_response TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    // Redirects
+    `CREATE TABLE IF NOT EXISTS redirects (
+      id TEXT PRIMARY KEY,
+      from_path TEXT UNIQUE NOT NULL,
+      to_path TEXT NOT NULL,
+      status_code INTEGER DEFAULT 301,
+      enabled INTEGER DEFAULT 1,
+      hits INTEGER DEFAULT 0,
+      last_hit_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
   ];
 
   for (const sql of createTableStatements) {
@@ -223,6 +291,10 @@ export async function createDatabase(dbPath: string): Promise<void> {
     'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)',
     'CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON login_attempts(key)',
+    'CREATE INDEX IF NOT EXISTS idx_form_fields_form_id ON form_fields(form_id)',
+    'CREATE INDEX IF NOT EXISTS idx_form_submissions_form_id ON form_submissions(form_id)',
+    'CREATE INDEX IF NOT EXISTS idx_redirects_from_path ON redirects(from_path)',
   ];
 
   for (const sql of indexes) {
