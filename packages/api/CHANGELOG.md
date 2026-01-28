@@ -1,5 +1,11 @@
 # @reverso/api
 
+## 0.1.17
+
+### Patch Changes
+
+- fix: add detailed error logging to auth login route
+
 ## 0.1.16
 
 ### Patch Changes

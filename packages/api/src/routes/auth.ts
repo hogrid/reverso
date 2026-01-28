@@ -48,8 +48,17 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
    * POST /auth/login - Login with email and password.
    */
   fastify.post('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
-    const db = (request as unknown as { db: DrizzleDatabase }).db;
-    const ip = request.ip;
+    try {
+      const db = (request as unknown as { db: DrizzleDatabase }).db;
+      if (!db) {
+        console.error('[AUTH] Database not available on request');
+        return reply.status(500).send({
+          success: false,
+          error: 'Database not available',
+          message: 'Internal server error - database connection failed',
+        });
+      }
+      const ip = request.ip;
 
     // Check lockout (persistent in database)
     const lockoutKey = `login:${ip}`;
@@ -149,6 +158,15 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
         expiresAt: session.expiresAt.toISOString(),
       },
     });
+    } catch (error) {
+      console.error('[AUTH LOGIN ERROR]', error);
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV !== 'production' && error instanceof Error ? error.stack : undefined,
+      });
+    }
   });
 
   /**
