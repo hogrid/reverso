@@ -23,16 +23,16 @@ export const endpoints = {
   // Content endpoints
   content: {
     get: (pageSlug: string, path?: string) =>
-      path ? `${API_BASE}/content/${pageSlug}/${path}` : `${API_BASE}/content/${pageSlug}`,
+      path ? `${API_BASE}/content/${path}` : `${API_BASE}/content/page/${pageSlug}`,
     update: (pageSlug: string, path?: string) =>
-      path ? `${API_BASE}/content/${pageSlug}/${path}` : `${API_BASE}/content/${pageSlug}`,
+      path ? `${API_BASE}/content/${path}` : `${API_BASE}/content/page/${pageSlug}`,
   },
 
   // Media endpoints
   media: {
     list: () => `${API_BASE}/media`,
     get: (id: string) => `${API_BASE}/media/${id}`,
-    upload: () => `${API_BASE}/media/upload`,
+    upload: () => `${API_BASE}/media`,
     delete: (id: string) => `${API_BASE}/media/${id}`,
     bulk: () => `${API_BASE}/media/bulk`,
   },

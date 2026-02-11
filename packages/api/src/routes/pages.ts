@@ -27,16 +27,23 @@ const pagesRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
       const pages = await getPages(db);
 
-      return {
-        success: true,
-        data: pages.map((page) => ({
+      const pagesData = [];
+      for (const page of pages) {
+        const sections = await getSectionsByPageId(db, page.id);
+        pagesData.push({
           slug: page.slug,
           name: page.name,
+          sectionCount: sections.length,
           fieldCount: page.fieldCount,
           sourceFiles: parseSourceFiles(page),
           createdAt: page.createdAt,
           updatedAt: page.updatedAt,
-        })),
+        });
+      }
+
+      return {
+        success: true,
+        data: pagesData,
       };
     } catch (error) {
       fastify.log.error(error, 'Failed to list pages');

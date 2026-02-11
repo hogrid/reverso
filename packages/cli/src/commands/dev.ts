@@ -216,12 +216,6 @@ export function devCommand(program: Command): void {
           mkdirSync(dbDir, { recursive: true });
         }
 
-        // Create database if needed
-        spinner.start('Initializing database...');
-        const { createDatabaseSchema } = await import('@reverso/db');
-        await createDatabaseSchema(dbPath);
-        spinner.succeed('Database initialized');
-
         // Show admin credentials if available
         const adminCreds = readAdminCredentials(cwd);
         if (adminCreds) {

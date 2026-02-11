@@ -11,11 +11,11 @@ export default defineConfig({
         dark: './src/assets/logo-dark.svg',
         replacesTitle: true,
       },
-      social: {
-        github: 'https://github.com/hogrid/reverso',
-        discord: 'https://discord.gg/reverso',
-        twitter: 'https://twitter.com/reversocms',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/hogrid/reverso' },
+        { icon: 'discord', label: 'Discord', href: 'https://discord.gg/reverso' },
+        { icon: 'x.com', label: 'X', href: 'https://twitter.com/reversocms' },
+      ],
       sidebar: [
         {
           label: 'Getting Started',
