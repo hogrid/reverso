@@ -27,8 +27,28 @@ export function generateSchema(
 ): ProjectSchema {
   const startTime = performance.now();
 
-  // Group fields by page and section
-  const grouped = groupPathsBySection(fields.map((f) => f.path));
+  // Filter out fields with invalid paths (less than 3 parts) and collect warnings
+  const validFields: DetectedField[] = [];
+  const invalidFields: DetectedField[] = [];
+  for (const f of fields) {
+    const parts = f.path.split('.');
+    if (parts.length >= 3 && parts.every((p) => p.length > 0)) {
+      validFields.push(f);
+    } else {
+      invalidFields.push(f);
+    }
+  }
+
+  if (invalidFields.length > 0) {
+    console.warn(`\n⚠ ${invalidFields.length} marker(s) skipped (invalid path format):`);
+    for (const f of invalidFields) {
+      console.warn(`  "${f.path}" in ${f.file}:${f.line} — must be page.section.field (3+ parts)`);
+    }
+    console.warn('');
+  }
+
+  // Group valid fields by page and section
+  const grouped = groupPathsBySection(validFields.map((f) => f.path));
 
   // Build pages
   const pages: PageSchema[] = [];
@@ -39,7 +59,7 @@ export function generateSchema(
 
     for (const [sectionSlug, paths] of sections) {
       // Get fields for this section
-      const sectionFields = fields.filter((f) => {
+      const sectionFields = validFields.filter((f) => {
         const parsed = parsePath(f.path);
         return parsed.page === pageSlug && parsed.section === sectionSlug;
       });
@@ -74,7 +94,7 @@ export function generateSchema(
       sections: sortedSections,
       fieldCount: sortedSections.reduce((sum, s) => sum + s.fields.length, 0),
       sourceFiles: [
-        ...new Set(fields.filter((f) => parsePath(f.path).page === pageSlug).map((f) => f.file)),
+        ...new Set(validFields.filter((f) => parsePath(f.path).page === pageSlug).map((f) => f.file)),
       ],
     };
 
@@ -91,7 +111,7 @@ export function generateSchema(
     generatedAt: new Date().toISOString(),
     pages: sortedPages,
     pageCount: sortedPages.length,
-    totalFields: fields.length,
+    totalFields: validFields.length,
     meta: {
       srcDir: '',
       filesScanned: 0,

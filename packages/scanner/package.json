@@ -1,6 +1,6 @@
 {
   "name": "@reverso/scanner",
-  "version": "0.1.1",
+  "version": "0.1.22",
   "description": "AST parser for detecting data-reverso markers in React/Next.js code",
   "homepage": "https://reverso.dev/docs/packages/scanner",
   "bugs": {

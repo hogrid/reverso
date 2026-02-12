@@ -1,5 +1,11 @@
 # @reverso/scanner
 
+## 0.1.22
+
+### Patch Changes
+
+- fix(scanner): gracefully skip markers with invalid paths instead of crashing, report them as warnings
+
 ## 0.1.0
 
 ### Minor Changes
