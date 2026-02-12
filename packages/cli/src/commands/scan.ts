@@ -5,11 +5,13 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import type { ScanOptions as CoreScanOptions } from '@reverso/core';
 import { createScanner, scan, type ScannerOptions } from '@reverso/scanner';
 
 interface CliScanOptions {
-  src: string;
+  src?: string;
   output: string;
   watch: boolean;
   verbose: boolean;
@@ -17,11 +19,29 @@ interface CliScanOptions {
   exclude: string[];
 }
 
+/**
+ * Read srcDir from reverso.config.ts/js if it exists.
+ */
+function readSrcDirFromConfig(cwd: string): string | null {
+  for (const filename of ['reverso.config.ts', 'reverso.config.js']) {
+    const configPath = resolve(cwd, filename);
+    if (!existsSync(configPath)) continue;
+    try {
+      const content = readFileSync(configPath, 'utf-8');
+      const match = content.match(/srcDir\s*:\s*['"]([^'"]+)['"]/);
+      if (match?.[1]) return match[1];
+    } catch {
+      // Ignore read errors
+    }
+  }
+  return null;
+}
+
 export function scanCommand(program: Command): void {
   program
     .command('scan')
     .description('Scan project for data-reverso markers and generate schema')
-    .option('-s, --src <dir>', 'Source directory to scan', './src')
+    .option('-s, --src <dir>', 'Source directory to scan')
     .option('-o, --output <dir>', 'Output directory for schema', '.reverso')
     .option('-w, --watch', 'Watch for changes', false)
     .option('-v, --verbose', 'Verbose output', false)
@@ -30,18 +50,21 @@ export function scanCommand(program: Command): void {
     .action(async (options: CliScanOptions) => {
       const spinner = ora();
 
+      // Resolve srcDir: CLI flag > reverso.config > default './src'
+      const srcDir = options.src ?? readSrcDirFromConfig(process.cwd()) ?? './src';
+
       try {
         if (options.watch) {
           // Watch mode uses ScannerOptions
           const scannerOptions: ScannerOptions = {
-            srcDir: options.src,
+            srcDir,
             outputDir: options.output,
             include: options.include,
             exclude: options.exclude,
           };
 
           console.log(chalk.blue('Starting scanner in watch mode...'));
-          console.log(chalk.gray(`  Source: ${options.src}`));
+          console.log(chalk.gray(`  Source: ${srcDir}`));
           console.log(chalk.gray(`  Output: ${options.output}`));
           console.log();
 
@@ -84,7 +107,7 @@ export function scanCommand(program: Command): void {
         } else {
           // One-time scan uses CoreScanOptions
           const scanOptions: CoreScanOptions = {
-            srcDir: options.src,
+            srcDir,
             include: options.include,
             exclude: options.exclude,
             verbose: options.verbose,

@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.21
+
+### Patch Changes
+
+- fix(cli): scan command now reads srcDir from reverso.config.ts instead of always defaulting to ./src
+
 ## 0.1.20
 
 ### Patch Changes
