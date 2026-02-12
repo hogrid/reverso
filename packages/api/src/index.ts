@@ -22,13 +22,12 @@
  * ```
  */
 
-console.log('[api/index] Module loaded from:', import.meta.url);
-
-export const VERSION = '0.0.0';
+export const VERSION = '0.1.0';
 
 // Server exports
 export {
   createServer,
+  registerAuth,
   startServer,
   stopServer,
   type ServerConfig,
@@ -72,26 +71,33 @@ export async function createApiServer(options: {
   prefix?: string;
   cors?: boolean;
   logger?: boolean;
+  apiKey?: string;
+  authEnabled?: boolean;
 }) {
-  const { createServer, startServer } = await import('./server.js');
+  const { createServer, registerAuth } = await import('./server.js');
   const { databasePlugin } = await import('./plugins/index.js');
   const { registerRoutes } = await import('./routes/index.js');
   const { createDatabaseSchema } = await import('@reverso/db');
 
-  // Create database if needed
+  // Create database schema if needed
   await createDatabaseSchema(options.databaseUrl);
 
-  // Create server
+  // Create server (without auth - auth must come after database)
   const server = await createServer({
     port: options.port,
     host: options.host,
     cors: options.cors,
     logger: options.logger,
     prefix: options.prefix,
+    apiKey: options.apiKey,
+    authEnabled: options.authEnabled,
   });
 
-  // Register database plugin
+  // Register database plugin FIRST so request.db is available
   await server.register(databasePlugin, { url: options.databaseUrl });
+
+  // Register auth AFTER database so session validation can access request.db
+  await registerAuth(server);
 
   // Register routes
   await registerRoutes(server, options.prefix);

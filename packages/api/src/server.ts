@@ -79,7 +79,6 @@ const defaultConfig: Required<ServerConfig> = {
  * Create a Fastify server instance.
  */
 export async function createServer(config: ServerConfig = {}): Promise<FastifyInstance> {
-  console.log('\n========== REVERSO API SERVER STARTING ==========\n');
   const opts = { ...defaultConfig, ...config };
 
   const fastifyOptions: FastifyServerOptions = {
@@ -125,14 +124,16 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   }
 
   // Register security headers (helmet)
+  // Allow 'unsafe-inline' for scripts to support Vite-generated module preloads
   await server.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
         fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
       },
@@ -148,8 +149,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   });
 
   // Register CSRF protection (disabled for now - will enable when admin supports it)
-  // TODO: Enable CSRF when admin panel properly handles CSRF tokens
-  const csrfEnabled = false; // process.env.REVERSO_CSRF_DISABLED !== 'true';
+  const csrfEnabled = false;
   if (csrfEnabled) {
     await server.register(csrfProtection, {
       sessionPlugin: '@fastify/cookie',
@@ -160,7 +160,6 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
         secure: process.env.NODE_ENV === 'production',
         path: '/',
       },
-      // Skip CSRF for public endpoints and API key authentication
       getToken: (request) => {
         return (
           request.headers['x-csrf-token']?.toString() ||
@@ -169,7 +168,6 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       },
     });
 
-    // Add CSRF token generation endpoint
     server.get('/api/csrf-token', async (request, reply) => {
       const token = await reply.generateCsrf();
       return { csrfToken: token };
@@ -178,20 +176,16 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Register rate limiting
   await server.register(rateLimit, {
-    max: 100, // Max 100 requests per window
+    max: 100,
     timeWindow: '1 minute',
-    // Stricter limits for specific routes
     keyGenerator: (request) => {
-      // Use API key or IP for rate limiting
       return (
         request.headers['x-api-key']?.toString() ||
         request.headers['x-forwarded-for']?.toString() ||
         request.ip
       );
     },
-    // Skip rate limiting for health checks
     allowList: ['/health'],
-    // Custom error response
     errorResponseBuilder: () => ({
       success: false,
       error: 'Too Many Requests',
@@ -205,16 +199,6 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       fileSize: 50 * 1024 * 1024, // 50MB
       files: 10,
     },
-  });
-
-  // Register authentication plugin
-  await server.register(authPlugin, {
-    apiKey: opts.apiKey,
-    enabled: opts.authEnabled,
-    publicPaths: [
-      /^\/api\/reverso\/public\//,
-      /^\/sitemap\.xml$/,
-    ],
   });
 
   // Ensure uploads directory exists
@@ -231,7 +215,6 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Serve admin panel static files
   const adminDistPath = findAdminDistPath();
-  console.log('[api] Admin dist path:', adminDistPath || 'NOT FOUND');
   if (adminDistPath) {
     // Serve admin assets (CSS, JS, images)
     await server.register(fastifyStatic, {
@@ -255,15 +238,10 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     });
   }
 
-  // Global error handler for debugging
+  // Global error handler
   server.setErrorHandler((error, request, reply) => {
     const err = error as Error & { statusCode?: number };
-    console.error('[API ERROR]', {
-      url: request.url,
-      method: request.method,
-      error: err.message,
-      stack: err.stack,
-    });
+    server.log.error({ url: request.url, method: request.method, err }, 'Request error');
 
     reply.status(err.statusCode || 500).send({
       success: false,
@@ -273,7 +251,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     });
   });
 
-  // Health check endpoint
+  // Health check endpoint (root level for Docker/infrastructure checks)
   server.get('/health', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -283,6 +261,23 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   server.decorate('config', opts);
 
   return server;
+}
+
+/**
+ * Register the auth plugin on a server instance.
+ * Should be called AFTER the database plugin to ensure request.db is available.
+ */
+export async function registerAuth(server: FastifyInstance, config: ServerConfig = {}): Promise<void> {
+  const opts = { ...defaultConfig, ...server.config, ...config };
+
+  await server.register(authPlugin, {
+    apiKey: opts.apiKey,
+    enabled: opts.authEnabled,
+    publicPaths: [
+      /^\/api\/reverso\/public\//,
+      /^\/sitemap\.xml$/,
+    ],
+  });
 }
 
 /**
@@ -303,15 +298,9 @@ function findAdminDistPath(): string | null {
     join(__dirname, '../../../admin/dist'),
   ];
 
-  console.log('[api] Searching admin dist in:', possiblePaths);
-  console.log('[api] __dirname:', __dirname);
-  console.log('[api] process.cwd():', process.cwd());
-
   for (const p of possiblePaths) {
     const indexPath = join(p, 'index.html');
-    const exists = existsSync(indexPath);
-    console.log(`[api] Checking ${indexPath}: ${exists ? 'FOUND' : 'not found'}`);
-    if (exists) {
+    if (existsSync(indexPath)) {
       return p;
     }
   }

@@ -12,6 +12,7 @@ import pagesRoutes from './pages.js';
 import redirectsRoutes from './redirects.js';
 import schemaRoutes from './schema.js';
 import sitemapRoutes from './sitemap.js';
+import statsRoutes from './stats.js';
 
 /**
  * Register all API routes.
@@ -33,6 +34,7 @@ export async function registerRoutes(
       await instance.register(formsRoutes);
       await instance.register(redirectsRoutes);
       await instance.register(sitemapRoutes);
+      await instance.register(statsRoutes);
     },
     { prefix }
   );
@@ -47,4 +49,5 @@ export {
   formsRoutes,
   redirectsRoutes,
   sitemapRoutes,
+  statsRoutes,
 };

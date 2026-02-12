@@ -293,6 +293,65 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   });
 
   /**
+   * PATCH /content/page/:slug
+   * Update multiple content fields for a page.
+   * Requires: editor or admin role
+   */
+  fastify.patch<{
+    Params: { slug: string };
+    Body: { data: Record<string, unknown> };
+  }>('/content/page/:slug', {
+    preHandler: fastify.requireAuth(['editor', 'admin']),
+  }, async (request, reply) => {
+    try {
+      const paramResult = slugParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Invalid slug format',
+        });
+      }
+
+      const { slug } = paramResult.data;
+      const { data } = request.body as { data: Record<string, unknown> };
+      const db = request.db;
+      const changedBy = (request as any).user?.id;
+
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Request body must contain a "data" object',
+        });
+      }
+
+      const updates = Object.entries(data).map(([path, value]) => ({
+        path,
+        value: value as ContentValue,
+        changedBy,
+      }));
+
+      const results = await bulkUpdateContent(db, updates);
+
+      return {
+        success: true,
+        data: {
+          page: slug,
+          updated: results.length,
+        },
+      };
+    } catch (error) {
+      fastify.log.error(error, 'Failed to update page content');
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal error',
+        message: 'Failed to update page content',
+      });
+    }
+  });
+
+  /**
    * POST /content/:path/publish
    * Publish content.
    * Requires: editor or admin role

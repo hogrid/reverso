@@ -8,7 +8,7 @@ import { createDatabaseSchema, } from '@reverso/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { databasePlugin } from '../plugins/index.js';
 import { registerRoutes } from '../routes/index.js';
-import { createServer, stopServer } from '../server.js';
+import { createServer, registerAuth, stopServer } from '../server.js';
 
 const TEST_DB = '.test/api.db';
 const TEST_UPLOADS = '.test/uploads';
@@ -84,8 +84,11 @@ describe('API Routes', () => {
       uploadsDir: TEST_UPLOADS,
     });
 
-    // Register database plugin
+    // Register database plugin FIRST
     await server.register(databasePlugin, { url: TEST_DB });
+
+    // Register auth AFTER database so request.db is available
+    await registerAuth(server);
 
     // Register routes
     await registerRoutes(server);
