@@ -22,17 +22,20 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div
-      role="status"
+    <output
       aria-label={title}
       className={cn('flex flex-col items-center justify-center p-8 text-center', className)}
     >
-      <div className="rounded-full bg-muted p-3 mb-4" aria-hidden="true">
-        <Icon className="h-8 w-8 text-muted-foreground" />
+      <div className="rounded-lg bg-accent p-3 mb-4" aria-hidden="true">
+        <Icon className="h-6 w-6 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      {description && <p className="text-sm text-muted-foreground mb-4 max-w-md">{description}</p>}
-      {action && <Button onClick={action.onClick}>{action.label}</Button>}
-    </div>
+      <h3 className="text-sm font-semibold mb-1">{title}</h3>
+      {description && <p className="text-[13px] text-muted-foreground mb-4 max-w-sm">{description}</p>}
+      {action && (
+        <Button variant="outline" size="sm" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
+    </output>
   );
 }

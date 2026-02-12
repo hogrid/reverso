@@ -132,45 +132,45 @@ export function MediaPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Media Library</h1>
-          <p className="text-muted-foreground">{media?.total ?? 0} files in your library</p>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Media Library</h1>
+          <p className="text-sm text-muted-foreground">
+            {media?.total ?? 0} files in your library
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {selectedItems.size > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">{selectedItems.size} selected</span>
-              <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            </>
-          )}
-        </div>
+        {selectedItems.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] text-muted-foreground">{selectedItems.size} selected</span>
+            <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
             <Input
               type="search"
               placeholder="Search files..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 w-[250px]"
+              className="pl-9 h-8 text-[13px] w-[240px]"
             />
           </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Filter className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" className="text-muted-foreground">
+                <Filter className="h-3.5 w-3.5 mr-1.5" />
                 {mediaTypeFilters.find((f) => f.value === mediaType)?.label}
               </Button>
             </DropdownMenuTrigger>
@@ -185,10 +185,11 @@ export function MediaPage() {
           </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
             size="icon"
+            className="h-8 w-8"
             onClick={() => setViewMode('grid')}
           >
             <Grid className="h-4 w-4" />
@@ -196,6 +197,7 @@ export function MediaPage() {
           <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="icon"
+            className="h-8 w-8"
             onClick={() => setViewMode('list')}
           >
             <List className="h-4 w-4" />
@@ -215,11 +217,11 @@ export function MediaPage() {
               checked={media.items.length > 0 && selectedItems.size === media.items.length}
               onCheckedChange={selectAll}
             />
-            <span className="text-sm text-muted-foreground">Select all</span>
+            <span className="text-[13px] text-muted-foreground">Select all</span>
           </div>
 
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {media.items.map((item) => (
                 <MediaGridItem
                   key={item.id}
@@ -234,7 +236,7 @@ export function MediaPage() {
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {media.items.map((item) => (
                 <MediaListItem
                   key={item.id}

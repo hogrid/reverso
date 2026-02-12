@@ -48,7 +48,7 @@ export function useRedirects(options?: { enabled?: boolean; limit?: number; offs
       if (options?.offset) params.set('offset', String(options.offset));
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await apiClient.get<Redirect[]>(url);
+      const response = await apiClient.get<RedirectsListResponse>(url);
       return response.data;
     },
   });

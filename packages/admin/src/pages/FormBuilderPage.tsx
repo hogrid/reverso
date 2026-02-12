@@ -268,42 +268,39 @@ export function FormBuilderPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link to="/forms">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">{form.name}</h1>
+              <h1 className="text-xl font-semibold tracking-tight">{form.name}</h1>
               <Badge
-                className={cn(
-                  form.status === 'published' ? 'bg-green-500' : '',
-                  form.status === 'draft' ? 'bg-gray-500' : ''
-                )}
+                variant={form.status === 'published' ? 'success' : 'secondary'}
               >
                 {form.status}
               </Badge>
             </div>
-            <p className="text-muted-foreground font-mono text-sm">/{form.slug}</p>
+            <p className="text-muted-foreground font-mono text-xs">/{form.slug}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsSettingsDialogOpen(true)}>
-            <Settings className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => setIsSettingsDialogOpen(true)}>
+            <Settings className="mr-1.5 h-3.5 w-3.5" />
             Settings
           </Button>
-          <Button variant="outline" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link to={`/forms/${form.id}/submissions`}>
-              <Inbox className="mr-2 h-4 w-4" />
+              <Inbox className="mr-1.5 h-3.5 w-3.5" />
               Submissions ({form.submissionStats?.total || 0})
             </Link>
           </Button>
-          <Button onClick={handleTogglePublish}>
+          <Button size="sm" onClick={handleTogglePublish}>
             {form.status === 'published' ? (
               <>
                 <EyeOff className="mr-2 h-4 w-4" />
@@ -382,8 +379,8 @@ export function FormBuilderPage() {
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="rounded-lg bg-primary/10 p-2">
-                          <FieldIcon className="h-4 w-4 text-primary" />
+                        <div className="rounded-md bg-accent p-2">
+                          <FieldIcon className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">

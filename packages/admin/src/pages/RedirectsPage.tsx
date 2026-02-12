@@ -7,6 +7,7 @@ import {
   useRedirects,
   useUpdateRedirect,
   type Redirect,
+  type RedirectsListResponse,
 } from '@/api/hooks/useRedirects';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -84,8 +85,8 @@ export function RedirectsPage() {
   });
   const [importText, setImportText] = useState('');
 
-  const redirects = redirectsResponse?.data || [];
-  const stats = (redirectsResponse as any)?.meta || { total: 0, enabled: 0, disabled: 0, totalHits: 0 };
+  const redirects = redirectsResponse?.data ?? [];
+  const stats = redirectsResponse?.meta ?? { total: 0, enabled: 0, disabled: 0, totalHits: 0 };
 
   const filteredRedirects = redirects.filter(
     (r) =>
@@ -200,24 +201,24 @@ export function RedirectsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Redirects</h1>
-          <p className="text-muted-foreground">Manage URL redirects for SEO</p>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Redirects</h1>
+          <p className="text-sm text-muted-foreground">Manage URL redirects for SEO</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-1.5 h-3.5 w-3.5" />
             Export
           </Button>
-          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+            <Upload className="mr-1.5 h-3.5 w-3.5" />
             Import
           </Button>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             New Redirect
           </Button>
         </div>
@@ -226,46 +227,46 @@ export function RedirectsPage() {
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Redirects</CardDescription>
-            <CardTitle className="text-3xl">{stats.total}</CardTitle>
-          </CardHeader>
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground">Total</span>
+            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.total}</p>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5 text-green-500" />
               Enabled
-            </CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats.enabled}</CardTitle>
-          </CardHeader>
+            </span>
+            <p className="text-2xl font-semibold tabular-nums text-green-600 mt-1">{stats.enabled}</p>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <X className="h-4 w-4 text-muted-foreground" />
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <X className="h-3.5 w-3.5" />
               Disabled
-            </CardDescription>
-            <CardTitle className="text-3xl">{stats.disabled}</CardTitle>
-          </CardHeader>
+            </span>
+            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.disabled}</p>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Hits</CardDescription>
-            <CardTitle className="text-3xl">{stats.totalHits}</CardTitle>
-          </CardHeader>
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground">Total Hits</span>
+            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.totalHits}</p>
+          </CardContent>
         </Card>
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
         <Input
           type="search"
           placeholder="Search redirects..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
+          className="pl-9 h-8 text-[13px]"
         />
       </div>
 
@@ -291,7 +292,7 @@ export function RedirectsPage() {
                     <Badge
                       variant={redirect.isEnabled ? 'default' : 'secondary'}
                       className={cn(
-                        redirect.isEnabled ? 'bg-green-500' : ''
+                        redirect.isEnabled ? 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent' : ''
                       )}
                     >
                       {redirect.isEnabled ? 'On' : 'Off'}

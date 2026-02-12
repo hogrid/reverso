@@ -1,7 +1,3 @@
-/**
- * Theme Toggle - Refined minimal design
- */
-
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -35,13 +31,13 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-md hover:bg-accent/50 text-muted-foreground"
+          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground transition-colors duration-150"
           aria-label={`Change theme, current: ${themeLabels[theme]}`}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40 p-1">
+      <DropdownMenuContent align="end" className="w-36 p-1">
         {(Object.keys(themeLabels) as Theme[]).map((t) => {
           const ItemIcon = themeIcons[t];
           const isSelected = theme === t;
@@ -50,12 +46,12 @@ export function ThemeToggle() {
               key={t}
               onClick={() => setTheme(t)}
               className={cn(
-                'flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer',
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] cursor-pointer',
                 'focus:bg-accent focus:text-accent-foreground',
-                isSelected && 'bg-accent/50'
+                isSelected && 'bg-accent'
               )}
             >
-              <ItemIcon className="h-4 w-4 opacity-60" aria-hidden="true" />
+              <ItemIcon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
               <span>{themeLabels[t]}</span>
               {isSelected && (
                 <Check className="h-3.5 w-3.5 ml-auto text-foreground" aria-hidden="true" />

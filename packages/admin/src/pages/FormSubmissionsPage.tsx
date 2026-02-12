@@ -143,26 +143,26 @@ export function FormSubmissionsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link to={`/forms/${id}`}>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+          <div className="space-y-0.5">
+            <h1 className="text-xl font-semibold tracking-tight">
               {form?.name || 'Form'} Submissions
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {stats.total} total submissions
             </p>
           </div>
         </div>
-        <Button variant="outline" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <Download className="mr-1.5 h-3.5 w-3.5" />
           Export CSV
         </Button>
       </div>
@@ -170,49 +170,49 @@ export function FormSubmissionsPage() {
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card
-          className={cn('cursor-pointer', statusFilter === 'all' && 'ring-2 ring-primary')}
+          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'all' && 'ring-2 ring-ring/40')}
           onClick={() => setStatusFilter('all')}
         >
-          <CardHeader className="pb-2">
-            <CardDescription>Total</CardDescription>
-            <CardTitle className="text-3xl">{stats.total}</CardTitle>
-          </CardHeader>
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground">Total</span>
+            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.total}</p>
+          </CardContent>
         </Card>
         <Card
-          className={cn('cursor-pointer', statusFilter === 'new' && 'ring-2 ring-primary')}
+          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'new' && 'ring-2 ring-ring/40')}
           onClick={() => setStatusFilter('new')}
         >
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-blue-500" />
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-blue-500" />
               New
-            </CardDescription>
-            <CardTitle className="text-3xl text-blue-500">{stats.new}</CardTitle>
-          </CardHeader>
+            </span>
+            <p className="text-2xl font-semibold tabular-nums text-blue-600 mt-1">{stats.new}</p>
+          </CardContent>
         </Card>
         <Card
-          className={cn('cursor-pointer', statusFilter === 'read' && 'ring-2 ring-primary')}
+          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'read' && 'ring-2 ring-ring/40')}
           onClick={() => setStatusFilter('read')}
         >
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5 text-green-500" />
               Read
-            </CardDescription>
-            <CardTitle className="text-3xl">{stats.read}</CardTitle>
-          </CardHeader>
+            </span>
+            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.read}</p>
+          </CardContent>
         </Card>
         <Card
-          className={cn('cursor-pointer', statusFilter === 'spam' && 'ring-2 ring-primary')}
+          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'spam' && 'ring-2 ring-ring/40')}
           onClick={() => setStatusFilter('spam')}
         >
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-destructive" />
+          <CardContent className="p-5">
+            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
               Spam
-            </CardDescription>
-            <CardTitle className="text-3xl text-destructive">{stats.spam}</CardTitle>
-          </CardHeader>
+            </span>
+            <p className="text-2xl font-semibold tabular-nums text-destructive mt-1">{stats.spam}</p>
+          </CardContent>
         </Card>
       </div>
 

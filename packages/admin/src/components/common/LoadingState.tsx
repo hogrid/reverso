@@ -9,8 +9,8 @@ interface LoadingStateProps {
 
 const sizeClasses = {
   sm: 'h-4 w-4',
-  md: 'h-8 w-8',
-  lg: 'h-12 w-12',
+  md: 'h-6 w-6',
+  lg: 'h-8 w-8',
 };
 
 export function LoadingState({
@@ -19,19 +19,18 @@ export function LoadingState({
   size = 'md',
 }: LoadingStateProps) {
   return (
-    <div
-      role="status"
+    <output
       aria-live="polite"
       aria-busy="true"
       data-testid="loading"
       className={cn(
-        'flex flex-col items-center justify-center p-8 text-muted-foreground',
+        'flex flex-col items-center justify-center p-12 text-muted-foreground',
         className
       )}
     >
-      <Loader2 className={cn('animate-spin mb-2', sizeClasses[size])} aria-hidden="true" />
-      <p className="text-sm">{message}</p>
-    </div>
+      <Loader2 className={cn('animate-spin mb-3', sizeClasses[size])} aria-hidden="true" />
+      <p className="text-[13px]">{message}</p>
+    </output>
   );
 }
 
@@ -45,14 +44,14 @@ export function LoadingPage() {
 
 export function LoadingSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="space-y-4" role="status" aria-label="Loading content" data-testid="skeleton">
+    <output className="block space-y-4" aria-label="Loading content" data-testid="skeleton">
       <span className="sr-only">Loading content...</span>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="space-y-2" aria-hidden="true">
-          <div className="h-4 w-1/4 animate-pulse rounded bg-muted" />
-          <div className="h-10 w-full animate-pulse rounded bg-muted" />
+        <div key={`skeleton-${String(i)}`} className="space-y-2" aria-hidden="true">
+          <div className="h-4 w-1/4 animate-pulse rounded-md bg-accent" />
+          <div className="h-10 w-full animate-pulse rounded-md bg-accent" />
         </div>
       ))}
-    </div>
+    </output>
   );
 }

@@ -6,21 +6,21 @@ export function NotFoundPage() {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">
-        <h1 className="text-9xl font-bold text-muted-foreground/30">404</h1>
-        <h2 className="text-2xl font-semibold mb-2">Page Not Found</h2>
-        <p className="text-muted-foreground mb-6 max-w-md">
+        <p className="text-7xl font-bold text-muted-foreground/20 tabular-nums">404</p>
+        <h2 className="text-lg font-semibold mt-2 mb-1">Page Not Found</h2>
+        <p className="text-[13px] text-muted-foreground mb-6 max-w-sm">
           The page you're looking for doesn't exist or has been moved.
         </p>
-        <div className="flex items-center justify-center gap-4">
-          <Button asChild variant="outline">
+        <div className="flex items-center justify-center gap-3">
+          <Button asChild variant="outline" size="sm">
             <Link to="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
               Go Back
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild size="sm">
             <Link to="/">
-              <Home className="mr-2 h-4 w-4" />
+              <Home className="mr-1.5 h-3.5 w-3.5" />
               Dashboard
             </Link>
           </Button>

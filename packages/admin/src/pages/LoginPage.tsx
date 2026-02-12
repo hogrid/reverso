@@ -1,8 +1,3 @@
-/**
- * Login page component.
- * Refined minimal design with subtle animations.
- */
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,19 +15,16 @@ export function LoginPage() {
   const [name, setName] = useState('');
   const [isRegister, setIsRegister] = useState(false);
 
-  // Check setup status on mount
   useEffect(() => {
     checkSetupStatus();
   }, [checkSetupStatus]);
 
-  // Reset to login mode if registration is no longer available
   useEffect(() => {
     if (!canRegister && isRegister) {
       setIsRegister(false);
     }
   }, [canRegister, isRegister]);
 
-  // Redirect if already authenticated
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
@@ -54,43 +46,43 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4 animate-fade-in">
-      <Card className="w-full max-w-md border-border/60 notion-shadow animate-scale-in">
-        <CardHeader className="space-y-4 pb-5">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 animate-fade-in">
+      <Card className="w-full max-w-sm animate-scale-in">
+        <CardHeader className="space-y-4 pb-4">
           {/* Logo */}
           <div className="flex justify-center animate-fade-in" style={{ animationDelay: '0ms' }}>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded bg-foreground flex items-center justify-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
                 <Layers className="w-4 h-4 text-background" strokeWidth={2.5} />
               </div>
               <span className="font-semibold text-lg tracking-tight">Reverso</span>
             </div>
           </div>
 
-          <div className="text-center space-y-1.5 animate-slide-up" style={{ animationDelay: '50ms' }}>
-            <CardTitle className="text-xl font-semibold text-foreground">
+          <div className="text-center space-y-1 animate-slide-up" style={{ animationDelay: '50ms' }}>
+            <CardTitle className="text-lg font-semibold">
               {isRegister ? 'Create your account' : 'Welcome back'}
             </CardTitle>
-            <CardDescription className="text-muted-foreground">
+            <CardDescription>
               {isRegister
-                ? 'Enter your details to create your admin account'
-                : 'Sign in to access your admin panel'
+                ? 'Enter your details to get started'
+                : 'Sign in to your admin panel'
               }
             </CardDescription>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-5">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/5 rounded-md border border-destructive/20 animate-slide-up">
+              <div className="p-3 text-sm text-destructive bg-destructive/5 rounded-md border border-destructive/10 animate-slide-up">
                 {error}
               </div>
             )}
 
             {isRegister && (
-              <div className="space-y-2 animate-slide-up" style={{ animationDelay: '75ms' }}>
-                <Label htmlFor="name" className="text-sm font-medium">Name</Label>
+              <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: '75ms' }}>
+                <Label htmlFor="name" className="text-[13px] font-medium">Name</Label>
                 <Input
                   id="name"
                   type="text"
@@ -104,8 +96,8 @@ export function LoginPage() {
               </div>
             )}
 
-            <div className="space-y-2 animate-slide-up" style={{ animationDelay: isRegister ? '100ms' : '75ms' }}>
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+            <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: isRegister ? '100ms' : '75ms' }}>
+              <Label htmlFor="email" className="text-[13px] font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -118,12 +110,12 @@ export function LoginPage() {
               />
             </div>
 
-            <div className="space-y-2 animate-slide-up" style={{ animationDelay: isRegister ? '125ms' : '100ms' }}>
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+            <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: isRegister ? '125ms' : '100ms' }}>
+              <Label htmlFor="password" className="text-[13px] font-medium">Password</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder={isRegister ? 'Create a password (min 8 characters)' : 'Enter your password'}
+                placeholder={isRegister ? 'Min 8 characters' : 'Enter your password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -134,7 +126,7 @@ export function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full h-9 bg-foreground hover:bg-foreground/90 text-background font-medium animate-slide-up"
+              className="w-full h-9 font-medium animate-slide-up"
               disabled={isLoading}
               style={{ animationDelay: isRegister ? '150ms' : '125ms' }}
             >
@@ -156,7 +148,7 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={toggleMode}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {isRegister
                     ? 'Already have an account? Sign in'

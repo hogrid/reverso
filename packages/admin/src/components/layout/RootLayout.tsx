@@ -3,10 +3,6 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
-/**
- * Skip to main content link for keyboard navigation.
- * Becomes visible only when focused.
- */
 function SkipLink() {
   return (
     <a
@@ -22,18 +18,13 @@ export function RootLayout() {
   return (
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden bg-background">
-        {/* Skip link for keyboard users */}
         <SkipLink />
-
-        {/* Sidebar navigation */}
         <Sidebar />
-
-        {/* Main content area */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
           <main
             id="main-content"
-            className="flex-1 overflow-auto"
+            className="flex-1 overflow-auto bg-background"
             tabIndex={-1}
             aria-label="Main content"
           >

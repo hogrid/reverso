@@ -108,7 +108,7 @@ export function FormsListPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'published':
-        return <Badge className="bg-green-500">Published</Badge>;
+        return <Badge variant="success">Published</Badge>;
       case 'draft':
         return <Badge variant="secondary">Draft</Badge>;
       case 'archived':
@@ -139,44 +139,44 @@ export function FormsListPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Forms</h1>
-          <p className="text-muted-foreground">Create and manage form submissions</p>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Forms</h1>
+          <p className="text-sm text-muted-foreground">Create and manage form submissions</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
           New Form
         </Button>
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
         <Input
           type="search"
           placeholder="Search forms..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
+          className="pl-9 h-8 text-[13px]"
         />
       </div>
 
       {/* Forms grid */}
       {filteredForms && filteredForms.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {filteredForms.map((form) => (
             <Card
               key={form.id}
-              className="hover:border-primary/50 hover:shadow-md transition-all h-full"
+              className="hover:shadow-lifted hover:border-border transition-all duration-150 h-full"
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
-                  <Link to={`/forms/${form.id}`} className="flex items-center gap-2 flex-1">
-                    <div className="rounded-lg bg-primary/10 p-2">
-                      <FileText className="h-4 w-4 text-primary" />
+                  <Link to={`/forms/${form.id}`} className="flex items-center gap-3 flex-1">
+                    <div className="rounded-md bg-accent p-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-lg truncate">{form.name}</CardTitle>

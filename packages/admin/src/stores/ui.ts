@@ -30,7 +30,7 @@ export const useUIStore = create<UIState>()(
       // Initial state
       sidebarOpen: true,
       sidebarCollapsed: false,
-      theme: 'system',
+      theme: 'light',
       activeModal: null,
       modalData: null,
 

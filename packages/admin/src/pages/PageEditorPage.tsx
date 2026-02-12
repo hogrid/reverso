@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAutosave, useKeyboardShortcuts, editorShortcuts, useUnsavedChangesGuard } from '@/hooks';
 import { useEditorStore } from '@/stores/editor';
 import type { ContentValue, SectionSchema } from '@reverso/core';
-import { Check, ChevronLeft, Clock, Redo, Save, Undo } from 'lucide-react';
+import { Check, ChevronLeft, Loader2, Redo, Save, Undo } from 'lucide-react';
 import { useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -53,7 +53,6 @@ export function PageEditorPage() {
     redo,
   } = useEditorStore();
 
-  // Save function
   const performSave = useCallback(async () => {
     if (!slug || !hasDirtyFields()) return;
 
@@ -64,7 +63,6 @@ export function PageEditorPage() {
     clearDirtyFields();
   }, [slug, hasDirtyFields, getDirtyFieldsData, clearDirtyFields, updateContent]);
 
-  // Autosave hook
   const { save, isSaving, lastSaved } = useAutosave({
     onSave: performSave,
     onError: (error) => {
@@ -73,12 +71,10 @@ export function PageEditorPage() {
     debounceMs: 3000,
   });
 
-  // Unsaved changes guard
   const { blocker, confirmLeave, cancelLeave } = useUnsavedChangesGuard({
     message: 'You have unsaved changes. Are you sure you want to leave?',
   });
 
-  // Keyboard shortcuts
   useKeyboardShortcuts({
     shortcuts: [
       editorShortcuts.save(() => save()),
@@ -93,11 +89,9 @@ export function PageEditorPage() {
   };
 
   const getFieldValue = (fieldPath: string): ContentValue | undefined => {
-    // Check dirty fields first
     if (dirtyFields.has(fieldPath)) {
       return dirtyFields.get(fieldPath);
     }
-    // Then check content data
     if (content?.data) {
       const parts = fieldPath.split('.');
       if (parts.length >= 2) {
@@ -145,52 +139,52 @@ export function PageEditorPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b bg-background px-6 py-4">
+      <div className="border-b border-border/40 bg-card px-6 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="sm">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
               <Link to="/pages">
                 <ChevronLeft className="h-4 w-4 mr-1" />
                 Back
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-5" />
             <div>
-              <h1 className="text-xl font-semibold">{page.name}</h1>
-              <p className="text-sm text-muted-foreground font-mono">/{page.slug}</p>
+              <h1 className="text-base font-semibold">{page.name}</h1>
+              <p className="text-xs text-muted-foreground font-mono">/{page.slug}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Status */}
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
+            <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground mr-2">
               {isSaving ? (
                 <>
-                  <Clock className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Saving...</span>
                 </>
               ) : lastSaved ? (
                 <>
-                  <Check className="h-4 w-4 text-green-500" />
+                  <Check className="h-3.5 w-3.5 text-green-500" />
                   <span>Saved {lastSaved.toLocaleTimeString()}</span>
                 </>
               ) : hasDirtyFields() ? (
-                <Badge variant="secondary">Unsaved changes</Badge>
+                <Badge variant="warning" className="text-[11px]">Unsaved changes</Badge>
               ) : null}
             </div>
 
             {/* Undo/Redo */}
-            <Button variant="outline" size="icon" onClick={() => undo()} disabled={!canUndo()}>
-              <Undo className="h-4 w-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => undo()} disabled={!canUndo()}>
+              <Undo className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="outline" size="icon" onClick={() => redo()} disabled={!canRedo()}>
-              <Redo className="h-4 w-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => redo()} disabled={!canRedo()}>
+              <Redo className="h-3.5 w-3.5" />
             </Button>
 
             {/* Save */}
-            <Button onClick={() => save()} disabled={!hasDirtyFields() || isSaving}>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+            <Button size="sm" onClick={() => save()} disabled={!hasDirtyFields() || isSaving}>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              Save
             </Button>
           </div>
         </div>
@@ -217,41 +211,43 @@ export function PageEditorPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {page.sections.length > 1 ? (
-          <Tabs defaultValue={page.sections[0]?.slug} className="space-y-6">
-            <TabsList>
-              {page.sections.map((section) => (
-                <TabsTrigger key={section.slug} value={section.slug}>
-                  {section.name}
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                    {section.fields.length}
-                  </Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+        <div className="max-w-4xl">
+          {page.sections.length > 1 ? (
+            <Tabs defaultValue={page.sections[0]?.slug} className="space-y-6">
+              <TabsList>
+                {page.sections.map((section) => (
+                  <TabsTrigger key={section.slug} value={section.slug}>
+                    {section.name}
+                    <Badge variant="outline" className="ml-2 h-5 px-1.5 text-[11px]">
+                      {section.fields.length}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {page.sections.map((section) => (
-              <TabsContent key={section.slug} value={section.slug}>
-                <SectionEditor
-                  pageSlug={page.slug}
-                  section={section}
-                  getFieldValue={getFieldValue}
-                  onFieldChange={handleFieldChange}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
-        ) : (
-          page.sections.map((section) => (
-            <SectionEditor
-              key={section.slug}
-              pageSlug={page.slug}
-              section={section}
-              getFieldValue={getFieldValue}
-              onFieldChange={handleFieldChange}
-            />
-          ))
-        )}
+              {page.sections.map((section) => (
+                <TabsContent key={section.slug} value={section.slug}>
+                  <SectionEditor
+                    pageSlug={page.slug}
+                    section={section}
+                    getFieldValue={getFieldValue}
+                    onFieldChange={handleFieldChange}
+                  />
+                </TabsContent>
+              ))}
+            </Tabs>
+          ) : (
+            page.sections.map((section) => (
+              <SectionEditor
+                key={section.slug}
+                pageSlug={page.slug}
+                section={section}
+                getFieldValue={getFieldValue}
+                onFieldChange={handleFieldChange}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
