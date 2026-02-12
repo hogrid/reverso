@@ -1,5 +1,11 @@
 # @reverso/admin
 
+## 0.1.24
+
+### Patch Changes
+
+- fix(admin): migrate to data router (createBrowserRouter) to fix useBlocker crash on page editor
+
 ## 0.1.18
 
 ### Patch Changes

@@ -26,9 +26,9 @@
 </p>
 
 <p align="center">
-  <a href="https://docs.reverso.dev">Documentation</a> •
-  <a href="https://docs.reverso.dev/getting-started">Quick Start</a> •
-  <a href="https://discord.gg/reverso">Discord</a> •
+  <a href="https://docs.reverso.dev">Documentation</a> &bull;
+  <a href="https://docs.reverso.dev/getting-started">Quick Start</a> &bull;
+  <a href="https://discord.gg/reverso">Discord</a> &bull;
   <a href="https://twitter.com/reversocms">Twitter</a>
 </p>
 
@@ -38,10 +38,10 @@
 
 **Reverso** is a headless CMS that works backwards from traditional systems. Instead of creating fields in the backend and then connecting them to your frontend, you simply add `data-reverso` attributes to your existing React/Next.js code, and Reverso automatically generates:
 
-- ✅ Admin panel with all your fields
-- ✅ Database schema
-- ✅ REST & GraphQL APIs
-- ✅ TypeScript types
+- Admin panel with all your fields
+- Database schema and migrations
+- REST & GraphQL APIs
+- TypeScript types
 
 > **"From front to back, not the other way around."**
 
@@ -63,7 +63,7 @@
 />
 ```
 
-Run `reverso scan` and your CMS is ready. That's it.
+Run `reverso dev` and your CMS is ready. That's it.
 
 ---
 
@@ -72,7 +72,7 @@ Run `reverso scan` and your CMS is ready. That's it.
 | Traditional CMS | Reverso |
 |-----------------|---------|
 | Create fields manually in the backend | Fields are auto-detected from your code |
-| Keep frontend and backend in sync manually | Single source of truth |
+| Keep frontend and backend in sync manually | Single source of truth in your JSX |
 | WordPress + ACF + plugins = slow | Node.js + Fastify = 10x faster |
 | No TypeScript support | Full type safety out of the box |
 | Hours of setup | Ready in 5 minutes |
@@ -81,23 +81,24 @@ Run `reverso scan` and your CMS is ready. That's it.
 
 Reverso covers everything you need from WordPress + Advanced Custom Fields:
 
-- ✅ 35+ field types (text, image, repeater, flexible content, gallery...)
-- ✅ Block editor (like Gutenberg)
-- ✅ Forms system (like Gravity Forms)
-- ✅ SEO & Permalinks (like Yoast)
-- ✅ Multi-language support
-- ✅ User roles & permissions
-- ✅ REST & GraphQL APIs
-- ✅ Media library
-- ✅ Content scheduling
-- ✅ Revision history
+- 35+ field types (text, image, repeater, flexible content, gallery...)
+- Block editor (like Gutenberg, powered by Tiptap)
+- Forms system (like Gravity Forms)
+- SEO & Permalinks (like Yoast)
+- Multi-language support
+- User roles & permissions
+- REST & GraphQL APIs
+- Media library
+- Content scheduling
+- Revision history
 
 **Plus things WordPress can't do:**
 
-- 🚀 AI integration via MCP Server
-- 🚀 Full TypeScript support
-- 🚀 Works with Next.js, Remix, Astro
-- 🚀 10x better performance
+- AI integration via MCP Server
+- Full TypeScript support
+- Works with Next.js, Remix, Astro
+- 10x better performance
+- Auto-generated admin panel from your code
 
 ---
 
@@ -110,17 +111,17 @@ Reverso covers everything you need from WordPress + Advanced Custom Fields:
 npx @reverso/cli@latest init
 ```
 
-This will create:
-- `reverso.config.ts` — Configuration file
-- `.reverso/` — Output directory for generated files
+This will:
+1. Create `reverso.config.ts` with your project settings
+2. Create `.reverso/` output directory
+3. Set up admin credentials for the first login
+4. Install required dependencies
 
 ### Option B: Create a new project from scratch
 
 ```bash
 npx create-reverso@latest
 ```
-
----
 
 ### Add markers to your components
 
@@ -135,24 +136,82 @@ export default function Home() {
       <p data-reverso="home.hero.subtitle" data-reverso-type="textarea">
         Welcome to my website
       </p>
+      <img
+        data-reverso="home.hero.background"
+        data-reverso-type="image"
+        src="/hero.jpg"
+        alt="Hero"
+      />
     </section>
   );
 }
 ```
 
-### Scan and start
+### Start the dev server
 
 ```bash
-# Scan your code for markers
-npx reverso scan
-
-# Start the CMS
 npx reverso dev
 ```
 
-### Edit content
+This single command will:
+1. Scan your code for `data-reverso` markers
+2. Start the API server (default port 3001)
+3. Auto-seed your admin account on first run
+4. Sync the detected schema to the database
+5. Watch for file changes and re-sync automatically
 
 Open `http://localhost:3001/admin` and start editing!
+
+---
+
+## Marker Reference
+
+### Naming Convention
+
+Reverso uses a dot-separated path with **3 or more parts**:
+
+```
+{page}.{section}.{field}
+```
+
+| Path | Meaning |
+|------|---------|
+| `home.hero.title` | Home page, hero section, title field |
+| `about.team.description` | About page, team section, description field |
+| `blog.sidebar.cta.label` | Blog page, sidebar section, cta group, label field |
+
+For repeaters, use `$` as the item placeholder:
+
+| Path | Meaning |
+|------|---------|
+| `home.features.$.title` | Title of each repeater item |
+| `home.features.$.icon` | Icon of each repeater item |
+
+> **Note:** Paths with fewer than 3 parts (e.g., `home.title`) are invalid and will be skipped with a warning during scan.
+
+### Marker Attributes
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `data-reverso` | Field path (required) | `"home.hero.title"` |
+| `data-reverso-type` | Field type (default: `text`) | `"textarea"` |
+| `data-reverso-label` | Display label in admin | `"Page Title"` |
+| `data-reverso-placeholder` | Placeholder text | `"Enter title..."` |
+| `data-reverso-required` | Mark as required | `"true"` |
+| `data-reverso-validation` | Validation rules | `"min:3,max:100"` |
+| `data-reverso-options` | Select/radio options | `"opt1,opt2,opt3"` |
+| `data-reverso-default` | Default value | `"Hello World"` |
+| `data-reverso-help` | Help text shown below field | `"SEO-friendly title"` |
+| `data-reverso-condition` | Conditional display | `"field:value"` |
+| `data-reverso-min` | Minimum value/length | `"0"` |
+| `data-reverso-max` | Maximum value/length | `"255"` |
+| `data-reverso-step` | Step increment (number) | `"0.5"` |
+| `data-reverso-accept` | File type filter | `"image/*"` |
+| `data-reverso-multiple` | Allow multiple values | `"true"` |
+| `data-reverso-rows` | Textarea rows | `"5"` |
+| `data-reverso-width` | Field width in admin | `"50"` |
+| `data-reverso-readonly` | Read-only field | `"true"` |
+| `data-reverso-hidden` | Hidden field | `"true"` |
 
 ---
 
@@ -160,126 +219,414 @@ Open `http://localhost:3001/admin` and start editing!
 
 Reverso supports 35+ field types:
 
-| Category | Types |
-|----------|-------|
-| **Basic** | `text`, `textarea`, `number`, `email`, `url`, `password` |
-| **Content** | `wysiwyg`, `markdown`, `blocks` (block editor) |
-| **Choice** | `select`, `checkbox`, `radio`, `boolean`, `buttongroup` |
-| **Media** | `image`, `gallery`, `file`, `video`, `audio`, `oembed` |
-| **Relational** | `relation`, `taxonomy`, `user`, `pagelink` |
-| **Advanced** | `repeater`, `flexible`, `group`, `clone` |
-| **Data** | `date`, `datetime`, `time`, `daterange`, `color` |
-| **Location** | `googlemaps`, `address` |
-| **Layout** | `tab`, `accordion`, `message` |
+### Text & Input
 
-### Example: Repeater field
+| Type | Description | Example |
+|------|-------------|---------|
+| `text` | Single line text | Titles, names |
+| `textarea` | Multi-line text | Descriptions, bios |
+| `number` | Numeric input | Prices, quantities |
+| `range` | Slider input | Rating, percentage |
+| `email` | Email address | Contact forms |
+| `url` | URL input | Links |
+| `phone` | Phone number | Contact info |
+| `password` | Password field | Credentials |
+
+### Rich Content
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `wysiwyg` | WYSIWYG editor (Tiptap) | Article body |
+| `markdown` | Markdown editor | Technical docs |
+| `code` | Code editor | Snippets |
+| `blocks` | Block editor | Page builder |
+
+### Selection
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `select` | Dropdown select | Category |
+| `multiselect` | Multiple select | Tags |
+| `checkbox` | Single checkbox | Boolean toggle |
+| `checkboxgroup` | Checkbox group | Multi-choice |
+| `radio` | Radio buttons | Single choice |
+| `boolean` | True/false toggle | Visibility |
+| `buttongroup` | Button group selector | Alignment |
+
+### Media
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `image` | Image upload | Photos, icons |
+| `gallery` | Multiple images | Photo gallery |
+| `file` | File upload | Documents, PDFs |
+| `video` | Video upload/embed | Video player |
+| `audio` | Audio upload | Podcast |
+| `oembed` | Embed URL | YouTube, Twitter |
+
+### Date & Time
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `date` | Date picker | Publish date |
+| `datetime` | Date + time | Event start |
+| `time` | Time picker | Opening hours |
+
+### Relational
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `relation` | Relation to other content | Related posts |
+| `taxonomy` | Category/tag system | Post categories |
+| `link` | External link | CTAs |
+| `pagelink` | Internal page link | Navigation |
+| `user` | User reference | Author |
+
+### Advanced Structures
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `repeater` | Repeatable group | Feature list |
+| `group` | Grouped fields | Address fields |
+| `flexible` | Flexible content layouts | Page sections |
+
+### Other
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `color` | Color picker | Theme colors |
+| `map` / `googlemaps` | Map location | Store locator |
+| `message` | Admin-only message | Instructions |
+| `tab` | Tab container | Organized fields |
+| `accordion` | Collapsible section | Grouped display |
+
+### Example: Repeater
 
 ```tsx
 <div data-reverso="home.features" data-reverso-type="repeater">
   <div data-reverso="home.features.$.icon" data-reverso-type="image" />
-  <h3 data-reverso="home.features.$.title" data-reverso-type="text">Feature</h3>
+  <h3 data-reverso="home.features.$.title" data-reverso-type="text">
+    Feature Title
+  </h3>
   <p data-reverso="home.features.$.description" data-reverso-type="textarea">
-    Description
+    Feature description goes here.
   </p>
 </div>
 ```
 
-### Example: Flexible content
+### Example: Full page with multiple types
 
 ```tsx
-<div data-reverso="home.sections" data-reverso-type="flexible">
-  {/* Each layout is defined separately */}
-</div>
+export default function About() {
+  return (
+    <main>
+      {/* Text fields */}
+      <h1 data-reverso="about.hero.title" data-reverso-type="text">
+        About Us
+      </h1>
+
+      {/* Rich text */}
+      <div data-reverso="about.content.body" data-reverso-type="wysiwyg">
+        <p>Our story...</p>
+      </div>
+
+      {/* Image with configuration */}
+      <img
+        data-reverso="about.hero.photo"
+        data-reverso-type="image"
+        data-reverso-label="Team Photo"
+        data-reverso-required="true"
+        src="/team.jpg"
+        alt="Team"
+      />
+
+      {/* Repeater: Team members */}
+      <div data-reverso="about.team.members" data-reverso-type="repeater">
+        <img data-reverso="about.team.members.$.avatar" data-reverso-type="image" />
+        <h3 data-reverso="about.team.members.$.name" data-reverso-type="text">Name</h3>
+        <span data-reverso="about.team.members.$.role" data-reverso-type="text">Role</span>
+        <p data-reverso="about.team.members.$.bio" data-reverso-type="textarea">Bio</p>
+      </div>
+    </main>
+  );
+}
 ```
 
 ---
 
-## Naming Convention
+## Configuration
 
-Reverso uses a simple, consistent naming pattern:
+### reverso.config.ts
 
+```ts
+import { defineConfig } from '@reverso/core';
+
+export default defineConfig({
+  // Source directory to scan for markers
+  srcDir: './src',
+
+  // Output directory for generated files
+  outputDir: '.reverso',
+
+  // API server port
+  port: 3001,
+
+  // File patterns to include in scan
+  include: ['**/*.tsx', '**/*.jsx'],
+
+  // File patterns to exclude from scan
+  exclude: [
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/.next/**',
+    '**/*.test.*',
+    '**/*.stories.*',
+  ],
+});
 ```
-{page}.{section}.{field}
-```
 
-Examples:
-- `home.hero.title` → Home page, hero section, title field
-- `about.team.members` → About page, team section, members field
-- `blog.post.content` → Blog page, post section, content field
-
-For repeaters, use `$` as the item placeholder:
-- `home.features.$.title` → Title of each feature item
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| **Runtime** | Node.js 20+ |
-| **API Framework** | Fastify |
-| **Database** | SQLite (dev) / PostgreSQL (prod) |
-| **ORM** | Drizzle |
-| **Admin UI** | React + shadcn/ui |
-| **Auth** | Better Auth |
-| **Editor** | Tiptap (WYSIWYG) |
-
----
-
-## Packages
-
-Reverso is a monorepo with the following packages:
-
-| Package | Description |
-|---------|-------------|
-| `create-reverso` | CLI installer |
-| `@reverso/core` | Core types and utilities |
-| `@reverso/scanner` | AST parser for detecting markers |
-| `@reverso/db` | Database schema and migrations |
-| `@reverso/api` | REST & GraphQL API server |
-| `@reverso/admin` | Admin panel UI |
-| `@reverso/blocks` | Block editor |
-| `@reverso/forms` | Form builder |
-| `@reverso/cli` | Command line tools |
-| `@reverso/mcp` | AI integration (MCP Server) |
+> **Tip:** If your components are in the project root instead of `./src`, set `srcDir: './'`.
 
 ---
 
 ## CLI Commands
 
+### Setup
+
 ```bash
-# Setup
-reverso init          # Initialize Reverso in an existing project
-reverso init --force  # Overwrite existing configuration
-reverso init --example # Create example component with markers
+# Initialize Reverso in an existing project
+reverso init
 
-# Development
-reverso scan          # Scan code for markers
-reverso scan --watch  # Watch mode for continuous scanning
-reverso dev           # Start development server (API + scanner)
+# Overwrite existing configuration
+reverso init --force
 
-# Production
-reverso build         # Build for production
-reverso start         # Start production server
+# Create with example component
+reverso init --example
 
-# Database
-reverso migrate           # Run database migrations
-reverso migrate:create    # Create new migration file
-reverso migrate:status    # Show migration status
-reverso migrate:reset     # Reset database
+# Non-interactive mode (accept all defaults)
+reverso init --yes
 ```
+
+### Development
+
+```bash
+# Start development server (recommended - does everything)
+reverso dev
+
+# Start on a specific port
+reverso dev --port 4000
+
+# Start with browser auto-open
+reverso dev --open
+
+# Specify database location
+reverso dev --database ./data/dev.db
+
+# Specify source directory
+reverso dev --src ./components
+```
+
+The `reverso dev` command handles everything:
+- Scans for markers and generates schema
+- Starts the API server with admin panel
+- Watches for file changes and re-syncs
+- Auto-seeds admin user on first run
+- Auto-finds an available port if default is in use
+- Auto-installs missing dependencies
+- Auto-rebuilds native modules if needed
+
+### Scanning
+
+```bash
+# One-time scan
+reverso scan
+
+# Scan with custom source directory
+reverso scan --src ./components
+
+# Watch mode (continuous scanning)
+reverso scan --watch
+
+# Verbose output (shows all pages and fields)
+reverso scan --verbose
+
+# Custom include/exclude patterns
+reverso scan --include "**/*.tsx" --exclude "**/test/**"
+```
+
+The scan command auto-syncs the schema to a running API server. You can run `reverso scan` while `reverso dev` is active and the admin panel will update in real-time.
+
+### Production
+
+```bash
+# Build for production
+reverso build
+
+# Start production server
+reverso start
+```
+
+### Database
+
+```bash
+# Run pending migrations
+reverso migrate
+
+# Create a new migration
+reverso migrate:create
+
+# Check migration status
+reverso migrate:status
+
+# Reset database (destructive!)
+reverso migrate:reset
+```
+
+---
+
+## Architecture
+
+Reverso is a **Turborepo monorepo** with pnpm workspaces.
+
+### Package Dependency Graph
+
+```
+create-reverso
+  └── @reverso/cli
+        ├── @reverso/scanner ─── @reverso/core
+        ├── @reverso/db ──────── @reverso/core
+        └── @reverso/api
+              ├── @reverso/core
+              ├── @reverso/db
+              ├── @reverso/admin
+              │     ├── @reverso/blocks (Tiptap editor)
+              │     └── @reverso/forms (react-hook-form)
+              └── @reverso/mcp (AI integration)
+```
+
+### Packages
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| [`create-reverso`](https://www.npmjs.com/package/create-reverso) | 0.1.1 | `npx create-reverso` installer wizard |
+| [`@reverso/cli`](https://www.npmjs.com/package/@reverso/cli) | 0.1.23 | CLI commands (`init`, `scan`, `dev`, `build`, `start`, `migrate`) |
+| [`@reverso/core`](https://www.npmjs.com/package/@reverso/core) | 0.1.1 | Shared types, utilities, config system, Zod schemas |
+| [`@reverso/scanner`](https://www.npmjs.com/package/@reverso/scanner) | 0.1.23 | AST parser (ts-morph) for detecting `data-reverso-*` markers |
+| [`@reverso/db`](https://www.npmjs.com/package/@reverso/db) | 0.1.18 | Drizzle ORM schema + migrations (SQLite dev / PostgreSQL prod) |
+| [`@reverso/api`](https://www.npmjs.com/package/@reverso/api) | 0.1.18 | Fastify server with REST + GraphQL endpoints |
+| [`@reverso/admin`](https://www.npmjs.com/package/@reverso/admin) | 0.1.18 | React + Vite + shadcn/ui admin panel |
+| [`@reverso/blocks`](https://www.npmjs.com/package/@reverso/blocks) | 0.1.1 | Tiptap-based block editor component |
+| [`@reverso/forms`](https://www.npmjs.com/package/@reverso/forms) | 0.1.1 | Form builder (react-hook-form + Zod) |
+| [`@reverso/mcp`](https://www.npmjs.com/package/@reverso/mcp) | 0.1.1 | MCP Server for AI tool integration |
+
+### Apps (not published)
+
+| App | Description |
+|-----|-------------|
+| `apps/docs` | Documentation site (Astro Starlight) |
+| `apps/playground` | Interactive demo (Vite + Monaco Editor) |
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Runtime** | Node.js 20+ |
+| **Package Manager** | pnpm 9+ |
+| **Monorepo** | Turborepo |
+| **API** | Fastify |
+| **GraphQL** | Mercurius |
+| **Database** | SQLite (dev) / PostgreSQL (prod) |
+| **ORM** | Drizzle |
+| **Auth** | Better Auth + bcrypt |
+| **Admin UI** | React 19 + Vite + shadcn/ui + Radix |
+| **State** | Zustand + React Query |
+| **WYSIWYG** | Tiptap |
+| **Forms** | react-hook-form + Zod |
+| **Drag & Drop** | @dnd-kit |
+| **CSS** | TailwindCSS 4 |
+| **Linting** | Biome |
+| **Testing** | Vitest + Playwright |
+| **Versioning** | Changesets |
+| **Git Hooks** | Husky |
+
+---
+
+## How It Works
+
+```
+  Your React Code          Scanner           Database          Admin Panel
+ ┌──────────────┐    ┌──────────────┐   ┌─────────────┐   ┌──────────────┐
+ │  <h1          │    │  ts-morph    │   │  SQLite /   │   │  React +     │
+ │   data-reverso│───>│  AST parser  │──>│  PostgreSQL │──>│  shadcn/ui   │
+ │   ="home..."> │    │  + chokidar  │   │  (Drizzle)  │   │  auto-gen UI │
+ └──────────────┘    └──────────────┘   └─────────────┘   └──────────────┘
+                           │                    │                  │
+                      schema.json          REST API          Edit content
+                      + TS types         + GraphQL          in the browser
+```
+
+1. **You code** your React components normally, adding `data-reverso` attributes
+2. **Scanner** parses your JSX using ts-morph, extracting all markers into a schema
+3. **Schema sync** pushes the detected fields to the database via the API
+4. **Admin panel** renders the appropriate input fields for each type
+5. **API** serves the content back to your frontend via REST or GraphQL
+6. **Watch mode** keeps everything in sync as you edit your code
+
+---
+
+## API Endpoints
+
+When the dev server is running, these endpoints are available:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check |
+| `GET` | `/admin` | Admin panel UI |
+| `GET` | `/api/reverso/schema` | Get current schema |
+| `POST` | `/api/reverso/schema/sync` | Sync schema to database |
+| `GET` | `/api/reverso/content/:page` | Get page content |
+| `PUT` | `/api/reverso/content/:page` | Update page content |
+| `POST` | `/auth/register` | Register new user |
+| `POST` | `/auth/login` | Login |
+| `GET` | `/auth/setup-status` | Check if setup is needed |
+
+---
+
+## MCP Server (AI Integration)
+
+Reverso includes an MCP (Model Context Protocol) server that allows AI tools like Claude, Cursor, and others to interact with your CMS directly.
+
+```bash
+# The MCP server binary is available after installing @reverso/mcp
+reverso-mcp
+```
+
+This enables AI assistants to read and write content, query the schema, and manage your CMS programmatically.
 
 ---
 
 ## Deployment
 
-Reverso works great with:
+Reverso works with any Node.js hosting platform:
 
-- **[Coolify](https://coolify.io)** — Self-hosted PaaS (recommended)
-- **[Vercel](https://vercel.com)** — Serverless deployment
-- **[Railway](https://railway.app)** — Simple cloud hosting
-- **[Docker](https://docker.com)** — Container deployment
-- **Self-hosted** — Any Node.js server
+| Platform | Type | Notes |
+|----------|------|-------|
+| [Coolify](https://coolify.io) | Self-hosted PaaS | Recommended for full control |
+| [Vercel](https://vercel.com) | Serverless | Great for Next.js frontends |
+| [Railway](https://railway.app) | Cloud hosting | Simple deploy from Git |
+| [Docker](https://docker.com) | Container | Full isolation |
+| Self-hosted | Any server | Just run `reverso start` |
+
+**Database in production:** Switch from SQLite to PostgreSQL by updating `reverso.config.ts`:
+
+```ts
+export default defineConfig({
+  database: {
+    provider: 'postgresql',
+    url: process.env.DATABASE_URL,
+  },
+});
+```
 
 See the [deployment guide](https://docs.reverso.dev/deployment) for detailed instructions.
 
@@ -287,16 +634,16 @@ See the [deployment guide](https://docs.reverso.dev/deployment) for detailed ins
 
 ## Roadmap
 
-### v0.1.0 (Current)
-- [x] Scanner and field detection
-- [x] 35+ field types
-- [x] Admin panel
-- [x] Block editor
+### v0.1.x (Current)
+- [x] Scanner and field detection (35+ types)
+- [x] Admin panel with auto-generated UI
+- [x] Block editor (Tiptap)
 - [x] Forms system
 - [x] REST API
-- [x] CLI tools
-- [x] Documentation
+- [x] CLI tools (init, scan, dev, build, start, migrate)
 - [x] MCP Server for AI integration
+- [x] Auto-sync schema on scan and dev
+- [x] Auto-seed admin credentials
 
 ### v0.2.0
 - [ ] GraphQL API
@@ -321,10 +668,10 @@ See the full [roadmap](https://github.com/hogrid/reverso/blob/main/ROADMAP.md).
 
 We love contributions! Whether it's:
 
-- 🐛 Bug reports
-- 💡 Feature requests
-- 📖 Documentation improvements
-- 🔧 Code contributions
+- Bug reports
+- Feature requests
+- Documentation improvements
+- Code contributions
 
 Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
 
@@ -344,19 +691,40 @@ pnpm build
 # Run tests
 pnpm test
 
-# Start development
+# Type checking
+pnpm typecheck
+
+# Lint and format
+pnpm lint
+
+# Start development (all packages in watch mode)
 pnpm dev
+```
+
+### Release Process
+
+Reverso uses [Changesets](https://github.com/changesets/changesets) for versioning:
+
+```bash
+# Create a changeset after making changes
+pnpm changeset
+
+# Version packages
+pnpm version-packages
+
+# Build and publish
+pnpm release
 ```
 
 ---
 
 ## Community
 
-- 💬 [Discord](https://discord.gg/reverso) — Chat with the community
-- 🐦 [Twitter](https://twitter.com/reversocms) — Follow for updates
-- 📖 [Documentation](https://docs.reverso.dev) — Learn how to use Reverso
-- 🐛 [Issues](https://github.com/hogrid/reverso/issues) — Report bugs
-- 💡 [Discussions](https://github.com/hogrid/reverso/discussions) — Share ideas
+- [Discord](https://discord.gg/reverso) — Chat with the community
+- [Twitter](https://twitter.com/reversocms) — Follow for updates
+- [Documentation](https://docs.reverso.dev) — Learn how to use Reverso
+- [Issues](https://github.com/hogrid/reverso/issues) — Report bugs
+- [Discussions](https://github.com/hogrid/reverso/discussions) — Share ideas
 
 ---
 
@@ -379,7 +747,7 @@ Reverso is [MIT licensed](LICENSE).
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://hogrid.com/">Emerson Nunes - Hogrid</a></sub>
+  <sub>Built with care by <a href="https://hogrid.com/">Emerson Nunes - Hogrid</a></sub>
 </p>
 
 <p align="center">

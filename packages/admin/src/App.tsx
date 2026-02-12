@@ -4,7 +4,7 @@ import { RootLayout } from '@/components/layout';
 import { initializeTheme } from '@/stores/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import '@/styles/globals.css';
 
 // Lazy load pages for code splitting
@@ -39,6 +39,110 @@ const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
 
+// Suspense wrapper for lazy-loaded pages
+function SuspensePage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<LoadingPage />}>{children}</Suspense>;
+}
+
+// Create data router (required for useBlocker support)
+const router = createBrowserRouter(
+  [
+    {
+      path: '/login',
+      element: (
+        <SuspensePage>
+          <LoginPage />
+        </SuspensePage>
+      ),
+    },
+    {
+      path: '/',
+      element: (
+        <ProtectedRoute>
+          <RootLayout />
+        </ProtectedRoute>
+      ),
+      children: [
+        {
+          index: true,
+          element: (
+            <SuspensePage>
+              <DashboardPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'pages',
+          element: (
+            <SuspensePage>
+              <PagesListPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'pages/:slug',
+          element: (
+            <SuspensePage>
+              <PageEditorPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'media',
+          element: (
+            <SuspensePage>
+              <MediaPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'forms',
+          element: (
+            <SuspensePage>
+              <FormsListPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'forms/:id',
+          element: (
+            <SuspensePage>
+              <FormBuilderPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'forms/:id/submissions',
+          element: (
+            <SuspensePage>
+              <FormSubmissionsPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'redirects',
+          element: (
+            <SuspensePage>
+              <RedirectsPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: '*',
+          element: (
+            <SuspensePage>
+              <NotFoundPage />
+            </SuspensePage>
+          ),
+        },
+      ],
+    },
+  ],
+  {
+    basename: '/admin',
+  }
+);
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,34 +161,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/admin">
-        <Suspense fallback={<LoadingPage />}>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<LoginPage />} />
-
-            {/* Protected routes */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <RootLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<DashboardPage />} />
-              <Route path="pages" element={<PagesListPage />} />
-              <Route path="pages/:slug" element={<PageEditorPage />} />
-              <Route path="media" element={<MediaPage />} />
-              <Route path="forms" element={<FormsListPage />} />
-              <Route path="forms/:id" element={<FormBuilderPage />} />
-              <Route path="forms/:id/submissions" element={<FormSubmissionsPage />} />
-              <Route path="redirects" element={<RedirectsPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
 }
