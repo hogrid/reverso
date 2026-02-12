@@ -53,10 +53,19 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'reverso-ui',
+      version: 1,
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         theme: state.theme,
       }),
+      migrate: (persistedState, version) => {
+        const state = persistedState as Record<string, unknown>;
+        // v0 → v1: reset theme to light (was system/dark)
+        if (version === 0) {
+          state.theme = 'light';
+        }
+        return state as unknown as UIState;
+      },
     }
   )
 );
