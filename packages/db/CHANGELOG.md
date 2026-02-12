@@ -1,5 +1,11 @@
 # @reverso/db
 
+## 0.1.18
+
+### Patch Changes
+
+- fix: resolve critical setup flow issues, add error logging to auth, fix missing DB tables, and read CLI version dynamically
+
 ## 0.1.15
 
 ### Patch Changes

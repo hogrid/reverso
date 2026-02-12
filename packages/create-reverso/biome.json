@@ -1,11 +1,12 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "extends": ["../../biome.json"],
-  "linter": {
-    "rules": {
-      "suspicious": {
-        "noConsoleLog": "off"
-      }
-    }
-  }
+	"root": false,
+	"$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+	"extends": ["../../biome.json"],
+	"linter": {
+		"rules": {
+			"suspicious": {
+				"noConsole": { "level": "off", "options": { "allow": ["log"] } }
+			}
+		}
+	}
 }

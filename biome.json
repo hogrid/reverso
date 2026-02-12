@@ -1,83 +1,89 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "organizeImports": {
-    "enabled": false
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "complexity": {
-        "noForEach": "off",
-        "noBannedTypes": "warn"
-      },
-      "style": {
-        "noNonNullAssertion": "warn",
-        "noUnusedTemplateLiteral": "warn",
-        "useNodejsImportProtocol": "error",
-        "noImplicitBoolean": "off",
-        "useImportType": "warn",
-        "useTemplate": "warn",
-        "useNumberNamespace": "warn"
-      },
-      "correctness": {
-        "noUnusedVariables": "warn",
-        "noUnusedImports": "warn",
-        "useImportExtensions": "off"
-      },
-      "performance": {
-        "noBarrelFile": "off"
-      },
-      "nursery": {
-        "noMissingVarFunction": "off"
-      },
-      "a11y": {
-        "useKeyWithClickEvents": "warn",
-        "noRedundantRoles": "warn",
-        "useSemanticElements": "warn"
-      },
-      "security": {
-        "noDangerouslySetInnerHtml": "warn"
-      },
-      "suspicious": {
-        "noExplicitAny": "warn",
-        "noConsoleLog": "warn",
-        "noArrayIndexKey": "warn",
-        "noGlobalIsNan": "warn",
-        "noMisleadingCharacterClass": "warn",
-        "noImplicitAnyLet": "warn"
-      }
-    }
-  },
-  "formatter": {
-    "enabled": false
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "semicolons": "always",
-      "trailingCommas": "es5"
-    }
-  },
-  "json": {
-    "formatter": {
-      "indentWidth": 2
-    }
-  },
-  "files": {
-    "ignore": [
-      "node_modules",
-      "dist",
-      ".turbo",
-      ".next",
-      "coverage",
-      "*.min.js",
-      "pnpm-lock.yaml"
-    ]
-  }
+	"$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"assist": { "actions": { "source": { "organizeImports": "off" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": {
+				"noForEach": "off",
+				"noBannedTypes": "warn"
+			},
+			"style": {
+				"noNonNullAssertion": "warn",
+				"noUnusedTemplateLiteral": "warn",
+				"useNodejsImportProtocol": "error",
+				"noImplicitBoolean": "off",
+				"useImportType": "warn",
+				"useTemplate": "warn",
+				"useNumberNamespace": "warn"
+			},
+			"correctness": {
+				"noUnusedVariables": "warn",
+				"noUnusedImports": "warn",
+				"noUnusedFunctionParameters": "warn",
+				"useImportExtensions": "off",
+				"noMissingVarFunction": "off"
+			},
+			"performance": {
+				"noBarrelFile": "off"
+			},
+			"nursery": {},
+			"a11y": {
+				"useKeyWithClickEvents": "warn",
+				"noRedundantRoles": "warn",
+				"useSemanticElements": "warn",
+				"noStaticElementInteractions": "warn"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "warn"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noArrayIndexKey": "warn",
+				"noGlobalIsNan": "warn",
+				"noMisleadingCharacterClass": "warn",
+				"noImplicitAnyLet": "warn",
+				"noNonNullAssertedOptionalChain": "warn",
+				"noConsole": { "level": "warn", "options": { "allow": ["log"] } }
+			}
+		}
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single",
+			"semicolons": "always",
+			"trailingCommas": "es5"
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"json": {
+		"formatter": {
+			"indentWidth": 2
+		}
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/.turbo",
+			"!**/.next",
+			"!**/coverage",
+			"!**/*.min.js",
+			"!**/pnpm-lock.yaml"
+		]
+	}
 }

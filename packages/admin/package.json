@@ -1,6 +1,6 @@
 {
   "name": "@reverso/admin",
-  "version": "0.1.13",
+  "version": "0.1.18",
   "description": "Admin panel UI for Reverso CMS built with React and shadcn/ui",
   "homepage": "https://reverso.dev/docs/packages/admin",
   "bugs": {
