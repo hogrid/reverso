@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.19
+
+### Patch Changes
+
+- fix(cli): auto-seed admin user from .reverso/admin.json on first dev server start
+
 ## 0.1.18
 
 ### Patch Changes

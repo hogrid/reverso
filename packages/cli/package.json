@@ -1,6 +1,6 @@
 {
   "name": "@reverso/cli",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Command line interface for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/cli",
   "bugs": {

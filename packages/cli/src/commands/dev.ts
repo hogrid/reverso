@@ -216,19 +216,8 @@ export function devCommand(program: Command): void {
           mkdirSync(dbDir, { recursive: true });
         }
 
-        // Show admin credentials if available
+        // Read admin credentials for auto-seeding after server starts
         const adminCreds = readAdminCredentials(cwd);
-        if (adminCreds) {
-          console.log();
-          console.log(chalk.gray('Admin credentials (for initial setup):'));
-          console.log(chalk.gray('  Name:     ') + chalk.cyan(adminCreds.name));
-          console.log(chalk.gray('  Email:    ') + chalk.cyan(adminCreds.email));
-          console.log(chalk.gray('  Password: ') + chalk.cyan(adminCreds.password));
-          console.log();
-          console.log(chalk.yellow('First time?') + chalk.gray(' Click "Create an account" in the admin panel'));
-          console.log(chalk.gray('to set up your admin user with these credentials.'));
-          console.log();
-        }
 
         // Start scanner in watch mode
         spinner.start('Starting file scanner...');
@@ -264,6 +253,34 @@ export function devCommand(program: Command): void {
 
         await startApiServer(server);
         spinner.succeed(`API server running at http://${options.host}:${port}`);
+
+        // Auto-seed admin user from .reverso/admin.json if no users exist
+        if (adminCreds) {
+          try {
+            const setupRes = await fetch(`http://${options.host}:${port}/auth/setup-status`);
+            const setupData = await setupRes.json() as { needsSetup?: boolean };
+            if (setupData.needsSetup) {
+              const registerRes = await fetch(`http://${options.host}:${port}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: adminCreds.email,
+                  password: adminCreds.password,
+                  name: adminCreds.name,
+                }),
+              });
+              const registerData = await registerRes.json() as { success?: boolean };
+              if (registerData.success) {
+                console.log();
+                console.log(chalk.green('  Admin account created automatically from .reverso/admin.json'));
+                console.log(chalk.gray('  Email:    ') + chalk.cyan(adminCreds.email));
+                console.log(chalk.gray('  Password: ') + chalk.cyan(adminCreds.password));
+              }
+            }
+          } catch {
+            // Silently fail - user can still register manually
+          }
+        }
 
         console.log();
         console.log(chalk.green.bold('Development server ready!'));
