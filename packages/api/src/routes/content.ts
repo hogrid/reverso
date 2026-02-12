@@ -318,7 +318,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
       const changedBy = (request as any).user?.id;
 
-      if (!data || typeof data !== 'object') {
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',

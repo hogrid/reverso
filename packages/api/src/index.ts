@@ -71,6 +71,8 @@ export async function createApiServer(options: {
   prefix?: string;
   cors?: boolean;
   logger?: boolean;
+  apiKey?: string;
+  authEnabled?: boolean;
 }) {
   const { createServer, registerAuth } = await import('./server.js');
   const { databasePlugin } = await import('./plugins/index.js');
@@ -87,6 +89,8 @@ export async function createApiServer(options: {
     cors: options.cors,
     logger: options.logger,
     prefix: options.prefix,
+    apiKey: options.apiKey,
+    authEnabled: options.authEnabled,
   });
 
   // Register database plugin FIRST so request.db is available

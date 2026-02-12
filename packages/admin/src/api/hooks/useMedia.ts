@@ -40,9 +40,11 @@ export function useMedia(filters: MediaFilters = {}) {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.search) params.set('search', filters.search);
-      if (filters.mimeType) params.set('mimeType', filters.mimeType);
-      if (filters.page) params.set('page', String(filters.page));
-      if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
+      if (filters.mimeType) params.set('type', filters.mimeType);
+      const pageSize = filters.pageSize || 20;
+      const page = filters.page || 1;
+      params.set('limit', String(pageSize));
+      params.set('offset', String((page - 1) * pageSize));
 
       const url = `${endpoints.media.list()}${params.toString() ? `?${params}` : ''}`;
       const response = await apiClient.get<MediaListResponse>(url);
@@ -60,9 +62,10 @@ export function useInfiniteMedia(filters: Omit<MediaFilters, 'page'> = {}) {
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams();
       if (filters.search) params.set('search', filters.search);
-      if (filters.mimeType) params.set('mimeType', filters.mimeType);
-      params.set('page', String(pageParam));
-      if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
+      if (filters.mimeType) params.set('type', filters.mimeType);
+      const pageSize = filters.pageSize || 20;
+      params.set('limit', String(pageSize));
+      params.set('offset', String(((pageParam as number) - 1) * pageSize));
 
       const url = `${endpoints.media.list()}?${params}`;
       const response = await apiClient.get<MediaListResponse>(url);

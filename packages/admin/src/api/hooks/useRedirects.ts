@@ -49,7 +49,7 @@ export function useRedirects(options?: { enabled?: boolean; limit?: number; offs
       if (params.toString()) url += `?${params.toString()}`;
 
       const response = await apiClient.get<Redirect[]>(url);
-      return response;
+      return response.data;
     },
   });
 }

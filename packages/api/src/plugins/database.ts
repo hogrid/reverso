@@ -3,7 +3,7 @@
  * Adds db instance to request.
  */
 
-import { type DatabaseConfig, type DrizzleDatabase, initDatabase } from '@reverso/db';
+import { type DatabaseConfig, type DrizzleDatabase, closeDatabase, initDatabase } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -22,6 +22,12 @@ const databasePlugin: FastifyPluginAsync<DatabasePluginOptions> = async (
   // Add db to each request using addHook
   fastify.addHook('onRequest', async (request) => {
     (request as any).db = db;
+  });
+
+  // Close database connection on server shutdown
+  fastify.addHook('onClose', async () => {
+    closeDatabase();
+    fastify.log.info('Database connection closed');
   });
 
   // Log database connection
