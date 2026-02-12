@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.1.20
+
+### Patch Changes
+
+- security(cli): delete admin.json after seeding admin user to remove plaintext credentials from disk
+
 ## 0.1.19
 
 ### Patch Changes

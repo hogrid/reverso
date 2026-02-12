@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 
 interface DevOptions {
   port: string;
@@ -271,10 +271,15 @@ export function devCommand(program: Command): void {
               });
               const registerData = await registerRes.json() as { success?: boolean };
               if (registerData.success) {
+                // Delete admin.json to avoid leaving plaintext credentials on disk
+                try {
+                  unlinkSync(resolve(cwd, '.reverso/admin.json'));
+                } catch {
+                  // Ignore if file can't be deleted
+                }
                 console.log();
-                console.log(chalk.green('  Admin account created automatically from .reverso/admin.json'));
+                console.log(chalk.green('  Admin account created and credentials removed from disk'));
                 console.log(chalk.gray('  Email:    ') + chalk.cyan(adminCreds.email));
-                console.log(chalk.gray('  Password: ') + chalk.cyan(adminCreds.password));
               }
             }
           } catch {
