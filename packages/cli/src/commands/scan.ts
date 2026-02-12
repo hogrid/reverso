@@ -7,8 +7,46 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import type { ScanOptions as CoreScanOptions } from '@reverso/core';
+import type { ProjectSchema, ScanOptions as CoreScanOptions } from '@reverso/core';
 import { createScanner, scan, type ScannerOptions } from '@reverso/scanner';
+
+/** Default API port for sync */
+const DEFAULT_API_PORT = 3001;
+
+/**
+ * Try to sync schema to running API server.
+ */
+async function trySyncToServer(schema: ProjectSchema, port: number = DEFAULT_API_PORT): Promise<boolean> {
+  try {
+    const res = await fetch(`http://localhost:${port}/api/reverso/schema/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schema, deleteRemoved: true }),
+    });
+    const data = await res.json() as { success?: boolean };
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read API port from reverso.config.ts/js if it exists.
+ */
+function readApiPortFromConfig(cwd: string): number {
+  for (const filename of ['reverso.config.ts', 'reverso.config.js']) {
+    const configPath = resolve(cwd, filename);
+    if (!existsSync(configPath)) continue;
+    try {
+      const content = readFileSync(configPath, 'utf-8');
+      const match = content.match(/port\s*:\s*(\d+)/);
+      if (match?.[1]) return Number.parseInt(match[1], 10);
+    } catch {
+      // Ignore
+    }
+  }
+  return DEFAULT_API_PORT;
+}
 
 interface CliScanOptions {
   src?: string;
@@ -70,7 +108,9 @@ export function scanCommand(program: Command): void {
 
           const scanner = createScanner(scannerOptions);
 
-          scanner.on((event) => {
+          const watchApiPort = readApiPortFromConfig(process.cwd());
+
+          scanner.on(async (event) => {
             switch (event.type) {
               case 'start':
                 spinner.start('Scanning...');
@@ -82,6 +122,7 @@ export function scanCommand(program: Command): void {
                       `Found ${event.schema.totalFields} fields across ${event.schema.pages.length} pages`
                     )
                   );
+                  await trySyncToServer(event.schema, watchApiPort);
                 }
                 break;
               case 'error':
@@ -142,6 +183,13 @@ export function scanCommand(program: Command): void {
             console.log(chalk.yellow('No data-reverso markers found.'));
             console.log(chalk.gray('Add markers to your components like:'));
             console.log(chalk.gray('  <h1 data-reverso="home.hero.title">Welcome</h1>'));
+          } else {
+            // Auto-sync to running API server
+            const apiPort = readApiPortFromConfig(process.cwd());
+            const synced = await trySyncToServer(result.schema, apiPort);
+            if (synced) {
+              console.log(chalk.green(`\n  Schema synced to database (port ${apiPort})`));
+            }
           }
         }
       } catch (error) {

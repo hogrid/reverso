@@ -1,5 +1,12 @@
 # @reverso/scanner
 
+## 0.1.23
+
+### Patch Changes
+
+- feat(cli): auto-sync schema to database after scan and during watch mode
+  fix(scanner): gracefully skip markers with invalid paths instead of crashing
+
 ## 0.1.22
 
 ### Patch Changes

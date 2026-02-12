@@ -231,10 +231,22 @@ export function devCommand(program: Command): void {
         await scanner.scan();
         spinner.succeed('Initial scan complete');
 
-        // Start watch mode in background
-        scanner.on((event) => {
+        // Get initial schema for sync after server starts
+        const initialSchema = scanner.getSchema();
+
+        // Start watch mode in background — sync schema to DB on every change
+        scanner.on(async (event) => {
           if (event.type === 'complete' && event.schema) {
             console.log(chalk.gray(`[scanner] Schema updated: ${event.schema.totalFields} fields`));
+            try {
+              await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schema: event.schema, deleteRemoved: true }),
+              });
+            } catch {
+              // Server might not be ready yet, ignore
+            }
           }
         });
         scanner.startWatch();
@@ -284,6 +296,23 @@ export function devCommand(program: Command): void {
             }
           } catch {
             // Silently fail - user can still register manually
+          }
+        }
+
+        // Sync initial schema to database
+        if (initialSchema && initialSchema.totalFields > 0) {
+          try {
+            const syncRes = await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ schema: initialSchema, deleteRemoved: true }),
+            });
+            const syncData = await syncRes.json() as { success?: boolean };
+            if (syncData.success) {
+              console.log(chalk.green(`  Schema synced: ${initialSchema.totalFields} fields across ${initialSchema.pageCount} page(s)`));
+            }
+          } catch {
+            // Ignore sync errors
           }
         }
 
