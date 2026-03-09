@@ -1,5 +1,11 @@
 # @reverso/cli
 
+## 0.2.0
+
+### Patch Changes
+
+- @reverso/api@0.2.0
+
 ## 0.1.23
 
 ### Patch Changes

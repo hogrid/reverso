@@ -1,5 +1,11 @@
 # @reverso/admin
 
+## 0.2.0
+
+### Minor Changes
+
+- Redesign admin panel with dashboard.pen design system: Cormorant Garamond serif headings, Outfit body font, burgundy accent, 72px icon-only dark sidebar, dynamic user avatar, mobile navigation, and refined visual tokens across all pages.
+
 ## 0.1.24
 
 ### Patch Changes

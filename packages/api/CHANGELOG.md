@@ -1,5 +1,12 @@
 # @reverso/api
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @reverso/admin@0.2.0
+
 ## 0.1.24
 
 ### Patch Changes
