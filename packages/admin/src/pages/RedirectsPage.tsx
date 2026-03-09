@@ -201,73 +201,57 @@ export function RedirectsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
+      {/* Title + Actions */}
+      <div className="flex items-end justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Redirects</h1>
-          <p className="text-sm text-muted-foreground">Manage URL redirects for SEO</p>
+          <h2 className="font-display text-5xl font-medium" style={{ letterSpacing: '-1px' }}>
+            Redirects
+          </h2>
+          <p className="text-[15px] text-[hsl(var(--subtle-foreground))]" style={{ letterSpacing: '0.2px' }}>
+            Manage URL redirects for SEO
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
-            <Upload className="mr-1.5 h-3.5 w-3.5" />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+            <Input
+              type="search"
+              placeholder="Search redirects..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-[200px] pl-9 pr-3 text-[13px] bg-[hsl(var(--secondary))] border-0"
+            />
+          </div>
+          <Button variant="outline" className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]" onClick={() => setIsImportDialogOpen(true)}>
             Import
           </Button>
-          <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New Redirect
+          <Button variant="outline" className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]" onClick={handleExport}>
+            Export
+          </Button>
+          <Button className="h-10 px-5 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90" onClick={() => setIsCreateDialogOpen(true)}>
+            Add Redirect
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground">Total</span>
-            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 text-green-500" />
-              Enabled
-            </span>
-            <p className="text-2xl font-semibold tabular-nums text-green-600 mt-1">{stats.enabled}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <X className="h-3.5 w-3.5" />
-              Disabled
-            </span>
-            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.disabled}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground">Total Hits</span>
-            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.totalHits}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-        <Input
-          type="search"
-          placeholder="Search redirects..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-8 text-[13px]"
-        />
+      {/* Stats Row */}
+      <div className="flex gap-3">
+        {[
+          { label: 'TOTAL', value: stats.total },
+          { label: 'ENABLED', value: stats.enabled },
+          { label: 'DISABLED', value: stats.disabled, muted: true },
+          { label: 'TOTAL HITS', value: stats.totalHits.toLocaleString() },
+        ].map((stat) => (
+          <div key={stat.label} className="flex-1 border border-[hsl(var(--border))] rounded-md px-5 py-4 space-y-1">
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] tracking-wider">
+              {stat.label}
+            </p>
+            <p className={`font-display text-[32px] font-medium leading-none ${stat.muted ? 'text-[hsl(var(--muted-foreground))]' : ''}`} style={{ letterSpacing: '-1px' }}>
+              {stat.value}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Redirects Table */}

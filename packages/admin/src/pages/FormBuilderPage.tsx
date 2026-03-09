@@ -268,25 +268,23 @@ export function FormBuilderPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/forms">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+        <div className="flex items-center gap-4">
+          <Link to="/forms" className="text-[hsl(var(--subtle-foreground))] hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">{form.name}</h1>
+            <div className="flex items-center gap-3">
+              <h2 className="font-display text-[28px] font-medium" style={{ letterSpacing: '-1px' }}>{form.name}</h2>
               <Badge
                 variant={form.status === 'published' ? 'success' : 'secondary'}
               >
                 {form.status}
               </Badge>
             </div>
-            <p className="text-muted-foreground font-mono text-xs">/{form.slug}</p>
+            <p className="text-[hsl(var(--muted-foreground))] font-mono text-xs mt-0.5">/{form.slug}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

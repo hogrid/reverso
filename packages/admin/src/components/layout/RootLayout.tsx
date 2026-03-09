@@ -24,7 +24,7 @@ export function RootLayout() {
           <Header />
           <main
             id="main-content"
-            className="flex-1 overflow-auto bg-background"
+            className="flex-1 overflow-auto bg-white dark:bg-[hsl(var(--background))]"
             tabIndex={-1}
             aria-label="Main content"
           >

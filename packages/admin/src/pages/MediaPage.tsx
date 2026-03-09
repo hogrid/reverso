@@ -8,7 +8,6 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { MediaGridItem, MediaListItem, MediaUploader } from '@/components/media';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -28,13 +27,13 @@ import { Input } from '@/components/ui/input';
 import {
   FileText,
   Film,
-  Filter,
   Grid,
   Image as ImageIcon,
   List,
   Music,
   Search,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -42,7 +41,7 @@ type ViewMode = 'grid' | 'list';
 type MediaType = 'all' | 'image' | 'video' | 'audio' | 'document';
 
 const mediaTypeFilters: { value: MediaType; label: string; icon: typeof ImageIcon }[] = [
-  { value: 'all', label: 'All Files', icon: FileText },
+  { value: 'all', label: 'All Types', icon: FileText },
   { value: 'image', label: 'Images', icon: ImageIcon },
   { value: 'video', label: 'Videos', icon: Film },
   { value: 'audio', label: 'Audio', icon: Music },
@@ -113,7 +112,7 @@ export function MediaPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <LoadingState message="Loading media library..." />
       </div>
     );
@@ -121,7 +120,7 @@ export function MediaPage() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <ErrorState
           title="Failed to load media"
           message="Could not fetch the media library."
@@ -132,45 +131,38 @@ export function MediaPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
+      {/* Title + Actions */}
+      <div className="flex items-end justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Media Library</h1>
-          <p className="text-sm text-muted-foreground">
-            {media?.total ?? 0} files in your library
+          <h2 className="font-display text-5xl font-medium" style={{ letterSpacing: '-1px' }}>
+            Media Library
+          </h2>
+          <p className="text-[15px] text-[hsl(var(--subtle-foreground))]" style={{ letterSpacing: '0.2px' }}>
+            Upload and manage your media files
           </p>
         </div>
-
-        {selectedItems.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] text-muted-foreground">{selectedItems.size} selected</span>
-            <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Delete
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]"
+              aria-hidden="true"
+            />
             <Input
               type="search"
               placeholder="Search files..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-8 text-[13px] w-[240px]"
+              className="h-10 w-[200px] pl-9 pr-3 text-[13px] bg-[hsl(var(--secondary))] border-0"
             />
           </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="text-muted-foreground">
-                <Filter className="h-3.5 w-3.5 mr-1.5" />
+              <Button
+                variant="outline"
+                className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]"
+              >
                 {mediaTypeFilters.find((f) => f.value === mediaType)?.label}
               </Button>
             </DropdownMenuTrigger>
@@ -183,27 +175,42 @@ export function MediaPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setViewMode('grid')}
-          >
-            <Grid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setViewMode('list')}
-          >
-            <List className="h-4 w-4" />
+          {/* View toggle */}
+          <div className="flex">
+            <button
+              type="button"
+              className={`h-9 w-9 flex items-center justify-center ${viewMode === 'grid' ? 'bg-foreground text-white' : 'border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'}`}
+              onClick={() => setViewMode('grid')}
+            >
+              <Grid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className={`h-9 w-9 flex items-center justify-center ${viewMode === 'list' ? 'bg-foreground text-white' : 'border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'}`}
+              onClick={() => setViewMode('list')}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+
+          <Button className="h-10 px-5 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90" onClick={() => {}}>
+            <Upload className="h-4 w-4 mr-2" />
+            Upload
           </Button>
         </div>
       </div>
+
+      {/* Selected items bar */}
+      {selectedItems.size > 0 && (
+        <div className="flex items-center gap-3 py-2">
+          <span className="text-[13px] text-[hsl(var(--muted-foreground))]">{selectedItems.size} selected</span>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            Delete
+          </Button>
+        </div>
+      )}
 
       {/* Upload area */}
       <MediaUploader onUploadComplete={() => refetch()} />
@@ -211,17 +218,16 @@ export function MediaPage() {
       {/* Media grid/list */}
       {media?.items && media.items.length > 0 ? (
         <>
-          {/* Select all */}
           <div className="flex items-center gap-2">
             <Checkbox
               checked={media.items.length > 0 && selectedItems.size === media.items.length}
               onCheckedChange={selectAll}
             />
-            <span className="text-[13px] text-muted-foreground">Select all</span>
+            <span className="text-[13px] text-[hsl(var(--muted-foreground))]">Select all</span>
           </div>
 
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-5">
               {media.items.map((item) => (
                 <MediaGridItem
                   key={item.id}
@@ -253,15 +259,13 @@ export function MediaPage() {
           )}
         </>
       ) : (
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={ImageIcon}
-              title="No media files"
-              description="Upload some files to get started with your media library."
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-[hsl(var(--border))] rounded-md py-12">
+          <EmptyState
+            icon={ImageIcon}
+            title="No media files"
+            description="Upload some files to get started with your media library."
+          />
+        </div>
       )}
 
       {/* Delete confirmation dialog */}

@@ -4,7 +4,6 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { ArrowUpDown, ChevronRight, FileText, Layers, Search } from 'lucide-react';
+import { FileText, MoreVertical, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -44,7 +43,7 @@ export function PagesListPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <LoadingState message="Loading pages..." />
       </div>
     );
@@ -52,7 +51,7 @@ export function PagesListPage() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <ErrorState
           title="Failed to load pages"
           message="Could not fetch the list of pages."
@@ -63,104 +62,113 @@ export function PagesListPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Content Pages</h1>
-        <p className="text-sm text-muted-foreground">Manage content across all detected pages</p>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-          <Input
-            type="search"
-            placeholder="Search pages..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-8 text-[13px]"
-          />
+    <div className="px-12 py-8 space-y-7 max-w-[1320px]">
+      {/* Title + Actions */}
+      <div className="flex items-end justify-between">
+        <div className="space-y-1">
+          <h2 className="font-display text-5xl font-medium" style={{ letterSpacing: '-1px' }}>
+            Content Pages
+          </h2>
+          <p className="text-[15px] text-[hsl(var(--subtle-foreground))]" style={{ letterSpacing: '0.2px' }}>
+            Manage your content pages and fields
+          </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="text-muted-foreground">
-              <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
-              Sort by {sort}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setSort('name')}>Name</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSort('fields')}>Field count</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSort('sections')}>Section count</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]"
+              aria-hidden="true"
+            />
+            <Input
+              type="search"
+              placeholder="Search pages..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-[260px] pl-9 pr-3 text-[13px] bg-[hsl(var(--secondary))] border-0"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]"
+              >
+                Sort by
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSort('name')}>Name</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSort('fields')}>Field count</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSort('sections')}>Section count</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Pages grid */}
       {filteredPages && filteredPages.length > 0 ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {filteredPages.map((page) => (
             <Link key={page.slug} to={`/pages/${page.slug}`}>
-              <Card className="hover:shadow-lifted hover:border-border transition-all duration-150 cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-md bg-accent p-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <CardTitle>{page.name}</CardTitle>
-                        <CardDescription className="font-mono text-[11px] mt-0.5">
-                          /{page.slug}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 mt-1" />
+              <div className="border border-[hsl(var(--border))] bg-white dark:bg-[hsl(var(--card))] p-7 space-y-5 hover:shadow-lifted transition-all duration-150 cursor-pointer h-full">
+                {/* Top row: icon + badge + menu */}
+                <div className="flex items-start justify-between">
+                  <div className="w-11 h-11 rounded-lg bg-[hsl(var(--subtle))] border border-[hsl(var(--border))] flex items-center justify-center">
+                    <FileText className="h-[18px] w-[18px] text-[hsl(var(--muted-foreground))]" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Layers className="h-3.5 w-3.5" />
-                      <span>{page.sectionCount} sections</span>
-                    </div>
-                    <Badge variant="outline" className="text-[11px]">{page.fieldCount} fields</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-[hsl(var(--secondary))] text-foreground hover:bg-[hsl(var(--secondary))] border-0 text-xs font-semibold">
+                      Published
+                    </Badge>
+                    <button type="button" className="text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
                   </div>
-                  {page.updatedAt && (
-                    <p className="mt-2 text-xs text-muted-foreground/70">
-                      Updated {new Date(page.updatedAt).toLocaleDateString()}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Content */}
+                <div className="space-y-1.5">
+                  <h3 className="font-display text-[26px] font-bold" style={{ letterSpacing: '-0.3px' }}>
+                    {page.name}
+                  </h3>
+                  <p className="text-[13px] text-[hsl(var(--subtle-foreground))]">
+                    /{page.slug}
+                  </p>
+                </div>
+
+                {/* Meta footer */}
+                <div className="flex items-center gap-3 pt-4 border-t border-[hsl(var(--secondary))]">
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]" style={{ letterSpacing: '0.5px' }}>
+                    {page.fieldCount} fields
+                  </span>
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]" style={{ letterSpacing: '0.5px' }}>
+                    {page.sectionCount} sections
+                  </span>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
       ) : pages && pages.length > 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={Search}
-              title="No pages found"
-              description={`No pages match "${search}". Try a different search term.`}
-              action={{
-                label: 'Clear search',
-                onClick: () => setSearch(''),
-              }}
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-[hsl(var(--border))] rounded-md py-12">
+          <EmptyState
+            icon={Search}
+            title="No pages found"
+            description={`No pages match "${search}". Try a different search term.`}
+            action={{
+              label: 'Clear search',
+              onClick: () => setSearch(''),
+            }}
+          />
+        </div>
       ) : (
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={FileText}
-              title="No pages detected"
-              description="Add data-reverso markers to your React components, then run the scanner to detect pages."
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-[hsl(var(--border))] rounded-md py-12">
+          <EmptyState
+            icon={FileText}
+            title="No pages detected"
+            description="Add data-reverso markers to your React components, then run the scanner to detect pages."
+          />
+        </div>
       )}
     </div>
   );

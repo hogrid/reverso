@@ -143,77 +143,49 @@ export function FormSubmissionsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <Link to={`/forms/${id}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link to={`/forms/${id}`} className="flex items-center gap-2 text-[13px] text-[hsl(var(--subtle-foreground))] hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="space-y-0.5">
-            <h1 className="text-xl font-semibold tracking-tight">
-              {form?.name || 'Form'} Submissions
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {stats.total} total submissions
-            </p>
-          </div>
+          <h2 className="font-display text-[28px] font-medium" style={{ letterSpacing: '-1px' }}>
+            {form?.name || 'Form'} Submissions
+          </h2>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="mr-1.5 h-3.5 w-3.5" />
+        <Button variant="outline" className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]" onClick={handleExport}>
           Export CSV
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card
-          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'all' && 'ring-2 ring-ring/40')}
-          onClick={() => setStatusFilter('all')}
-        >
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground">Total</span>
-            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'new' && 'ring-2 ring-ring/40')}
-          onClick={() => setStatusFilter('new')}
-        >
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5 text-blue-500" />
-              New
-            </span>
-            <p className="text-2xl font-semibold tabular-nums text-blue-600 mt-1">{stats.new}</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'read' && 'ring-2 ring-ring/40')}
-          onClick={() => setStatusFilter('read')}
-        >
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 text-green-500" />
-              Read
-            </span>
-            <p className="text-2xl font-semibold tabular-nums mt-1">{stats.read}</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn('cursor-pointer transition-all duration-150', statusFilter === 'spam' && 'ring-2 ring-ring/40')}
-          onClick={() => setStatusFilter('spam')}
-        >
-          <CardContent className="p-5">
-            <span className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
-              Spam
-            </span>
-            <p className="text-2xl font-semibold tabular-nums text-destructive mt-1">{stats.spam}</p>
-          </CardContent>
-        </Card>
+      {/* Stats Row */}
+      <div className="flex gap-3">
+        {[
+          { key: 'all', label: 'Total', value: stats.total, color: '' },
+          { key: 'new', label: 'New', value: stats.new, color: 'text-[hsl(var(--brand))]' },
+          { key: 'read', label: 'Read', value: stats.read, color: '' },
+          { key: 'spam', label: 'Spam', value: stats.spam, color: 'text-[hsl(var(--destructive))]' },
+        ].map((stat) => (
+          <button
+            type="button"
+            key={stat.key}
+            onClick={() => setStatusFilter(stat.key)}
+            className={cn(
+              'flex-1 border rounded-md px-5 py-4 space-y-1 text-left transition-all duration-150',
+              statusFilter === stat.key
+                ? 'border-foreground border-2'
+                : 'border-[hsl(var(--border))] hover:border-[hsl(var(--muted-foreground))]'
+            )}
+          >
+            <p className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] tracking-wider uppercase">
+              {stat.label}
+            </p>
+            <p className={`font-display text-[32px] font-medium leading-none ${stat.color}`} style={{ letterSpacing: '-1px' }}>
+              {stat.value}
+            </p>
+          </button>
+        ))}
       </div>
 
       {/* Submissions Table */}

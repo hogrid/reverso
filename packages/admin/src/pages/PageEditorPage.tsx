@@ -138,26 +138,22 @@ export function PageEditorPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b border-border/40 bg-card px-6 py-3">
+      {/* Editor Toolbar */}
+      <div className="px-12 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <Link to="/pages">
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
-              </Link>
-            </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <div>
-              <h1 className="text-base font-semibold">{page.name}</h1>
-              <p className="text-xs text-muted-foreground font-mono">/{page.slug}</p>
-            </div>
+            <Link
+              to="/pages"
+              className="flex items-center gap-3 text-[13px] text-[hsl(var(--subtle-foreground))] hover:text-foreground transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Pages
+            </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             {/* Status */}
-            <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground mr-2">
+            <div className="flex items-center gap-1.5 text-[13px] text-[hsl(var(--muted-foreground))]">
               {isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -174,15 +170,15 @@ export function PageEditorPage() {
             </div>
 
             {/* Undo/Redo */}
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => undo()} disabled={!canUndo()}>
+            <Button variant="outline" size="icon" className="h-8 w-8 border-[hsl(var(--border))]" onClick={() => undo()} disabled={!canUndo()}>
               <Undo className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => redo()} disabled={!canRedo()}>
+            <Button variant="outline" size="icon" className="h-8 w-8 border-[hsl(var(--border))]" onClick={() => redo()} disabled={!canRedo()}>
               <Redo className="h-3.5 w-3.5" />
             </Button>
 
             {/* Save */}
-            <Button size="sm" onClick={() => save()} disabled={!hasDirtyFields() || isSaving}>
+            <Button className="h-9 px-4 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90" onClick={() => save()} disabled={!hasDirtyFields() || isSaving}>
               <Save className="h-3.5 w-3.5 mr-1.5" />
               Save
             </Button>
@@ -210,7 +206,7 @@ export function PageEditorPage() {
       </AlertDialog>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-12 pb-12">
         <div className="max-w-4xl">
           {page.sections.length > 1 ? (
             <Tabs defaultValue={page.sections[0]?.slug} className="space-y-6">

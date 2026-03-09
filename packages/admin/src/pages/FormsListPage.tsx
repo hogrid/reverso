@@ -4,7 +4,6 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +29,6 @@ import {
   FileText,
   Inbox,
   MoreHorizontal,
-  Plus,
   Search,
   Trash2,
 } from 'lucide-react';
@@ -108,11 +106,23 @@ export function FormsListPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'published':
-        return <Badge variant="success">Published</Badge>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold bg-[hsl(var(--brand))] text-white">
+            Active
+          </span>
+        );
       case 'draft':
-        return <Badge variant="secondary">Draft</Badge>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold bg-[hsl(var(--secondary))] text-foreground">
+            Draft
+          </span>
+        );
       case 'archived':
-        return <Badge variant="outline">Archived</Badge>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold bg-[hsl(var(--secondary))] text-[hsl(var(--muted-foreground))]">
+            Archived
+          </span>
+        );
       default:
         return null;
     }
@@ -120,7 +130,7 @@ export function FormsListPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <LoadingState message="Loading forms..." />
       </div>
     );
@@ -128,7 +138,7 @@ export function FormsListPage() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-12">
         <ErrorState
           title="Failed to load forms"
           message="Could not fetch the list of forms."
@@ -139,157 +149,163 @@ export function FormsListPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
+      {/* Title + Actions */}
+      <div className="flex items-end justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Forms</h1>
-          <p className="text-sm text-muted-foreground">Create and manage form submissions</p>
+          <h2 className="font-display text-5xl font-medium" style={{ letterSpacing: '-1px' }}>
+            Forms
+          </h2>
+          <p className="text-[15px] text-[hsl(var(--subtle-foreground))]" style={{ letterSpacing: '0.2px' }}>
+            Create and manage your forms
+          </p>
         </div>
-        <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          New Form
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]"
+              aria-hidden="true"
+            />
+            <Input
+              type="search"
+              placeholder="Search forms..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-[240px] pl-9 pr-3 text-[13px] bg-[hsl(var(--secondary))] border-0"
+            />
+          </div>
+          <Button
+            className="h-10 px-5 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90"
+            onClick={() => setIsCreateDialogOpen(true)}
+          >
+            Create Form
+          </Button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-        <Input
-          type="search"
-          placeholder="Search forms..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-8 text-[13px]"
-        />
-      </div>
-
-      {/* Forms grid */}
+      {/* Forms table */}
       {filteredForms && filteredForms.length > 0 ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {filteredForms.map((form) => (
-            <Card
+        <div className="border border-[hsl(var(--border))] rounded-md overflow-hidden">
+          {/* Table header */}
+          <div className="flex items-center bg-[hsl(var(--subtle))] px-6 py-3 border-b border-[hsl(var(--border))]">
+            <div className="flex-1 text-[11px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+              Form
+            </div>
+            <div className="w-[120px] text-[11px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+              Status
+            </div>
+            <div className="w-[120px] text-[11px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+              Submissions
+            </div>
+            <div className="w-[80px] text-[11px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider text-center">
+              Actions
+            </div>
+          </div>
+
+          {/* Table rows */}
+          {filteredForms.map((form, i) => (
+            <div
               key={form.id}
-              className="hover:shadow-lifted hover:border-border transition-all duration-150 h-full"
+              className={`flex items-center px-6 py-3.5 hover:bg-[hsl(var(--subtle))] transition-colors ${
+                i < filteredForms.length - 1 ? 'border-b border-[hsl(var(--border))]' : ''
+              }`}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <Link to={`/forms/${form.id}`} className="flex items-center gap-3 flex-1">
-                    <div className="rounded-md bg-accent p-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg truncate">{form.name}</CardTitle>
-                      <CardDescription className="font-mono text-xs truncate">
-                        /{form.slug}
-                      </CardDescription>
-                    </div>
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(form.status)}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link to={`/forms/${form.id}`}>Edit</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/forms/${form.id}/submissions`}>View Submissions</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleTogglePublish(form.id, form.status === 'published')}
-                        >
-                          {form.status === 'published' ? (
-                            <>
-                              <EyeOff className="mr-2 h-4 w-4" />
-                              Unpublish
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="mr-2 h-4 w-4" />
-                              Publish
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setDuplicateFormId(form.id);
-                            setDuplicateSlug(`${form.slug}-copy`);
-                            setIsDuplicateDialogOpen(true);
-                          }}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => handleDelete(form.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {form.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                    {form.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <Link
-                    to={`/forms/${form.id}/submissions`}
-                    className="flex items-center gap-1 hover:text-primary"
-                  >
-                    <Inbox className="h-4 w-4" />
-                    <span>Submissions</span>
-                  </Link>
-                  {form.isMultiStep && <Badge variant="outline">Multi-step</Badge>}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Updated {new Date(form.updatedAt).toLocaleDateString()}
+              <Link to={`/forms/${form.id}`} className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium truncate">{form.name}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] font-mono mt-0.5">
+                  /{form.slug}
                 </p>
-              </CardContent>
-            </Card>
+              </Link>
+              <div className="w-[120px]">
+                {getStatusBadge(form.status)}
+              </div>
+              <div className="w-[120px]">
+                <Link
+                  to={`/forms/${form.id}/submissions`}
+                  className="text-[13px] text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors flex items-center gap-1.5"
+                >
+                  <Inbox className="h-3.5 w-3.5" />
+                  View
+                </Link>
+              </div>
+              <div className="w-[80px] flex justify-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-[hsl(var(--accent))] transition-colors">
+                      <MoreHorizontal className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link to={`/forms/${form.id}`}>Edit</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to={`/forms/${form.id}/submissions`}>View Submissions</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleTogglePublish(form.id, form.status === 'published')}
+                    >
+                      {form.status === 'published' ? (
+                        <>
+                          <EyeOff className="mr-2 h-4 w-4" />
+                          Unpublish
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Publish
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setDuplicateFormId(form.id);
+                        setDuplicateSlug(`${form.slug}-copy`);
+                        setIsDuplicateDialogOpen(true);
+                      }}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-[hsl(var(--destructive))]"
+                      onClick={() => handleDelete(form.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
           ))}
         </div>
       ) : forms && forms.length > 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={Search}
-              title="No forms found"
-              description={`No forms match "${search}". Try a different search term.`}
-              action={{
-                label: 'Clear search',
-                onClick: () => setSearch(''),
-              }}
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-[hsl(var(--border))] rounded-md py-12">
+          <EmptyState
+            icon={Search}
+            title="No forms found"
+            description={`No forms match "${search}". Try a different search term.`}
+            action={{
+              label: 'Clear search',
+              onClick: () => setSearch(''),
+            }}
+          />
+        </div>
       ) : (
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={FileText}
-              title="No forms yet"
-              description="Create your first form to start collecting submissions."
-              action={{
-                label: 'Create Form',
-                onClick: () => setIsCreateDialogOpen(true),
-              }}
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-[hsl(var(--border))] rounded-md py-12">
+          <EmptyState
+            icon={FileText}
+            title="No forms yet"
+            description="Create your first form to start collecting submissions."
+            action={{
+              label: 'Create Form',
+              onClick: () => setIsCreateDialogOpen(true),
+            }}
+          />
+        </div>
       )}
 
       {/* Create Form Dialog */}
@@ -325,7 +341,7 @@ export function FormsListPage() {
                 value={newFormData.slug}
                 onChange={(e) => setNewFormData({ ...newFormData, slug: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 Used in the form URL: /forms/{newFormData.slug || 'your-slug'}
               </p>
             </div>

@@ -1,11 +1,12 @@
 /**
- * Reverso Admin - Refined Light Theme
+ * Reverso Admin - Editorial Design System
  *
- * Design direction: "Warmth meets Precision"
- * - Cool slate neutrals for professionalism
- * - Surface color shifts for natural hierarchy
- * - Subtle single shadows for gentle depth
- * - Blue accent for trust and clarity
+ * Design direction: "Sophistication & Editorial Precision"
+ * - Serif display font (Cormorant Garamond) for headings & numbers
+ * - Clean sans-serif (Outfit) for body text
+ * - True neutral palette (no color tint)
+ * - Burgundy accent (#6B2D3C) for brand identity
+ * - Dark sidebar, light content area
  */
 
 @import "tailwindcss";
@@ -14,104 +15,115 @@
 @layer base {
   :root {
     /* === Core === */
-    --background: 210 20% 98%;           /* #FAFBFC - Subtle cool off-white */
-    --foreground: 222 47% 11%;           /* #0F172A - Slate 900 */
+    --background: 0 0% 100%;              /* #FFFFFF */
+    --foreground: 0 0% 4%;                /* #0A0A0A */
 
     /* === Surfaces === */
-    --card: 0 0% 100%;                   /* #FFFFFF - Pure white (elevates on bg) */
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;                    /* #FFFFFF */
+    --card-foreground: 0 0% 4%;
 
     /* === Popovers === */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 4%;
 
     /* === Primary === */
-    --primary: 222 47% 11%;              /* Slate 900 - Authoritative */
-    --primary-foreground: 210 40% 98%;   /* #F8FAFC */
+    --primary: 0 0% 4%;                   /* #0A0A0A */
+    --primary-foreground: 0 0% 100%;
 
     /* === Secondary === */
-    --secondary: 210 40% 96%;            /* #F1F5F9 - Slate 100 */
-    --secondary-foreground: 215 16% 47%; /* #64748B - Slate 500 */
+    --secondary: 0 0% 96%;               /* #F5F5F5 */
+    --secondary-foreground: 0 0% 4%;
 
     /* === Muted === */
-    --muted: 210 40% 96%;               /* #F1F5F9 */
-    --muted-foreground: 215 16% 47%;    /* #64748B */
+    --muted: 0 0% 96%;                   /* #F5F5F5 */
+    --muted-foreground: 0 0% 60%;        /* #999999 */
 
-    /* === Accent === */
-    --accent: 210 40% 96%;              /* #F1F5F9 */
-    --accent-foreground: 222 47% 11%;
+    /* === Accent (Burgundy) === */
+    --accent: 0 0% 96%;                  /* #F5F5F5 - for hover states */
+    --accent-foreground: 0 0% 4%;
+    --brand: 346 41% 30%;                /* #6B2D3C - Burgundy */
+    --brand-foreground: 0 0% 100%;
 
     /* === Destructive === */
-    --destructive: 0 84% 60%;           /* #EF4444 - Red 500 */
+    --destructive: 345 81% 33%;          /* #9A1033 */
     --destructive-foreground: 0 0% 100%;
 
     /* === Success === */
-    --success: 142 71% 45%;             /* #22C55E - Green 500 */
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
     /* === Warning === */
-    --warning: 38 92% 50%;              /* #F59E0B - Amber 500 */
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
     /* === Borders === */
-    --border: 214 32% 91%;              /* #E2E8F0 - Slate 200 */
-    --input: 214 32% 91%;
+    --border: 0 0% 90%;                  /* #E5E5E5 */
+    --input: 0 0% 90%;
 
     /* === Focus Ring === */
-    --ring: 221 83% 53%;                /* #3B82F6 - Blue 500 */
+    --ring: 346 41% 30%;                 /* Burgundy focus ring */
 
     /* === Radius === */
-    --radius: 0.5rem;                   /* 8px - Soft but not bubbly */
+    --radius: 0.5rem;
 
     /* === Sidebar === */
-    --sidebar: 0 0% 100%;              /* White */
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar: 0 0% 4%;                  /* #0A0A0A */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-accent: 0 0% 16%;          /* #282828 */
+    --sidebar-accent-foreground: 0 0% 100%;
+
+    /* === Subtle backgrounds === */
+    --subtle: 0 0% 98%;                  /* #FAFAFA */
+    --subtle-foreground: 0 0% 47%;       /* #777777 */
   }
 
   .dark {
-    --background: 222 47% 7%;           /* #0B1120 */
-    --foreground: 210 40% 98%;          /* #F8FAFC */
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
 
-    --card: 222 47% 9%;                 /* #111827 */
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 7%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 7%;
 
-    --secondary: 217 33% 17%;           /* #1E293B - Slate 800 */
-    --secondary-foreground: 215 20% 65%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 80%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;    /* #94A3B8 - Slate 400 */
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 55%;
 
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 96%;
+    --brand: 346 41% 40%;
+    --brand-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 345 60% 45%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 35%;
-    --success-foreground: 210 40% 98%;
+    --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 40%;
-    --warning-foreground: 210 40% 98%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
 
-    --ring: 224 76% 48%;
+    --ring: 346 41% 40%;
 
-    --sidebar: 222 47% 7%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar: 0 0% 5%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+
+    --subtle: 0 0% 12%;
+    --subtle-foreground: 0 0% 55%;
   }
 }
 
@@ -122,8 +134,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv11", "ss01";
-    font-variant-ligatures: common-ligatures;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -155,7 +166,6 @@
 
 /* === Shadow System === */
 
-/* Minimal - for subtle elevation (cards at rest) */
 .shadow-soft {
   box-shadow:
     0 0 0 1px hsl(var(--border) / 0.5),
@@ -163,7 +173,6 @@
     0 1px 2px -1px rgb(0 0 0 / 0.03);
 }
 
-/* Medium - for interactive hover states */
 .shadow-lifted {
   box-shadow:
     0 0 0 1px hsl(var(--border) / 0.6),
@@ -171,7 +180,6 @@
     0 4px 8px -2px rgb(0 0 0 / 0.05);
 }
 
-/* Popover / Dropdown */
 .shadow-overlay {
   box-shadow:
     0 0 0 1px hsl(var(--border) / 0.5),
@@ -179,16 +187,9 @@
     0 10px 15px -3px rgb(0 0 0 / 0.08);
 }
 
-/* Legacy alias */
-.notion-shadow {
-  box-shadow:
-    0 0 0 1px hsl(var(--border) / 0.5),
-    0 1px 3px 0 rgb(0 0 0 / 0.03),
-    0 1px 2px -1px rgb(0 0 0 / 0.03);
-}
-
-.notion-card {
-  @apply bg-card border border-border/80 rounded-lg;
+/* === Display Typography (Serif) === */
+.font-display {
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
 }
 
 /* === Animations === */
@@ -228,7 +229,7 @@
   animation: scaleIn 0.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* === Reduced Motion (W3C recommended pattern - !important is required to override all animations) === */
+/* === Reduced Motion === */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -243,7 +244,7 @@
 @media (prefers-contrast: high) {
   :root {
     --border: 0 0% 40%;
-    --ring: 222 47% 11%;
+    --ring: 0 0% 4%;
   }
 
   .dark {

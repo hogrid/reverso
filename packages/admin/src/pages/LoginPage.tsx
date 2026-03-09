@@ -1,9 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore, useCanRegister } from '@/stores/auth';
-import { Loader2, UserPlus, Layers } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
 import { useState, useEffect, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 
@@ -46,120 +45,111 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 animate-fade-in">
-      <Card className="w-full max-w-sm animate-scale-in">
-        <CardHeader className="space-y-4 pb-4">
-          {/* Logo */}
-          <div className="flex justify-center animate-fade-in" style={{ animationDelay: '0ms' }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
-                <Layers className="w-4 h-4 text-background" strokeWidth={2.5} />
-              </div>
-              <span className="font-semibold text-lg tracking-tight">Reverso</span>
+    <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--subtle))] p-4 animate-fade-in">
+      <div className="w-full max-w-[440px] bg-white dark:bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg px-12 py-14 space-y-10 animate-scale-in">
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-5">
+          <div className="w-12 h-12 rounded-lg bg-[hsl(var(--brand))] flex items-center justify-center">
+            <span className="text-white font-display text-xl font-bold">R</span>
+          </div>
+          <span className="font-display text-3xl font-bold" style={{ letterSpacing: '-0.5px' }}>
+            Reverso
+          </span>
+          <p className="text-[13px] text-[hsl(var(--muted-foreground))]">
+            {isRegister ? 'Create your account' : 'Sign in to your account'}
+          </p>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/5 rounded-md border border-[hsl(var(--destructive))]/10 animate-slide-up">
+              {error}
             </div>
-          </div>
+          )}
 
-          <div className="text-center space-y-1 animate-slide-up" style={{ animationDelay: '50ms' }}>
-            <CardTitle className="text-lg font-semibold">
-              {isRegister ? 'Create your account' : 'Welcome back'}
-            </CardTitle>
-            <CardDescription>
-              {isRegister
-                ? 'Enter your details to get started'
-                : 'Sign in to your admin panel'
-              }
-            </CardDescription>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/5 rounded-md border border-destructive/10 animate-slide-up">
-                {error}
-              </div>
-            )}
-
-            {isRegister && (
-              <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: '75ms' }}>
-                <Label htmlFor="name" className="text-[13px] font-medium">Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoComplete="name"
-                  autoFocus
-                />
-              </div>
-            )}
-
-            <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: isRegister ? '100ms' : '75ms' }}>
-              <Label htmlFor="email" className="text-[13px] font-medium">Email</Label>
+          {isRegister && (
+            <div className="space-y-2 animate-slide-up">
+              <Label htmlFor="name" className="text-xs font-semibold">Name</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="name"
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
-                autoComplete={isRegister ? 'email' : 'email'}
-                autoFocus={!isRegister}
+                autoComplete="name"
+                autoFocus
+                className="h-11 text-[13px] border-[hsl(var(--border))] bg-white dark:bg-transparent"
               />
             </div>
+          )}
 
-            <div className="space-y-1.5 animate-slide-up" style={{ animationDelay: isRegister ? '125ms' : '100ms' }}>
-              <Label htmlFor="password" className="text-[13px] font-medium">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={isRegister ? 'Min 8 characters' : 'Enter your password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete={isRegister ? 'new-password' : 'current-password'}
-                minLength={isRegister ? 8 : undefined}
-              />
-            </div>
+          <div className="space-y-2 animate-slide-up" style={{ animationDelay: isRegister ? '50ms' : '0ms' }}>
+            <Label htmlFor="email" className="text-xs font-semibold">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="admin@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              autoFocus={!isRegister}
+              className="h-11 text-[13px] border-[hsl(var(--border))] bg-white dark:bg-transparent"
+            />
+          </div>
 
-            <Button
-              type="submit"
-              className="w-full h-9 font-medium animate-slide-up"
-              disabled={isLoading}
-              style={{ animationDelay: isRegister ? '150ms' : '125ms' }}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isRegister ? 'Creating account...' : 'Signing in...'}
-                </>
-              ) : (
-                <>
-                  {isRegister && <UserPlus className="mr-2 h-4 w-4" />}
-                  {isRegister ? 'Create account' : 'Sign in'}
-                </>
-              )}
-            </Button>
+          <div className="space-y-2 animate-slide-up" style={{ animationDelay: isRegister ? '75ms' : '25ms' }}>
+            <Label htmlFor="password" className="text-xs font-semibold">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder={isRegister ? 'Min 8 characters' : 'Enter your password...'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
+              minLength={isRegister ? 8 : undefined}
+              className="h-11 text-[13px] border-[hsl(var(--border))] bg-white dark:bg-transparent"
+            />
+          </div>
 
-            {canRegister && (
-              <div className="text-center pt-1 animate-slide-up" style={{ animationDelay: '175ms' }}>
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {isRegister
-                    ? 'Already have an account? Sign in'
-                    : 'First time? Create an account'
-                  }
-                </button>
-              </div>
+          <Button
+            type="submit"
+            className="w-full h-11 font-medium text-[13px] bg-[hsl(var(--foreground))] text-white hover:bg-[hsl(var(--foreground))]/90 animate-slide-up"
+            disabled={isLoading}
+            style={{ animationDelay: isRegister ? '100ms' : '50ms' }}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isRegister ? 'Creating account...' : 'Signing in...'}
+              </>
+            ) : (
+              <>
+                {isRegister && <UserPlus className="mr-2 h-4 w-4" />}
+                {isRegister ? 'Create account' : 'Sign in'}
+              </>
             )}
-          </form>
-        </CardContent>
-      </Card>
+          </Button>
+
+          {canRegister && (
+            <div className="text-center pt-2 animate-slide-up" style={{ animationDelay: '100ms' }}>
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="text-[13px] text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors"
+              >
+                {isRegister
+                  ? 'Already have an account? Sign in'
+                  : "Don't have an account? Contact your admin."
+                }
+              </button>
+            </div>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

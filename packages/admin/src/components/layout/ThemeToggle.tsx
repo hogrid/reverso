@@ -31,7 +31,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground transition-colors duration-150"
+          className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground transition-colors duration-150"
           aria-label={`Change theme, current: ${themeLabels[theme]}`}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
