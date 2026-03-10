@@ -1,5 +1,11 @@
 # @reverso/admin
 
+## 0.2.1
+
+### Patch Changes
+
+- 2e97f49: Fix page containers not filling full width by removing max-w constraint from all pages.
+
 ## 0.2.0
 
 ### Minor Changes
