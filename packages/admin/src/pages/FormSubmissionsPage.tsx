@@ -143,7 +143,7 @@ export function FormSubmissionsPage() {
   }
 
   return (
-    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
+    <div className="px-12 py-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

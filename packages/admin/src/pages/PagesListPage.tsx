@@ -62,7 +62,7 @@ export function PagesListPage() {
   }
 
   return (
-    <div className="px-12 py-8 space-y-7 max-w-[1320px]">
+    <div className="px-12 py-8 space-y-7">
       {/* Title + Actions */}
       <div className="flex items-end justify-between">
         <div className="space-y-1">

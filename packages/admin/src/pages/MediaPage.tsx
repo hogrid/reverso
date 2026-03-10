@@ -131,7 +131,7 @@ export function MediaPage() {
   }
 
   return (
-    <div className="px-12 py-8 space-y-6 max-w-[1320px]">
+    <div className="px-12 py-8 space-y-6">
       {/* Title + Actions */}
       <div className="flex items-end justify-between">
         <div className="space-y-1">

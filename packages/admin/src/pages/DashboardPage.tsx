@@ -64,7 +64,7 @@ export function DashboardPage() {
   ];
 
   return (
-    <div className="px-12 py-9 space-y-8 max-w-[1320px]">
+    <div className="px-12 py-9 space-y-8">
       {/* Welcome */}
       <div className="space-y-1.5">
         <h2 className="font-display text-4xl font-medium" style={{ letterSpacing: '-1.5px' }}>
