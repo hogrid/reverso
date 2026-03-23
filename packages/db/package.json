@@ -41,12 +41,12 @@
   "dependencies": {
     "@reverso/core": "^0.1.1",
     "drizzle-orm": "^0.45.1",
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.8.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.7",
-    "drizzle-kit": "^0.31.9",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.3",
     "vitest": "^4.0.18"
   },
