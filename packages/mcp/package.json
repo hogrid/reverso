@@ -37,12 +37,12 @@
   "dependencies": {
     "@reverso/core": "^0.1.1",
     "@reverso/db": "^0.1.1",
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.2",
     "vitest": "^4.0.18"
   },
   "publishConfig": {
