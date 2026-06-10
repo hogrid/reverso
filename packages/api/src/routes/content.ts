@@ -24,6 +24,43 @@ import {
   slugParamSchema,
 } from '../validation.js';
 
+
+interface PageContentRow {
+  path: string;
+  content: { published: boolean | null } & Parameters<typeof parseContentValue>[0];
+}
+
+/**
+ * Build the page content payload from content rows:
+ * - `content`: flat map of full path → value
+ * - `data`: nested map data[section][fieldKey] consumed by the admin editor
+ *   (fieldKey is the path without the `page.section.` prefix; repeater
+ *   containers use the `$` key).
+ */
+function buildPageContent(
+  results: PageContentRow[],
+  options: { publishedOnly?: boolean } = {}
+): { content: Record<string, unknown>; data: Record<string, Record<string, unknown>> } {
+  const content: Record<string, unknown> = {};
+  const data: Record<string, Record<string, unknown>> = {};
+
+  for (const { path, content: row } of results) {
+    if (options.publishedOnly && !row.published) continue;
+    const value = parseContentValue(row);
+    content[path] = value;
+
+    const parts = path.split('.');
+    const section = parts[1];
+    const fieldKey = parts.slice(2).join('.');
+    if (section && fieldKey) {
+      data[section] ??= {};
+      data[section][fieldKey] = value;
+    }
+  }
+
+  return { content, data };
+}
+
 const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   /**
    * GET /content/:path
@@ -149,7 +186,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       }
 
       // Get user ID from auth if available
-      const changedBy = (request as any).user?.id;
+      const changedBy = request.user?.id;
 
       const content = await upsertContent(db, {
         fieldId: field.id,
@@ -200,7 +237,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
       const { updates } = bodyResult.data;
       const db = request.db;
-      const changedBy = (request as any).user?.id;
+      const changedBy = request.user?.id;
 
       const results = await bulkUpdateContent(
         db,
@@ -268,17 +305,15 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
 
       const results = await getContentByPathPrefix(db, `${slug}.`, locale);
-
-      const contentMap: Record<string, unknown> = {};
-      for (const { path, content } of results) {
-        contentMap[path] = parseContentValue(content);
-      }
+      const { content: contentMap, data } = buildPageContent(results);
 
       return {
         success: true,
         data: {
           page: slug,
+          slug,
           locale,
+          data,
           content: contentMap,
         },
       };
@@ -316,7 +351,7 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const { slug } = paramResult.data;
       const { data } = request.body as { data: Record<string, unknown> };
       const db = request.db;
-      const changedBy = (request as any).user?.id;
+      const changedBy = request.user?.id;
 
       if (!data || typeof data !== 'object' || Array.isArray(data)) {
         return reply.status(400).send({
@@ -347,6 +382,121 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         success: false,
         error: 'Internal error',
         message: 'Failed to update page content',
+      });
+    }
+  });
+
+  /**
+   * GET /public/content/page/:slug
+   * Public (unauthenticated) read of all PUBLISHED content for a page.
+   * This is the endpoint frontends use to render CMS-managed content.
+   */
+  fastify.get<{
+    Params: { slug: string };
+    Querystring: { locale?: string };
+  }>('/public/content/page/:slug', async (request, reply) => {
+    try {
+      const paramResult = slugParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Invalid slug format',
+        });
+      }
+
+      const queryResult = localeQuerySchema.safeParse(request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Invalid locale format',
+        });
+      }
+
+      const { slug } = paramResult.data;
+      const { locale } = queryResult.data;
+      const db = request.db;
+
+      const results = await getContentByPathPrefix(db, `${slug}.`, locale);
+      const { content: contentMap, data } = buildPageContent(results, { publishedOnly: true });
+
+      return {
+        success: true,
+        data: {
+          page: slug,
+          slug,
+          locale,
+          data,
+          content: contentMap,
+        },
+      };
+    } catch (error) {
+      fastify.log.error(error, 'Failed to get public page content');
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal error',
+        message: 'Failed to get page content',
+      });
+    }
+  });
+
+  /**
+   * GET /public/content/:path
+   * Public (unauthenticated) read of a single PUBLISHED content value.
+   */
+  fastify.get<{
+    Params: { path: string };
+    Querystring: { locale?: string };
+  }>('/public/content/:path', async (request, reply) => {
+    try {
+      const paramResult = pathParamSchema.safeParse(request.params);
+      if (!paramResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Invalid path format. Use dot notation (e.g., home.hero.title)',
+        });
+      }
+
+      const queryResult = localeQuerySchema.safeParse(request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Invalid locale format',
+        });
+      }
+
+      const { path } = paramResult.data;
+      const { locale } = queryResult.data;
+      const db = request.db;
+
+      const content = await getContentByPath(db, path, locale);
+      if (!content || !content.published) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Not found',
+          message: `Published content for "${path}" not found`,
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          path,
+          locale: content.locale,
+          value: parseContentValue(content),
+          publishedAt: content.publishedAt,
+          updatedAt: content.updatedAt,
+        },
+      };
+    } catch (error) {
+      fastify.log.error(error, 'Failed to get public content');
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal error',
+        message: 'Failed to get content',
       });
     }
   });

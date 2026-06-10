@@ -16,6 +16,25 @@ export interface ApiError {
   statusCode?: number;
 }
 
+// TD-012: cap every request so a hung/slow backend can't block forever.
+const REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Parse a response body as JSON, tolerating empty or non-JSON payloads
+ * (e.g. an HTML 502/504 error page) instead of throwing a SyntaxError.
+ */
+async function parseJsonSafe(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return {};
+  }
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -25,6 +44,7 @@ class ApiClient {
 
   private async request<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${url}`, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -32,13 +52,14 @@ class ApiClient {
       },
     });
 
-    const data = await response.json();
+    const data = await parseJsonSafe(response);
 
     if (!response.ok) {
+      const errBody = (data ?? {}) as Partial<ApiError>;
       throw {
         success: false,
-        error: data.error || 'Unknown error',
-        message: data.message,
+        error: errBody.error || 'Unknown error',
+        message: errBody.message,
         statusCode: response.status,
       } as ApiError;
     }
@@ -79,16 +100,18 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}${url}`, {
       method: 'POST',
       body: formData,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       // Don't set Content-Type header for FormData
     });
 
-    const data = await response.json();
+    const data = await parseJsonSafe(response);
 
     if (!response.ok) {
+      const errBody = (data ?? {}) as Partial<ApiError>;
       throw {
         success: false,
-        error: data.error || 'Unknown error',
-        message: data.message,
+        error: errBody.error || 'Unknown error',
+        message: errBody.message,
         statusCode: response.status,
       } as ApiError;
     }

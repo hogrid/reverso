@@ -25,11 +25,10 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { FieldSchema } from '@reverso/core';
+import type { ContentValue, FieldSchema } from '@reverso/core';
 import { ChevronDown, GripVertical, Layers, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
-import { FieldRenderer } from './FieldRenderer';
 
 interface FlexibleLayout {
   name: string;
@@ -50,6 +49,7 @@ interface SortableBlockProps {
   onRemove: () => void;
   onFieldChange: (fieldPath: string, value: unknown) => void;
   disabled?: boolean;
+  renderField: FieldRendererProps['renderField'];
 }
 
 function SortableBlock({
@@ -59,6 +59,7 @@ function SortableBlock({
   onRemove,
   onFieldChange,
   disabled,
+  renderField: RenderField,
 }: SortableBlockProps) {
   const [isOpen, setIsOpen] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -125,13 +126,14 @@ function SortableBlock({
 
         <CollapsibleContent>
           <CardContent className="p-4 pt-2 space-y-4">
-            {layout.fields.map((fieldSchema) => {
+            {RenderField &&
+              layout.fields.map((fieldSchema) => {
               const fieldValue = item[fieldSchema.path.split('.').pop() || ''];
               return (
-                <FieldRenderer
+                <RenderField
                   key={fieldSchema.path}
                   field={fieldSchema}
-                  value={fieldValue as any}
+                  value={fieldValue as ContentValue}
                   onChange={(val) => onFieldChange(fieldSchema.path.split('.').pop() || '', val)}
                   disabled={disabled}
                 />
@@ -144,9 +146,15 @@ function SortableBlock({
   );
 }
 
-export function FlexibleField({ field, value, onChange, disabled }: FieldRendererProps) {
+export function FlexibleField({
+  field,
+  value,
+  onChange,
+  disabled,
+  renderField,
+}: FieldRendererProps) {
   // Parse layouts from field config or use defaults
-  const layouts: FlexibleLayout[] = (field as any).layouts || [
+  const layouts: FlexibleLayout[] = (field as { layouts?: FlexibleLayout[] }).layouts || [
     {
       name: 'text',
       label: 'Text Block',
@@ -247,6 +255,7 @@ export function FlexibleField({ field, value, onChange, disabled }: FieldRendere
                   onRemove={() => handleRemoveBlock(index)}
                   onFieldChange={(path, val) => handleFieldChange(index, path, val)}
                   disabled={disabled}
+                  renderField={renderField}
                 />
               );
             })}

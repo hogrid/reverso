@@ -293,7 +293,7 @@ export interface ReversoConfig {
    * Development mode settings.
    */
   dev?: {
-    /** Port for admin panel (default: 4000) */
+    /** Port for admin panel (default: 3001) */
     port?: number;
     /** Enable hot reload */
     hotReload?: boolean;

@@ -1,4 +1,4 @@
-import { type MediaItem, useUploadMedia } from '@/api/hooks/useMedia';
+import type { MediaItem } from '@/api/hooks/useMedia';
 import { MediaLibraryModal } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { FolderOpen, GripVertical, Image as ImageIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
+import { useFileDropZone } from './useFileDropZone';
 import type { FieldRendererProps } from './FieldRenderer';
 
 interface GalleryImage {
@@ -86,10 +87,7 @@ function SortableImage({
 
 export function GalleryField({ field, value, onChange, disabled }: FieldRendererProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
-
-  const uploadMedia = useUploadMedia();
   const images: GalleryImage[] = Array.isArray(value) ? (value as GalleryImage[]) : [];
   const accept = field.accept || 'image/*';
   const maxItems = field.max || 20;
@@ -111,61 +109,33 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
     }
   };
 
-  const handleFileSelect = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0 || disabled) return;
+  const remainingSlots = Math.max(0, maxItems - images.length);
 
-      const remainingSlots = maxItems - images.length;
-      const filesToUpload = Array.from(files).slice(0, remainingSlots);
-
-      if (filesToUpload.length === 0) return;
-
-      try {
-        const uploaded = await uploadMedia.mutateAsync(filesToUpload);
-        const newImages: GalleryImage[] = uploaded.map((media) => ({
-          id: media.id,
-          url: media.url,
-          alt: media.alt,
-          filename: media.filename,
-        }));
-        onChange([...images, ...newImages]);
-      } catch (error) {
-        console.error('Failed to upload files:', error);
-      }
-    },
-    [onChange, disabled, images, maxItems, uploadMedia]
+  const mediaToImages = useCallback(
+    (media: MediaItem[]): GalleryImage[] =>
+      media.map((m) => ({ id: m.id, url: m.url, alt: m.alt, filename: m.filename })),
+    []
   );
+
+  const handleUploaded = useCallback(
+    (media: MediaItem[]) => {
+      onChange([...images, ...mediaToImages(media)]);
+    },
+    [onChange, images, mediaToImages]
+  );
+
+  const { isDragOver, isUploading, selectFiles, dropHandlers } = useFileDropZone({
+    onUploaded: handleUploaded,
+    disabled,
+    maxFiles: remainingSlots,
+  });
+
+  const handleFileSelect = (files: FileList | null) => {
+    void selectFiles(files);
+  };
 
   const handleLibrarySelect = (items: MediaItem[]) => {
-    const remainingSlots = maxItems - images.length;
-    const itemsToAdd = items.slice(0, remainingSlots);
-    const newImages: GalleryImage[] = itemsToAdd.map((media) => ({
-      id: media.id,
-      url: media.url,
-      alt: media.alt,
-      filename: media.filename,
-    }));
-    onChange([...images, ...newImages]);
-  };
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      handleFileSelect(e.dataTransfer.files);
-    },
-    [handleFileSelect]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (!disabled) {
-      setIsDragOver(true);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
+    onChange([...images, ...mediaToImages(items.slice(0, remainingSlots))]);
   };
 
   const handleRemove = (id: string) => {
@@ -201,19 +171,19 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
       {/* Upload area */}
       {images.length < maxItems && (
         <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDrop={dropHandlers.onDrop}
+          onDragOver={dropHandlers.onDragOver}
+          onDragLeave={dropHandlers.onDragLeave}
           onClick={handleClick}
           className={cn(
             'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
             isDragOver
               ? 'border-primary bg-primary/5'
               : 'border-muted-foreground/25 hover:border-primary/50',
-            (disabled || uploadMedia.isPending) && 'opacity-50 cursor-not-allowed'
+            (disabled || isUploading) && 'opacity-50 cursor-not-allowed'
           )}
         >
-          {uploadMedia.isPending ? (
+          {isUploading ? (
             <div className="space-y-3">
               <Loader2 className="h-6 w-6 mx-auto text-muted-foreground animate-spin" />
               <p className="text-sm text-muted-foreground">Uploading images...</p>
@@ -254,7 +224,7 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
       )}
 
       {/* Empty state */}
-      {images.length === 0 && !uploadMedia.isPending && (
+      {images.length === 0 && !isUploading && (
         <Card className="border-dashed">
           <CardContent className="py-8 text-center">
             <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />

@@ -73,3 +73,6 @@ CLAUDE.*
 
 # Internal docs (not public)
 docs/
+
+# Generated Next.js types (regenerated on build)
+next-env.d.ts

@@ -1,15 +1,13 @@
 import { defineConfig } from '@reverso/core';
 
 export default defineConfig({
-  // Source files to scan for data-reverso markers
-  include: ['src/**/*.tsx'],
-  exclude: ['node_modules', '.next'],
+  name: 'Reverso Blog Example',
 
-  // Output configuration
-  output: {
-    schema: '.reverso/schema.json',
-    types: '.reverso/types.ts',
-  },
+  // Source directory to scan for data-reverso markers
+  srcDir: './src',
+
+  // Output directory for generated files
+  outputDir: '.reverso',
 
   // Database configuration
   database: {
@@ -17,7 +15,14 @@ export default defineConfig({
     url: '.reverso/blog.db',
   },
 
-  // Locales support
-  locales: ['en', 'pt'],
-  defaultLocale: 'en',
+  // Scanner configuration
+  scanner: {
+    include: ['**/*.tsx'],
+    exclude: ['**/node_modules/**', '**/.next/**'],
+  },
+
+  // Development server settings
+  dev: {
+    port: 3001,
+  },
 });

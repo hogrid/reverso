@@ -8,21 +8,40 @@ import ora from 'ora';
 import { resolve } from 'node:path';
 
 interface MigrateOptions {
-  database: string;
+  database?: string;
   verbose: boolean;
+}
+
+
+/**
+ * Resolve the database path: CLI flag wins, then reverso.config database.url,
+ * then the .reverso/dev.db default.
+ */
+async function resolveDatabasePath(flag: string | undefined): Promise<string> {
+  if (flag) return resolve(flag);
+  try {
+    const { loadConfig } = await import('@reverso/core');
+    const { config } = await loadConfig({ cwd: process.cwd() });
+    if (config.database.provider === 'sqlite' && config.database.url) {
+      return resolve(config.database.url);
+    }
+  } catch {
+    // Fall through to default
+  }
+  return resolve('.reverso/dev.db');
 }
 
 export function migrateCommand(program: Command): void {
   program
     .command('migrate')
     .description('Run database migrations')
-    .option('-d, --database <path>', 'Database file path', '.reverso/dev.db')
+    .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options: MigrateOptions) => {
       const spinner = ora();
 
       try {
-        const dbPath = resolve(options.database);
+        const dbPath = await resolveDatabasePath(options.database);
 
         spinner.start('Running database migrations...');
 
@@ -94,14 +113,14 @@ export function migrateCommand(program: Command): void {
   program
     .command('migrate:reset')
     .description('Reset database (drop all tables and recreate)')
-    .option('-d, --database <path>', 'Database file path', '.reverso/dev.db')
+    .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
     .option('--force', 'Skip confirmation', false)
-    .action(async (options: { database: string; force: boolean }) => {
+    .action(async (options: { database?: string; force: boolean }) => {
       const spinner = ora();
 
       try {
         const { existsSync, unlinkSync } = await import('node:fs');
-        const dbPath = resolve(options.database);
+        const dbPath = await resolveDatabasePath(options.database);
 
         if (!options.force) {
           const prompts = (await import('prompts')).default;
@@ -144,11 +163,11 @@ export function migrateCommand(program: Command): void {
   program
     .command('migrate:status')
     .description('Show migration status')
-    .option('-d, --database <path>', 'Database file path', '.reverso/dev.db')
-    .action(async (options: { database: string }) => {
+    .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
+    .action(async (options: { database?: string }) => {
       try {
         const { existsSync } = await import('node:fs');
-        const dbPath = resolve(options.database);
+        const dbPath = await resolveDatabasePath(options.database);
 
         if (!existsSync(dbPath)) {
           console.log(chalk.yellow('Database does not exist yet.'));

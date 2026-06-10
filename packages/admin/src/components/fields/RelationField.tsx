@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePages } from '@/api/hooks/usePages';
 import { cn } from '@/lib/utils';
 import { Check, Link2, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -23,25 +24,23 @@ interface RelationItem {
   image?: string;
 }
 
-// Mock data for demonstration - in production this would come from the API
-const mockItems: RelationItem[] = [
-  { id: '1', title: 'Getting Started Guide', subtitle: 'Documentation' },
-  { id: '2', title: 'API Reference', subtitle: 'Documentation' },
-  { id: '3', title: 'Installation', subtitle: 'Tutorial' },
-  { id: '4', title: 'Configuration', subtitle: 'Tutorial' },
-  { id: '5', title: 'Advanced Usage', subtitle: 'Guide' },
-  { id: '6', title: 'Troubleshooting', subtitle: 'Support' },
-  { id: '7', title: 'FAQ', subtitle: 'Support' },
-  { id: '8', title: 'Changelog', subtitle: 'Release Notes' },
-];
+/** Non-standard relation attributes carried on the field marker. */
+type RelationFieldConfig = { to?: string };
 
 export function RelationField({ field, value, onChange, disabled }: FieldRendererProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const multiple = field.multiple || false;
-  const relationType = (field as any).to || 'items';
+  const relationType = (field as RelationFieldConfig).to || 'pages';
+
+  // Relation targets come from real CMS pages (the most common relation in a
+  // headless CMS). Other relation sources can be added as more endpoints exist.
+  const { data: pages, isLoading: loading } = usePages();
+  const relationItems: RelationItem[] = useMemo(
+    () => (pages ?? []).map((p) => ({ id: p.slug, title: p.name, subtitle: 'Page' })),
+    [pages]
+  );
 
   // Parse current selection
   const selectedIds = useMemo(() => {
@@ -54,19 +53,19 @@ export function RelationField({ field, value, onChange, disabled }: FieldRendere
   // Filter items based on search
   const filteredItems = useMemo(() => {
     const searchLower = search.toLowerCase();
-    return mockItems.filter(
+    return relationItems.filter(
       (item) =>
         item.title.toLowerCase().includes(searchLower) ||
         item.subtitle?.toLowerCase().includes(searchLower)
     );
-  }, [search]);
+  }, [search, relationItems]);
 
   // Get selected items details
   const selectedItems = useMemo(() => {
     return selectedIds
-      .map((id) => mockItems.find((item) => item.id === id))
+      .map((id) => relationItems.find((item) => item.id === id))
       .filter(Boolean) as RelationItem[];
-  }, [selectedIds]);
+  }, [selectedIds, relationItems]);
 
   const handleSelect = (id: string) => {
     if (multiple) {

@@ -96,7 +96,7 @@ export const TYPES_FILE_NAME = 'types.ts';
 /**
  * Default admin panel port in development.
  */
-export const DEFAULT_DEV_PORT = 4000;
+export const DEFAULT_DEV_PORT = 3001;
 
 /**
  * Default API path.

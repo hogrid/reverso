@@ -1,7 +1,11 @@
+import { reverso } from '@/lib/reverso';
+
 /**
  * Contact section with form.
  */
-export function ContactSection() {
+export async function ContactSection() {
+  const home = await reverso.getPage('home');
+
   return (
     <section id="contact" className="py-20 px-4">
       <div className="max-w-4xl mx-auto">
@@ -11,14 +15,17 @@ export function ContactSection() {
             data-reverso-type="text"
             className="text-3xl font-bold mb-4"
           >
-            Let's Work Together
+            {home.get('home.contact.title', "Let's Work Together")}
           </h2>
           <p
             data-reverso="home.contact.subtitle"
             data-reverso-type="textarea"
             className="text-slate-600 max-w-xl mx-auto"
           >
-            Have a project in mind? I'd love to hear about it. Drop me a message and let's create something amazing.
+            {home.get(
+              'home.contact.subtitle',
+              "Have a project in mind? I'd love to hear about it. Drop me a message and let's create something amazing."
+            )}
           </p>
         </div>
 
@@ -32,10 +39,10 @@ export function ContactSection() {
                 <a
                   data-reverso="home.contact.email"
                   data-reverso-type="email"
-                  href="mailto:hello@example.com"
+                  href={`mailto:${home.get('home.contact.email', 'hello@example.com')}`}
                   className="text-violet-600 hover:text-violet-700"
                 >
-                  hello@example.com
+                  {home.get('home.contact.email', 'hello@example.com')}
                 </a>
               </div>
               <div>
@@ -44,7 +51,7 @@ export function ContactSection() {
                   data-reverso="home.contact.location"
                   data-reverso-type="text"
                 >
-                  San Francisco, CA
+                  {home.get('home.contact.location', 'San Francisco, CA')}
                 </span>
               </div>
               <div>
@@ -54,7 +61,7 @@ export function ContactSection() {
                   data-reverso-type="text"
                   className="text-green-600"
                 >
-                  Open for freelance projects
+                  {home.get('home.contact.availability', 'Open for freelance projects')}
                 </span>
               </div>
             </div>
@@ -92,7 +99,7 @@ export function ContactSection() {
               type="submit"
               className="w-full px-8 py-3 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 transition-colors"
             >
-              Send Message
+              {home.get('home.contact.submitText', 'Send Message')}
             </button>
           </form>
         </div>

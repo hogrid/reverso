@@ -5,7 +5,13 @@
 		"clientKind": "git",
 		"useIgnoreFile": true
 	},
-	"assist": { "actions": { "source": { "organizeImports": "off" } } },
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "off"
+			}
+		}
+	},
 	"linter": {
 		"enabled": true,
 		"rules": {
@@ -50,7 +56,14 @@
 				"noMisleadingCharacterClass": "warn",
 				"noImplicitAnyLet": "warn",
 				"noNonNullAssertedOptionalChain": "warn",
-				"noConsole": { "level": "warn", "options": { "allow": ["log"] } }
+				"noConsole": {
+					"level": "warn",
+					"options": {
+						"allow": [
+							"log"
+						]
+					}
+				}
 			}
 		}
 	},
@@ -83,7 +96,8 @@
 			"!**/.next",
 			"!**/coverage",
 			"!**/*.min.js",
-			"!**/pnpm-lock.yaml"
+			"!**/pnpm-lock.yaml",
+			"!examples/**"
 		]
 	}
 }

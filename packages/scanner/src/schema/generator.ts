@@ -27,22 +27,28 @@ export function generateSchema(
 ): ProjectSchema {
   const startTime = performance.now();
 
-  // Filter out fields with invalid paths (less than 3 parts) and collect warnings
+  // Filter out fields with invalid paths and collect warnings.
+  // parsePath enforces the full grammar (3+ parts, no empty segments,
+  // single $ placeholder at position 3), so an invalid marker can never
+  // crash schema generation — it is skipped with a warning instead.
   const validFields: DetectedField[] = [];
-  const invalidFields: DetectedField[] = [];
+  const invalidFields: { field: DetectedField; reason: string }[] = [];
   for (const f of fields) {
-    const parts = f.path.split('.');
-    if (parts.length >= 3 && parts.every((p) => p.length > 0)) {
+    try {
+      parsePath(f.path);
       validFields.push(f);
-    } else {
-      invalidFields.push(f);
+    } catch (error) {
+      invalidFields.push({
+        field: f,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
   if (invalidFields.length > 0) {
     console.warn(`\n⚠ ${invalidFields.length} marker(s) skipped (invalid path format):`);
-    for (const f of invalidFields) {
-      console.warn(`  "${f.path}" in ${f.file}:${f.line} — must be page.section.field (3+ parts)`);
+    for (const { field: f, reason } of invalidFields) {
+      console.warn(`  "${f.path}" in ${f.file}:${f.line} — ${reason}`);
     }
     console.warn('');
   }
@@ -69,6 +75,25 @@ export function generateSchema(
 
       // Check if this is a repeater section
       const isRepeater = paths.some((p) => p.includes('.$'));
+
+      // Repeater sections get a synthetic container field (page.section.$) of
+      // type `repeater`. Its content value is the JSON array of items; the
+      // $.subfield markers only describe the shape of each item.
+      if (isRepeater) {
+        const containerPath = `${pageSlug}.${sectionSlug}.$`;
+        const firstItemField = sectionFields[0];
+        if (!fieldSchemas.some((f) => f.path === containerPath) && firstItemField) {
+          fieldSchemas.unshift({
+            path: containerPath,
+            type: 'repeater',
+            label: formatLabel(sectionSlug),
+            file: firstItemField.file,
+            line: firstItemField.line,
+            column: firstItemField.column,
+            element: firstItemField.element,
+          });
+        }
+      }
 
       const section: SectionSchema = {
         slug: sectionSlug,

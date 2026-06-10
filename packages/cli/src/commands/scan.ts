@@ -5,8 +5,6 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
 import type { ProjectSchema, ScanOptions as CoreScanOptions } from '@reverso/core';
 import { createScanner, scan, type ScannerOptions } from '@reverso/scanner';
 
@@ -31,21 +29,21 @@ async function trySyncToServer(schema: ProjectSchema, port: number = DEFAULT_API
 }
 
 /**
- * Read API port from reverso.config.ts/js if it exists.
+ * Resolved values read from reverso.config (port + srcDir).
+ * Uses the real config loader (jiti/AST) instead of regex over the source,
+ * so comments and strings can't produce false matches.
  */
-function readApiPortFromConfig(cwd: string): number {
-  for (const filename of ['reverso.config.ts', 'reverso.config.js']) {
-    const configPath = resolve(cwd, filename);
-    if (!existsSync(configPath)) continue;
-    try {
-      const content = readFileSync(configPath, 'utf-8');
-      const match = content.match(/port\s*:\s*(\d+)/);
-      if (match?.[1]) return Number.parseInt(match[1], 10);
-    } catch {
-      // Ignore
-    }
+async function readConfigValues(cwd: string): Promise<{ port: number; srcDir?: string }> {
+  try {
+    const { loadConfig } = await import('@reverso/core');
+    const { config } = await loadConfig({ cwd });
+    return {
+      port: config.dev?.port ?? DEFAULT_API_PORT,
+      srcDir: config.srcDir ?? config.scanner?.srcDir,
+    };
+  } catch {
+    return { port: DEFAULT_API_PORT };
   }
-  return DEFAULT_API_PORT;
 }
 
 interface CliScanOptions {
@@ -55,24 +53,6 @@ interface CliScanOptions {
   verbose: boolean;
   include: string[];
   exclude: string[];
-}
-
-/**
- * Read srcDir from reverso.config.ts/js if it exists.
- */
-function readSrcDirFromConfig(cwd: string): string | null {
-  for (const filename of ['reverso.config.ts', 'reverso.config.js']) {
-    const configPath = resolve(cwd, filename);
-    if (!existsSync(configPath)) continue;
-    try {
-      const content = readFileSync(configPath, 'utf-8');
-      const match = content.match(/srcDir\s*:\s*['"]([^'"]+)['"]/);
-      if (match?.[1]) return match[1];
-    } catch {
-      // Ignore read errors
-    }
-  }
-  return null;
 }
 
 export function scanCommand(program: Command): void {
@@ -88,8 +68,9 @@ export function scanCommand(program: Command): void {
     .action(async (options: CliScanOptions) => {
       const spinner = ora();
 
-      // Resolve srcDir: CLI flag > reverso.config > default './src'
-      const srcDir = options.src ?? readSrcDirFromConfig(process.cwd()) ?? './src';
+      // Resolve config values once: CLI flags override reverso.config.
+      const configValues = await readConfigValues(process.cwd());
+      const srcDir = options.src ?? configValues.srcDir ?? './src';
 
       try {
         if (options.watch) {
@@ -108,7 +89,7 @@ export function scanCommand(program: Command): void {
 
           const scanner = createScanner(scannerOptions);
 
-          const watchApiPort = readApiPortFromConfig(process.cwd());
+          const watchApiPort = configValues.port;
 
           scanner.on(async (event) => {
             switch (event.type) {
@@ -185,7 +166,7 @@ export function scanCommand(program: Command): void {
             console.log(chalk.gray('  <h1 data-reverso="home.hero.title">Welcome</h1>'));
           } else {
             // Auto-sync to running API server
-            const apiPort = readApiPortFromConfig(process.cwd());
+            const apiPort = configValues.port;
             const synced = await trySyncToServer(result.schema, apiPort);
             if (synced) {
               console.log(chalk.green(`\n  Schema synced to database (port ${apiPort})`));

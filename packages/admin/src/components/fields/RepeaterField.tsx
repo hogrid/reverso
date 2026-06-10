@@ -1,9 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import type { ContentValue } from '@reverso/core';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
+
+/**
+ * Item key for a repeater sub-field: the part of the path after `$.`
+ * (e.g. `home.posts.$.title` → `title`).
+ */
+function subFieldKey(path: string): string {
+  const idx = path.indexOf('.$.');
+  return idx === -1 ? path.split('.').pop() || path : path.slice(idx + 3);
+}
 
 interface RepeaterItem {
   _id: string;
@@ -29,8 +39,20 @@ function ensureItemIds(items: unknown[]): RepeaterItem[] {
   });
 }
 
-export function RepeaterField({ field, value, onChange, disabled }: FieldRendererProps) {
+export function RepeaterField({
+  field,
+  value,
+  onChange,
+  disabled,
+  subFields,
+  renderField: RenderField,
+}: FieldRendererProps) {
   const items = ensureItemIds(Array.isArray(value) ? value : []);
+  const itemFields = subFields ?? [];
+
+  const updateItemField = (id: string, key: string, fieldValue: unknown) => {
+    onChange(items.map((item) => (item._id === id ? { ...item, [key]: fieldValue } : item)));
+  };
   const [expandedItems, setExpandedItems] = useState<Set<string>>(
     new Set(items.map((item) => item._id))
   );
@@ -155,16 +177,26 @@ export function RepeaterField({ field, value, onChange, disabled }: FieldRendere
 
                 <CollapsibleContent>
                   <CardContent className="p-4">
-                    {/* Placeholder for child fields */}
-                    <div className="text-sm text-muted-foreground">
-                      {Object.keys(item).filter((k) => k !== '_id').length === 0 ? (
-                        <p>No fields defined for this repeater item.</p>
-                      ) : (
-                        <pre className="text-xs bg-muted p-2 rounded overflow-auto">
-                          {JSON.stringify(item, null, 2)}
-                        </pre>
-                      )}
-                    </div>
+                    {itemFields.length === 0 || !RenderField ? (
+                      <p className="text-sm text-muted-foreground">
+                        No fields defined for this repeater item.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {itemFields.map((subField) => {
+                          const key = subFieldKey(subField.path);
+                          return (
+                            <RenderField
+                              key={subField.path}
+                              field={subField}
+                              value={item[key] as ContentValue | undefined}
+                              onChange={(newValue) => updateItemField(item._id, key, newValue)}
+                              disabled={disabled}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </CollapsibleContent>
               </Collapsible>

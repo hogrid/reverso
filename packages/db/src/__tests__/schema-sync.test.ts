@@ -6,7 +6,7 @@ import { existsSync, rmSync } from 'node:fs';
 import type { ProjectSchema } from '@reverso/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, initDatabase, resetDatabaseInstance } from '../connection.js';
-import { createDatabase } from '../migrate.js';
+import { createDatabaseSchema } from '../migrate.js';
 import { getFieldsBySectionId } from '../queries/fields.js';
 import { getPages } from '../queries/pages.js';
 import { getSectionsByPageId } from '../queries/sections.js';
@@ -20,7 +20,7 @@ describe('Schema Sync', () => {
     if (existsSync(TEST_DB)) {
       rmSync(TEST_DB, { force: true });
     }
-    await createDatabase(TEST_DB);
+    await createDatabaseSchema(TEST_DB);
     initDatabase({ url: TEST_DB });
   });
 
@@ -208,6 +208,56 @@ describe('Schema Sync', () => {
 
       // Second sync without deleteRemoved
       await syncSchema(db, schema2, { deleteRemoved: false });
+
+      const pages = await getPages(db);
+      expect(pages).toHaveLength(2);
+    });
+  });
+
+  describe('transaction atomicity', () => {
+    it('rolls back the entire sync when a write fails partway through', async () => {
+      const db = initDatabase({ url: TEST_DB }).db;
+
+      // Establish a known-good baseline with a single page.
+      const baseline: ProjectSchema = {
+        ...createTestSchema(),
+        pages: [
+          {
+            slug: 'existing',
+            name: 'Existing Page',
+            sourceFiles: [],
+            fieldCount: 0,
+            sections: [],
+          },
+        ],
+      };
+      await syncSchema(db, baseline, { deleteRemoved: false });
+      expect(await getPages(db)).toHaveLength(1);
+
+      // A schema that succeeds for the first page but fails on the second:
+      // `name` is NOT NULL, so the second section insert throws *after* the
+      // first page (and "broken" page header) have already been written.
+      const broken = createTestSchema();
+      // Force a NOT NULL violation deep in the loop.
+      (broken.pages[1]!.sections[0] as unknown as { name: unknown }).name = null;
+
+      await expect(
+        syncSchema(db, broken, { deleteRemoved: false })
+      ).rejects.toThrow();
+
+      // Nothing from the failed sync should have been persisted: only the
+      // original baseline page remains, and none of the new pages leaked in.
+      const pages = await getPages(db);
+      expect(pages).toHaveLength(1);
+      expect(pages[0]?.slug).toBe('existing');
+      expect(pages.map((p) => p.slug)).not.toContain('home');
+      expect(pages.map((p) => p.slug)).not.toContain('about');
+    });
+
+    it('commits all changes when the sync succeeds', async () => {
+      const db = initDatabase({ url: TEST_DB }).db;
+
+      await syncSchema(db, createTestSchema());
 
       const pages = await getPages(db);
       expect(pages).toHaveLength(2);

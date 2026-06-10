@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from 'clsx';
+import DOMPurify from 'dompurify';
 import { twMerge } from 'tailwind-merge';
 
 /**
@@ -111,30 +112,68 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 /**
- * Basic HTML sanitization to prevent XSS attacks.
- * Removes script tags, event handlers, and dangerous attributes.
- * For production, consider using DOMPurify.
+ * Allowed rich-text tags for sanitized HTML output.
+ * Covers WYSIWYG/markdown preview needs (headings, lists, code, media, links)
+ * while excluding scripting and other dangerous elements.
+ */
+const SANITIZE_ALLOWED_TAGS = [
+  'a',
+  'abbr',
+  'b',
+  'blockquote',
+  'br',
+  'code',
+  'del',
+  'div',
+  'em',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'i',
+  'img',
+  'li',
+  'ol',
+  'p',
+  'pre',
+  's',
+  'span',
+  'strong',
+  'sub',
+  'sup',
+  'table',
+  'tbody',
+  'td',
+  'th',
+  'thead',
+  'tr',
+  'u',
+  'ul',
+];
+
+const SANITIZE_ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'];
+
+/**
+ * Robust HTML sanitization to prevent XSS attacks, backed by DOMPurify.
+ * Strips scripts, event handlers, and unsafe URI schemes while keeping a
+ * sensible rich-text allowlist. The Reverso admin is a client-side Vite SPA,
+ * so DOMPurify always runs against a real DOM (no SSR fallback required).
  */
 export function sanitizeHtml(html: string): string {
   if (!html) return '';
 
-  // Remove script tags and their content
-  let sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-  // Remove event handlers (onclick, onerror, onload, etc.)
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]+/gi, '');
-
-  // Remove javascript: URLs
-  sanitized = sanitized.replace(/javascript\s*:/gi, '');
-
-  // Remove data: URLs in src/href (potential XSS vector)
-  sanitized = sanitized.replace(/(src|href)\s*=\s*["']?\s*data:/gi, '$1="');
-
-  // Remove style attributes with expression() (IE XSS vector)
-  sanitized = sanitized.replace(/style\s*=\s*["'][^"']*expression\s*\([^)]*\)[^"']*["']/gi, '');
-
-  return sanitized;
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: SANITIZE_ALLOWED_TAGS,
+    ALLOWED_ATTR: SANITIZE_ALLOWED_ATTR,
+    // Block javascript:/data: and other unsafe schemes; allow http(s), mailto, tel and relative paths.
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    // Defense-in-depth: never allow inline event handlers or scriptable content.
+    FORBID_ATTR: ['style'],
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+  });
 }
 
 /**

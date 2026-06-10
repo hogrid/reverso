@@ -9,13 +9,17 @@ export default defineConfig({
 
   // Database configuration
   database: {
-    type: 'sqlite',
+    provider: 'sqlite',
     url: '.reverso/dev.db',
   },
 
   // API server configuration
   api: {
-    port: 4000,
     cors: true,
+  },
+
+  // Development server settings
+  dev: {
+    port: 3001,
   },
 });

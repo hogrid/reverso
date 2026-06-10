@@ -105,6 +105,18 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
       const input = bodyResult.data;
 
+      // SSRF Protection: Validate webhook URL before persisting it
+      if (input.webhookUrl) {
+        const urlCheck = isUrlSafeForSSRF(input.webhookUrl);
+        if (!urlCheck.safe) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Validation error',
+            message: `Invalid webhook URL: ${urlCheck.reason ?? 'URL is not allowed'}`,
+          });
+        }
+      }
+
       // Check if slug already exists
       const existing = await getFormBySlug(db, input.slug);
       if (existing) {
@@ -236,6 +248,18 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           error: 'Validation error',
           message: bodyResult.error.issues[0]?.message ?? 'Invalid request body',
         });
+      }
+
+      // SSRF Protection: Validate webhook URL before persisting it
+      if (bodyResult.data.webhookUrl) {
+        const urlCheck = isUrlSafeForSSRF(bodyResult.data.webhookUrl);
+        if (!urlCheck.safe) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Validation error',
+            message: `Invalid webhook URL: ${urlCheck.reason ?? 'URL is not allowed'}`,
+          });
+        }
       }
 
       const db = request.db;

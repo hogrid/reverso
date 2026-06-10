@@ -143,6 +143,10 @@ export class AstParser {
       // Find all files
       const filePaths = await this.findFiles();
 
+      // Release any source files retained from a previous scan so the ts-morph
+      // Project does not accumulate SourceFiles across rescans (watch mode).
+      this.clear();
+
       // Add files to project
       for (const filePath of filePaths) {
         try {

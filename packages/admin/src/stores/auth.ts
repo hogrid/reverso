@@ -34,13 +34,53 @@ export interface AuthActions {
 // Auth routes are at /auth/* (no /api/reverso prefix)
 const API_BASE = '';
 
+// TD-012: guard every auth fetch with a timeout and tolerate non-JSON
+// responses (e.g. an HTML 502/504 error page) so the store never crashes.
+const AUTH_REQUEST_TIMEOUT_MS = 10_000;
+
+interface AuthFetchResult {
+  ok: boolean;
+  status: number;
+  // biome-ignore lint/suspicious/noExplicitAny: auth payloads are loosely typed
+  data: any;
+}
+
+/**
+ * Perform an auth fetch with a timeout and safe JSON parsing.
+ * Always sends credentials so the httpOnly session cookie is included.
+ * Throws on network failure or timeout (callers handle via try/catch).
+ */
+async function authFetch(path: string, options: RequestInit = {}): Promise<AuthFetchResult> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
+    ...options,
+  });
+
+  // Tolerate empty or non-JSON bodies (HTML error pages, 204s, etc.).
+  let data: unknown = null;
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+  }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
 export const useAuthStore = create<AuthState & AuthActions>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
       isAuthenticated: false,
-      isLoading: false,
+      // Start as loading: ProtectedRoute must wait for the initial
+      // checkAuth() before deciding to redirect, otherwise deep links
+      // (e.g. /admin/pages/home) bounce to /login → / on every reload.
+      isLoading: true,
       error: null,
       canRegister: true, // Default to true, will be checked on mount
 
@@ -48,28 +88,25 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({ isLoading: true, error: null });
 
         try {
-          const response = await fetch(`${API_BASE}/auth/login`, {
+          const { ok, data } = await authFetch('/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify({ email, password }),
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
+          if (!ok) {
             set({
               isLoading: false,
-              error: data.message || 'Login failed',
+              error: data?.message || 'Login failed',
             });
             return false;
           }
 
           set({
-            user: data.user,
-            token: data.session?.token || null,
+            user: data?.user ?? null,
+            token: data?.session?.token || null,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -90,28 +127,25 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({ isLoading: true, error: null });
 
         try {
-          const response = await fetch(`${API_BASE}/auth/register`, {
+          const { ok, data } = await authFetch('/auth/register', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify({ email, password, name }),
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
+          if (!ok) {
             set({
               isLoading: false,
-              error: data.message || 'Registration failed',
+              error: data?.message || 'Registration failed',
             });
             return false;
           }
 
           set({
-            user: data.user,
-            token: data.session?.token || null,
+            user: data?.user ?? null,
+            token: data?.session?.token || null,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -130,10 +164,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       logout: async () => {
         try {
-          await fetch(`${API_BASE}/auth/logout`, {
-            method: 'POST',
-            credentials: 'include',
-          });
+          await authFetch('/auth/logout', { method: 'POST' });
         } catch {
           // Ignore errors on logout
         }
@@ -151,11 +182,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({ isLoading: true });
 
         try {
-          const response = await fetch(`${API_BASE}/auth/me`, {
-            credentials: 'include',
-          });
+          const { ok, data } = await authFetch('/auth/me');
 
-          if (!response.ok) {
+          if (!ok) {
             set({
               user: null,
               token: null,
@@ -165,9 +194,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             return;
           }
 
-          const data = await response.json();
           set({
-            user: data.user,
+            user: data?.user ?? null,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -183,13 +211,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       checkSetupStatus: async () => {
         try {
-          const response = await fetch(`${API_BASE}/auth/setup-status`, {
-            credentials: 'include',
-          });
+          const { ok, data } = await authFetch('/auth/setup-status');
 
-          if (response.ok) {
-            const data = await response.json();
-            set({ canRegister: data.canRegister ?? true });
+          if (ok) {
+            set({ canRegister: data?.canRegister ?? true });
           }
         } catch {
           // On error, assume registration is allowed (fail open)
@@ -203,11 +228,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     }),
     {
       name: 'reverso-auth',
-      partialize: (state) => ({
-        token: state.token,
-        // Don't persist canRegister as it's checked from server
-        // Don't persist error as it's transient
-      }),
+      // TD-011: never persist the session token in localStorage. The real
+      // session lives in an httpOnly cookie ('reverso_session') sent with
+      // credentials: 'include'. Persisting the token here was redundant and
+      // widened the XSS surface, so nothing security-sensitive is persisted.
+      // canRegister is re-checked from the server; error is transient.
+      partialize: () => ({}),
     }
   )
 );

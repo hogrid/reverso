@@ -4,6 +4,8 @@
  * Provides AI assistants with tools to interact with Reverso CMS content.
  */
 
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -77,10 +79,22 @@ export class ReversoMcpServer {
 
   /**
    * Register a group of tools.
+   *
+   * Each tool exposes a zod `inputSchema`; the MCP SDK validates incoming
+   * arguments against that schema's shape before the handler runs. The raw
+   * input is therefore typed as `unknown` here and parsed/narrowed via the
+   * tool's own schema (`z.infer`) before being handed to the handler, instead
+   * of being passed through as `any`.
    */
   private registerToolGroup(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: Record<string, { description: string; inputSchema: z.ZodType; handler: (db: DrizzleDatabase, input: any) => Promise<unknown> }>,
+    tools: Record<
+      string,
+      {
+        description: string;
+        inputSchema: z.ZodType;
+        handler: (db: DrizzleDatabase, input: never) => Promise<unknown>;
+      }
+    >,
     prefix: string
   ): void {
     for (const [name, tool] of Object.entries(tools)) {
@@ -97,8 +111,12 @@ export class ReversoMcpServer {
             // Validate authentication before executing any tool
             this.validateAuth();
 
+            // Narrow the raw input through the tool's own zod schema so the
+            // handler receives a value matching its declared input type.
+            const parsed = tool.inputSchema.parse(input) as never;
+
             const db = await this.getDatabase();
-            const result = await tool.handler(db, input);
+            const result = await tool.handler(db, parsed);
             return {
               content: [
                 {
@@ -191,11 +209,42 @@ export class ReversoMcpServer {
   }
 
   /**
+   * Resolve and validate the configured database path.
+   *
+   * Accepts in-memory SQLite (`:memory:`) as-is; otherwise resolves to an
+   * absolute path and verifies the file exists, failing fast with a clear
+   * error rather than letting an unexpected/missing path reach the driver.
+   */
+  private resolveDatabasePath(): string {
+    const raw = this.config.databasePath;
+
+    if (!raw || typeof raw !== 'string' || raw.trim().length === 0) {
+      throw new Error('MCP Server requires a valid databasePath.');
+    }
+
+    // In-memory database is a valid SQLite target.
+    if (raw === ':memory:') {
+      return raw;
+    }
+
+    const resolved = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+
+    if (!existsSync(resolved)) {
+      throw new Error(
+        `Database file not found at "${resolved}". Run the Reverso migrations or check the configured databasePath.`
+      );
+    }
+
+    return resolved;
+  }
+
+  /**
    * Get or create database connection.
    */
   private async getDatabase(): Promise<DrizzleDatabase> {
     if (!this.db) {
-      this.db = await createDatabase({ url: this.config.databasePath });
+      const url = this.resolveDatabasePath();
+      this.db = await createDatabase({ url });
     }
     return this.db;
   }

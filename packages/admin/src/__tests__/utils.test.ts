@@ -229,12 +229,22 @@ describe('sanitizeHtml', () => {
   });
 
   it('should remove javascript: URLs', () => {
-    expect(sanitizeHtml('<a href="javascript:alert(1)">Click</a>')).toBe('<a href="alert(1)">Click</a>');
+    // The unsafe href is stripped entirely (not merely the scheme prefix).
+    const out = sanitizeHtml('<a href="javascript:alert(1)">Click</a>');
+    expect(out).not.toContain('javascript:');
+    expect(out).not.toContain('alert');
+    expect(out).toContain('Click');
   });
 
-  it('should remove data: URLs in src/href', () => {
-    expect(sanitizeHtml('<img src="data:image/png;base64,...">')).toContain('src="');
-    expect(sanitizeHtml('<a href="data:text/html,<script>alert(1)</script>">Link</a>')).toContain('href="');
+  it('handles data: URLs safely (image data is allowed, dangerous data is stripped)', () => {
+    // Inline base64 images are legitimate and preserved.
+    const img = sanitizeHtml('<img src="data:image/png;base64,xxx">');
+    expect(img).toContain('data:image/png');
+    // A data:text/html href carrying script is removed entirely.
+    const link = sanitizeHtml('<a href="data:text/html,<script>alert(1)</script>">Link</a>');
+    expect(link).not.toContain('data:text/html');
+    expect(link).not.toContain('<script');
+    expect(link).toContain('Link');
   });
 
   it('should preserve safe HTML', () => {

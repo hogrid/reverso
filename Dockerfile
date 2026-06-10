@@ -4,12 +4,19 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
 
+# Install native build toolchain so better-sqlite3 (and any other native
+# addons) can compile from source on alpine/musl, where prebuilt binaries
+# are not always available.
+RUN apk add --no-cache python3 make g++
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
 
-# Copy package files
+# --- Dependency layer (cached unless manifests/lockfile change) ---
+# Copy ONLY the files needed to resolve and install dependencies first, so
+# `pnpm install` is not re-run when only source code changes.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/db/package.json ./packages/db/
@@ -21,17 +28,18 @@ COPY packages/scanner/package.json ./packages/scanner/
 COPY packages/cli/package.json ./packages/cli/
 COPY packages/mcp/package.json ./packages/mcp/
 
-# Install dependencies
+# Install dependencies (compiles better-sqlite3 against the toolchain above)
 RUN pnpm install --frozen-lockfile
 
-# Copy source files
-COPY packages/ ./packages/
+# --- Build layer (re-runs when source or tsconfig changes) ---
+# Copy the root tsconfig and source only after deps are installed.
 COPY tsconfig.json ./
+COPY packages/ ./packages/
 
-# Build all packages
+# Build all packages (admin dist + library dist outputs)
 RUN pnpm build
 
-# Prune dev dependencies
+# Prune dev dependencies (keeps the compiled better-sqlite3 native binding)
 RUN pnpm prune --prod
 
 # Stage 2: Production

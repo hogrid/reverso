@@ -2,9 +2,9 @@
  * Page queries.
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
-import { type NewPage, type Page, pages } from '../schema/index.js';
+import { type NewPage, type Page, fields, pages, sections } from '../schema/index.js';
 import { generateId, now, parseJson, toJson } from '../utils.js';
 
 export interface CreatePageInput {
@@ -132,4 +132,26 @@ export async function upsertPage(db: DrizzleDatabase, input: CreatePageInput): P
  */
 export function parseSourceFiles(page: Page): string[] {
   return parseJson<string[]>(page.sourceFiles) ?? [];
+}
+
+export interface SchemaStats {
+  pages: number;
+  sections: number;
+  fields: number;
+}
+
+/**
+ * Get aggregate schema counts (pages, sections, fields) in three COUNT queries
+ * instead of walking the page → section → field tree (avoids N+1).
+ */
+export async function getSchemaStats(db: DrizzleDatabase): Promise<SchemaStats> {
+  const [pageRow] = await db.select({ count: sql<number>`count(*)` }).from(pages);
+  const [sectionRow] = await db.select({ count: sql<number>`count(*)` }).from(sections);
+  const [fieldRow] = await db.select({ count: sql<number>`count(*)` }).from(fields);
+
+  return {
+    pages: Number(pageRow?.count ?? 0),
+    sections: Number(sectionRow?.count ?? 0),
+    fields: Number(fieldRow?.count ?? 0),
+  };
 }

@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CONFIG_FILE_NAMES } from '../constants.js';
 import type { ReversoConfig } from '../types/config.js';
-import { mergeWithDefaults } from './defaults.js';
+import { defaultDatabaseConfig, mergeWithDefaults } from './defaults.js';
 import { configSchema } from './validation.js';
 
 /**
@@ -60,22 +60,22 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<LoadC
   // If no config file, return defaults
   if (!configPath || !existsSync(configPath)) {
     return {
-      config: mergeWithDefaults({
-        database: {
-          provider: 'sqlite',
-          url: '.reverso/reverso.db',
-        },
-      }),
+      config: mergeWithDefaults({ database: defaultDatabaseConfig }),
       configPath: null,
       exists: false,
     };
   }
 
-  // Load the config file
+  // Load the config file.
+  // We use jiti so that a TypeScript reverso.config.ts loads on every
+  // supported Node version (the native import() of .ts only works on
+  // Node >= 22.6 with type-stripping; engines allow Node 20). jiti also
+  // transparently handles .js/.mjs.
   try {
-    const fileUrl = pathToFileURL(configPath).href;
-    const module = await import(fileUrl);
-    const userConfig = module.default as ReversoConfig;
+    const { createJiti } = await import('jiti');
+    const jiti = createJiti(pathToFileURL(configPath).href, { moduleCache: false });
+    const module = (await jiti.import(configPath)) as { default?: ReversoConfig };
+    const userConfig = (module.default ?? module) as ReversoConfig;
 
     // Validate if not skipped
     if (!options.skipValidation) {
@@ -117,12 +117,7 @@ export function loadConfigSync(options: LoadConfigOptions = {}): LoadConfigResul
   // If no config file, return defaults
   if (!configPath || !existsSync(configPath)) {
     return {
-      config: mergeWithDefaults({
-        database: {
-          provider: 'sqlite',
-          url: '.reverso/reverso.db',
-        },
-      }),
+      config: mergeWithDefaults({ database: defaultDatabaseConfig }),
       configPath: null,
       exists: false,
     };

@@ -3,8 +3,9 @@
  */
 
 import type { ContentValue } from '@reverso/core';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
+import { withTransaction } from '../connection.js';
 import {
   type Content,
   type ContentHistory,
@@ -15,6 +16,16 @@ import {
   fields,
 } from '../schema/index.js';
 import { generateId, now, parseJson, toJson } from '../utils.js';
+
+/**
+ * Maximum number of `content_history` entries retained per content row.
+ *
+ * Content history is append-only and would otherwise grow without bound. When
+ * a new history entry is created, anything older than the most recent
+ * {@link MAX_CONTENT_HISTORY} entries (for that content row) is pruned as part
+ * of the same write.
+ */
+export const MAX_CONTENT_HISTORY = 50;
 
 export interface CreateContentInput {
   fieldId: string;
@@ -214,19 +225,27 @@ export async function bulkUpdateContent(
 ): Promise<Content[]> {
   const results: Content[] = [];
 
-  for (const update of updates) {
-    const field = await db.select().from(fields).where(eq(fields.path, update.path)).limit(1);
+  // All updates in a bulk edit are applied atomically: if any single upsert
+  // fails, the entire batch is rolled back (all-or-nothing).
+  await withTransaction(db, async (tx) => {
+    for (const update of updates) {
+      const field = await tx.select().from(fields).where(eq(fields.path, update.path)).limit(1);
 
-    if (field[0]) {
-      const result = await upsertContent(db, {
-        fieldId: field[0].id,
-        locale: update.locale,
-        value: update.value,
-        changedBy: update.changedBy,
-      });
-      results.push(result);
+      if (field[0]) {
+        const result = await upsertContent(tx, {
+          fieldId: field[0].id,
+          locale: update.locale,
+          value: update.value,
+          // Saving from the editor publishes immediately — Reverso has no
+          // draft workflow yet, and unpublished content would never reach
+          // the public content endpoints.
+          published: true,
+          changedBy: update.changedBy,
+        });
+        results.push(result);
+      }
     }
-  }
+  });
 
   return results;
 }
@@ -280,6 +299,10 @@ async function createContentHistory(
 
   await db.insert(contentHistory).values(history);
 
+  // Prune old history so it does not grow unbounded (TD-016). Keep only the
+  // most recent MAX_CONTENT_HISTORY entries for this content row.
+  await pruneContentHistory(db, input.contentId);
+
   return {
     id,
     contentId: input.contentId,
@@ -287,6 +310,23 @@ async function createContentHistory(
     changedBy: history.changedBy ?? null,
     changedAt: timestamp,
   };
+}
+
+/**
+ * Delete history entries beyond the {@link MAX_CONTENT_HISTORY} most recent for
+ * a given content row.
+ */
+async function pruneContentHistory(db: DrizzleDatabase, contentId: string): Promise<void> {
+  const entries = await db
+    .select({ id: contentHistory.id })
+    .from(contentHistory)
+    .where(eq(contentHistory.contentId, contentId))
+    .orderBy(desc(contentHistory.changedAt));
+
+  if (entries.length <= MAX_CONTENT_HISTORY) return;
+
+  const idsToDelete = entries.slice(MAX_CONTENT_HISTORY).map((e) => e.id);
+  await db.delete(contentHistory).where(inArray(contentHistory.id, idsToDelete));
 }
 
 /**

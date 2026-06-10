@@ -129,10 +129,10 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        fontSrc: ["'self'"],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
@@ -148,8 +148,13 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
-  // Register CSRF protection (disabled for now - will enable when admin supports it)
-  const csrfEnabled = false;
+  // Register CSRF protection.
+  // Primary CSRF defense is already in place: the session cookie is
+  // httpOnly + SameSite=lax (see routes/auth.ts), so cross-site mutating
+  // requests never carry it. Token-based CSRF is an opt-in defense-in-depth
+  // layer, gated by REVERSO_CSRF_ENABLED, because it requires the admin
+  // client to send the x-csrf-token header on every mutation.
+  const csrfEnabled = process.env.REVERSO_CSRF_ENABLED === 'true';
   if (csrfEnabled) {
     await server.register(csrfProtection, {
       sessionPlugin: '@fastify/cookie',

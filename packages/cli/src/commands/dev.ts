@@ -6,14 +6,14 @@ import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { resolve, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 
 interface DevOptions {
-  port: string;
+  port?: string;
   host: string;
-  database: string;
-  src: string;
+  database?: string;
+  src?: string;
   open: boolean;
 }
 
@@ -52,13 +52,42 @@ async function isPortInUse(port: number): Promise<boolean> {
   });
 }
 
-function getInstallCommand(pm: PackageManager, packages: string[]): string {
-  const pkgList = packages.join(' ');
+/**
+ * Resolve the install command for the detected package manager as a
+ * (binary, args) pair so it can be executed with execFileSync (no shell),
+ * avoiding interpolation of package names into a shell string.
+ */
+function getInstallCommand(
+  pm: PackageManager,
+  packages: string[]
+): { cmd: string; args: string[] } {
   switch (pm) {
-    case 'bun': return `bun add ${pkgList}`;
-    case 'pnpm': return `pnpm add ${pkgList}`;
-    case 'yarn': return `yarn add ${pkgList}`;
-    default: return `npm install ${pkgList}`;
+    case 'bun': return { cmd: 'bun', args: ['add', ...packages] };
+    case 'pnpm': return { cmd: 'pnpm', args: ['add', ...packages] };
+    case 'yarn': return { cmd: 'yarn', args: ['add', ...packages] };
+    default: return { cmd: 'npm', args: ['install', ...packages] };
+  }
+}
+
+/**
+ * Locate the better-sqlite3 binding.gyp directory without spawning a shell.
+ * Uses `find` via execFileSync (argument array, no shell interpolation/pipe)
+ * and performs the "first match" selection in JS.
+ */
+function findBetterSqliteDir(cwd: string): string | null {
+  try {
+    const output = execFileSync(
+      'find',
+      ['node_modules', '-path', '*/better-sqlite3/binding.gyp', '-type', 'f'],
+      { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const bindingPath = output.split('\n').map((l) => l.trim()).filter(Boolean)[0];
+    if (!bindingPath) {
+      return null;
+    }
+    return bindingPath.replace('/binding.gyp', '');
+  } catch {
+    return null;
   }
 }
 
@@ -69,16 +98,14 @@ async function rebuildNativeModules(spinner: ReturnType<typeof ora>): Promise<bo
 
   try {
     // Find better-sqlite3 location and rebuild with node-gyp directly
-    const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
-    const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
+    const betterSqliteDir = findBetterSqliteDir(cwd);
 
-    if (!bindingPath) {
+    if (!betterSqliteDir) {
       spinner.fail('Could not find better-sqlite3 module');
       return false;
     }
 
-    const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
-    execSync('npx node-gyp rebuild', {
+    execFileSync('npx', ['node-gyp', 'rebuild'], {
       cwd: resolve(cwd, betterSqliteDir),
       stdio: 'pipe',
     });
@@ -100,18 +127,16 @@ async function installMissingDependencies(spinner: ReturnType<typeof ora>, packa
 
   try {
     const installCmd = getInstallCommand(pm, packages);
-    execSync(installCmd, { cwd, stdio: 'pipe' });
+    execFileSync(installCmd.cmd, installCmd.args, { cwd, stdio: 'pipe' });
     spinner.succeed('Dependencies installed');
 
     // Also rebuild native modules after install using node-gyp
     spinner.start('Building native modules...');
     try {
-      const findCmd = 'find node_modules -path "*/better-sqlite3/binding.gyp" -type f 2>/dev/null | head -1';
-      const bindingPath = execSync(findCmd, { cwd, encoding: 'utf-8' }).trim();
+      const betterSqliteDir = findBetterSqliteDir(cwd);
 
-      if (bindingPath) {
-        const betterSqliteDir = bindingPath.replace('/binding.gyp', '');
-        execSync('npx node-gyp rebuild', {
+      if (betterSqliteDir) {
+        execFileSync('npx', ['node-gyp', 'rebuild'], {
           cwd: resolve(cwd, betterSqliteDir),
           stdio: 'pipe',
         });
@@ -156,10 +181,10 @@ export function devCommand(program: Command): void {
   program
     .command('dev')
     .description('Start development server (API + Admin)')
-    .option('-p, --port <port>', 'API server port', '3001')
+    .option('-p, --port <port>', 'API server port (default: reverso.config dev.port or 3001)')
     .option('-H, --host <host>', 'Server host', 'localhost')
-    .option('-d, --database <path>', 'Database file path', '.reverso/dev.db')
-    .option('-s, --src <dir>', 'Source directory to watch', './src')
+    .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
+    .option('-s, --src <dir>', 'Source directory to watch (default: reverso.config srcDir)')
     .option('--open', 'Open admin panel in browser', false)
     .action(async (options: DevOptions) => {
       const spinner = ora();
@@ -178,13 +203,34 @@ export function devCommand(program: Command): void {
         console.log(chalk.yellow('No reverso.config found. Running init first...'));
         console.log();
         try {
-          execSync('npx @reverso/cli init --yes', { cwd, stdio: 'inherit' });
+          execFileSync('npx', ['@reverso/cli', 'init', '--yes'], { cwd, stdio: 'inherit' });
           return; // init will handle everything
         } catch {
           console.log(chalk.red('Failed to initialize. Run: npx @reverso/cli init'));
           process.exit(1);
         }
       }
+
+      // Load reverso.config so CLI flags only override what the user set there
+      const { loadConfig, mergeWithDefaults } = await import('@reverso/core');
+      let config = mergeWithDefaults({
+        database: { provider: 'sqlite', url: '.reverso/dev.db' },
+      });
+      try {
+        ({ config } = await loadConfig({ cwd }));
+      } catch (error) {
+        console.log(
+          chalk.yellow(
+            `Warning: could not load reverso.config (${error instanceof Error ? error.message : error}). Using defaults.`
+          )
+        );
+      }
+
+      const srcDir = options.src ?? config.srcDir ?? './src';
+      const databasePath =
+        options.database ??
+        (config.database.provider === 'sqlite' ? config.database.url : '.reverso/dev.db');
+      const defaultPort = config.dev?.port ?? 3001;
 
       // Check 2: Create .reverso directory if needed
       const reversoDir = resolve(cwd, '.reverso');
@@ -200,7 +246,7 @@ export function devCommand(program: Command): void {
       }
 
       // Check 3: Port availability
-      let port = Number.parseInt(options.port, 10);
+      let port = Number.parseInt(options.port ?? String(defaultPort), 10);
       if (await isPortInUse(port)) {
         spinner.start(`Port ${port} is in use, finding available port...`);
         port = await findAvailablePort(port);
@@ -208,7 +254,7 @@ export function devCommand(program: Command): void {
       }
 
       const startServer = async (): Promise<void> => {
-        const dbPath = resolve(options.database);
+        const dbPath = resolve(databasePath);
 
         // Ensure database directory exists
         const dbDir = dirname(dbPath);
@@ -223,8 +269,10 @@ export function devCommand(program: Command): void {
         spinner.start('Starting file scanner...');
         const { createScanner } = await import('@reverso/scanner');
         const scanner = createScanner({
-          srcDir: options.src,
-          outputDir: '.reverso',
+          srcDir,
+          outputDir: config.outputDir ?? '.reverso',
+          include: config.scanner?.include,
+          exclude: config.scanner?.exclude,
         });
 
         // Initial scan

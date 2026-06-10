@@ -109,20 +109,37 @@ export class FileWatcher {
   }
 
   /**
-   * Stop watching for file changes.
+   * Clear all pending debounce timers and drop their references so no stale
+   * entries linger in the Map after the watcher is stopped/closed.
    */
-  async stop(): Promise<void> {
-    // Clear all debounce timers
+  private clearDebounceTimers(): void {
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
+  }
+
+  /**
+   * Stop watching for file changes.
+   */
+  async stop(): Promise<void> {
+    // Clear all debounce timers (and drop stale entries)
+    this.clearDebounceTimers();
 
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
       this.isReady = false;
     }
+  }
+
+  /**
+   * Close the watcher. Alias for {@link stop} for callers that expect a
+   * disposable-style API; guarantees timers and the underlying FSWatcher
+   * are fully released.
+   */
+  async close(): Promise<void> {
+    await this.stop();
   }
 
   /**

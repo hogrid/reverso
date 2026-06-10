@@ -58,10 +58,16 @@ export async function runMigrations(options: MigrateOptions): Promise<void> {
 }
 
 /**
- * Create initial database with schema (without migrations).
- * Useful for development and testing.
+ * Create the initial database *schema* (tables + indexes) without running the
+ * generated migration files. Useful for development and testing.
+ *
+ * Naming (TD-007): this creates the schema. It is distinct from
+ * {@link import('./connection.js').createDatabase}, which opens a *connection*
+ * to an existing database. This function is re-exported from the package root
+ * as `createDatabaseSchema`; the source name matches that public name to avoid
+ * ambiguity with the connection helper.
  */
-export async function createDatabase(dbPath: string): Promise<void> {
+export async function createDatabaseSchema(dbPath: string): Promise<void> {
   const { initDatabase } = await import('./connection.js');
   const { allTables } = await import('./schema/index.js');
 

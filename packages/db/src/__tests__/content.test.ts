@@ -5,8 +5,9 @@
 import { existsSync, rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, initDatabase, resetDatabaseInstance } from '../connection.js';
-import { createDatabase } from '../migrate.js';
+import { createDatabaseSchema } from '../migrate.js';
 import {
+  MAX_CONTENT_HISTORY,
   createContent,
   getContentByFieldId,
   getContentHistory,
@@ -26,7 +27,7 @@ describe('Content Queries', () => {
     if (existsSync(TEST_DB)) {
       rmSync(TEST_DB, { force: true });
     }
-    await createDatabase(TEST_DB);
+    await createDatabaseSchema(TEST_DB);
     initDatabase({ url: TEST_DB });
   });
 
@@ -195,6 +196,24 @@ describe('Content Queries', () => {
 
       const history = await getContentHistory(db, content.id);
       expect(history).toHaveLength(2);
+    });
+
+    it('prunes history to the most recent MAX_CONTENT_HISTORY entries', async () => {
+      const { db, field } = await setupField();
+
+      const content = await createContent(db, {
+        fieldId: field.id,
+        value: 'v0',
+      });
+
+      // Each update with a changed value appends one history entry.
+      const totalUpdates = MAX_CONTENT_HISTORY + 10;
+      for (let i = 1; i <= totalUpdates; i++) {
+        await updateContent(db, content.id, { value: `v${i}` });
+      }
+
+      const history = await getContentHistory(db, content.id);
+      expect(history).toHaveLength(MAX_CONTENT_HISTORY);
     });
   });
 });

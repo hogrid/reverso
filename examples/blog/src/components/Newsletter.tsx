@@ -1,8 +1,12 @@
+import { reverso } from '@/lib/reverso';
+
 /**
  * Newsletter signup section.
  * Captures email addresses for blog updates.
  */
-export function Newsletter() {
+export async function Newsletter() {
+  const home = await reverso.getPage('home');
+
   return (
     <section className="py-16 px-4 bg-slate-100">
       <div className="max-w-2xl mx-auto text-center">
@@ -11,14 +15,17 @@ export function Newsletter() {
           data-reverso-type="text"
           className="text-3xl font-bold mb-4"
         >
-          Subscribe to Our Newsletter
+          {home.get('home.newsletter.title', 'Subscribe to Our Newsletter')}
         </h2>
         <p
           data-reverso="home.newsletter.description"
           data-reverso-type="textarea"
           className="text-slate-600 mb-8"
         >
-          Get the latest articles delivered straight to your inbox. No spam, unsubscribe anytime.
+          {home.get(
+            'home.newsletter.description',
+            'Get the latest articles delivered straight to your inbox. No spam, unsubscribe anytime.'
+          )}
         </p>
 
         <form className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -33,7 +40,7 @@ export function Newsletter() {
             type="submit"
             className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           >
-            Subscribe
+            {home.get('home.newsletter.buttonText', 'Subscribe')}
           </button>
         </form>
 
@@ -42,7 +49,7 @@ export function Newsletter() {
           data-reverso-type="text"
           className="text-sm text-slate-500 mt-4"
         >
-          By subscribing, you agree to our Privacy Policy.
+          {home.get('home.newsletter.disclaimer', 'By subscribing, you agree to our Privacy Policy.')}
         </p>
       </div>
     </section>

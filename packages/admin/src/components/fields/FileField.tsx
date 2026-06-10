@@ -1,4 +1,4 @@
-import { type MediaItem, mediaToFileValue, useUploadMedia } from '@/api/hooks/useMedia';
+import { type MediaItem, mediaToFileValue } from '@/api/hooks/useMedia';
 import { MediaLibraryModal } from '@/components/media';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { cn, formatFileSize } from '@/lib/utils';
 import { File, FolderOpen, Loader2, Trash2, Upload } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
+import { useFileDropZone } from './useFileDropZone';
 
 interface FileValue {
   id?: string;
@@ -17,56 +18,32 @@ interface FileValue {
 
 export function FileField({ field, value, onChange, disabled }: FieldRendererProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
 
-  const uploadMedia = useUploadMedia();
   const currentFile = value as FileValue | null | undefined;
   const accept = field.accept || '*/*';
 
-  const handleFileSelect = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0 || disabled) return;
-
-      const file = files[0];
-      if (!file) return;
-
-      try {
-        const uploaded = await uploadMedia.mutateAsync([file]);
-        if (uploaded.length > 0 && uploaded[0]) {
-          onChange(mediaToFileValue(uploaded[0]));
-        }
-      } catch (error) {
-        console.error('Failed to upload file:', error);
-      }
+  const handleUploaded = useCallback(
+    (items: MediaItem[]) => {
+      if (items[0]) onChange(mediaToFileValue(items[0]));
     },
-    [onChange, disabled, uploadMedia]
+    [onChange]
   );
+
+  const { isDragOver, isUploading, selectFiles, dropHandlers } = useFileDropZone({
+    onUploaded: handleUploaded,
+    disabled,
+    maxFiles: 1,
+  });
+
+  const handleFileSelect = (files: FileList | null) => {
+    void selectFiles(files);
+  };
 
   const handleLibrarySelect = (items: MediaItem[]) => {
     if (items.length > 0 && items[0]) {
       onChange(mediaToFileValue(items[0]));
     }
-  };
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      handleFileSelect(e.dataTransfer.files);
-    },
-    [handleFileSelect]
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (!disabled) {
-      setIsDragOver(true);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
   };
 
   const handleRemove = () => {
@@ -136,19 +113,19 @@ export function FileField({ field, value, onChange, disabled }: FieldRendererPro
   return (
     <>
       <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        onDrop={dropHandlers.onDrop}
+        onDragOver={dropHandlers.onDragOver}
+        onDragLeave={dropHandlers.onDragLeave}
         onClick={handleClick}
         className={cn(
           'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors',
           isDragOver
             ? 'border-primary bg-primary/5'
             : 'border-muted-foreground/25 hover:border-primary/50',
-          (disabled || uploadMedia.isPending) && 'opacity-50 cursor-not-allowed'
+          (disabled || isUploading) && 'opacity-50 cursor-not-allowed'
         )}
       >
-        {uploadMedia.isPending ? (
+        {isUploading ? (
           <div className="space-y-4">
             <Loader2 className="h-8 w-8 mx-auto text-muted-foreground animate-spin" />
             <p className="text-sm text-muted-foreground">Uploading...</p>

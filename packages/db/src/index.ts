@@ -26,12 +26,21 @@
 export const VERSION = '0.0.0';
 
 // Connection management
+//
+// Naming note (see TD-007): there are two distinct "create database" concepts.
+//  - `createDatabase` (here, from connection.js): opens a SQLite *connection*
+//    and returns a ready-to-use Drizzle instance. Use this to talk to an
+//    existing database file.
+//  - `createDatabaseSchema` (below, re-exported from migrate.js): creates the
+//    *schema* (tables + indexes) in a database file. Use this to initialize a
+//    fresh database before connecting/querying.
 export {
   createDatabase,
   getDatabase,
   initDatabase,
   closeDatabase,
   resetDatabaseInstance,
+  withTransaction,
   type DrizzleDatabase,
   type DatabaseConfig,
 } from './connection.js';
@@ -103,8 +112,10 @@ export {
   deletePage,
   upsertPage,
   parseSourceFiles,
+  getSchemaStats,
   type CreatePageInput,
   type UpdatePageInput,
+  type SchemaStats,
   // Sections
   createSection,
   getSections,
@@ -275,6 +286,6 @@ export { generateId, now, parseJson, toJson } from './utils.js';
 // Migration exports
 export {
   runMigrations,
-  createDatabase as createDatabaseSchema,
+  createDatabaseSchema,
   type MigrateOptions,
 } from './migrate.js';

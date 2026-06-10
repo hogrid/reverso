@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { MapPin, Navigation, Search } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 interface MapValue {
@@ -17,26 +17,26 @@ interface MapValue {
 const DEFAULT_CENTER = { lat: 40.7128, lng: -74.006 }; // New York City
 const DEFAULT_ZOOM = 13;
 
+/** Non-standard map attributes carried on the field marker. */
+type MapFieldConfig = { center?: { lat?: number; lng?: number }; zoom?: number };
+
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
 export function MapField({ field, value, onChange, disabled }: FieldRendererProps) {
+  const mapConfig = field as MapFieldConfig;
   const mapRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, []);
-
   // Parse current value
   const mapValue: MapValue = (value as MapValue) || {
-    lat: (field as any).center?.lat || DEFAULT_CENTER.lat,
-    lng: (field as any).center?.lng || DEFAULT_CENTER.lng,
-    zoom: (field as any).zoom || DEFAULT_ZOOM,
+    lat: mapConfig.center?.lat || DEFAULT_CENTER.lat,
+    lng: mapConfig.center?.lng || DEFAULT_CENTER.lng,
+    zoom: mapConfig.zoom || DEFAULT_ZOOM,
   };
 
   const handleCoordinateChange = useCallback(
@@ -59,37 +59,42 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() || disabled) return;
 
-    // Clear previous timeout if any
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
     setIsSearching(true);
-    // In production, this would call a geocoding API
-    // For now, simulate a search delay and use mock coordinates
-    searchTimeoutRef.current = setTimeout(() => {
-      // Mock geocoding result
-      const mockResults: Record<string, MapValue> = {
-        'new york': { lat: 40.7128, lng: -74.006, address: 'New York, NY, USA' },
-        london: { lat: 51.5074, lng: -0.1278, address: 'London, UK' },
-        tokyo: { lat: 35.6762, lng: 139.6503, address: 'Tokyo, Japan' },
-        paris: { lat: 48.8566, lng: 2.3522, address: 'Paris, France' },
-        sydney: { lat: -33.8688, lng: 151.2093, address: 'Sydney, Australia' },
-      };
+    try {
+      // Real geocoding via OpenStreetMap Nominatim (no API key required).
+      const url = new URL('https://nominatim.openstreetmap.org/search');
+      url.searchParams.set('format', 'json');
+      url.searchParams.set('limit', '1');
+      url.searchParams.set('q', searchQuery);
 
-      const searchLower = searchQuery.toLowerCase();
-      const result = Object.entries(mockResults).find(([key]) => searchLower.includes(key));
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
 
-      if (result) {
-        onChange({ ...result[1], zoom: mapValue.zoom });
-      } else {
-        // Just update the address field
-        onChange({ ...mapValue, address: searchQuery });
+      if (response.ok) {
+        const results = (await response.json()) as NominatimResult[];
+        const top = results[0];
+        if (top) {
+          onChange({
+            lat: Number.parseFloat(top.lat),
+            lng: Number.parseFloat(top.lon),
+            address: top.display_name,
+            zoom: mapValue.zoom,
+          });
+          setSearchQuery('');
+          return;
+        }
       }
-
+      // No match (or request failed): keep the typed text as the address so
+      // the editor can still fill coordinates manually.
+      onChange({ ...mapValue, address: searchQuery });
+    } catch {
+      // Network/geocoder unavailable — fall back to the raw address text.
+      onChange({ ...mapValue, address: searchQuery });
+    } finally {
       setIsSearching(false);
-      setSearchQuery('');
-    }, 500);
+    }
   }, [searchQuery, disabled, mapValue, onChange]);
 
   const handleGetCurrentLocation = useCallback(() => {

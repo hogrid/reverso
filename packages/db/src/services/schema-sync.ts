@@ -5,6 +5,7 @@
 
 import type { FieldSchema, PageSchema, ProjectSchema, SectionSchema } from '@reverso/core';
 import type { DrizzleDatabase } from '../connection.js';
+import { withTransaction } from '../connection.js';
 import { deleteField, getFieldsBySectionId, upsertField } from '../queries/fields.js';
 import { deletePage, getPages, upsertPage } from '../queries/pages.js';
 import { deleteSection, getSectionsByPageId, upsertSection } from '../queries/sections.js';
@@ -53,76 +54,81 @@ export async function syncSchema(
     duration: 0,
   };
 
-  // Track what we've synced for deletion detection
-  const syncedPageSlugs = new Set<string>();
-  const syncedSectionIds = new Set<string>();
-  const syncedFieldPaths = new Set<string>();
+  // The full sync (all upserts + all deletes) runs inside a single atomic
+  // transaction. If anything fails partway through, the whole operation is
+  // rolled back and the database is left exactly as it was (all-or-nothing).
+  await withTransaction(db, async (tx) => {
+    // Track what we've synced for deletion detection
+    const syncedPageSlugs = new Set<string>();
+    const syncedSectionIds = new Set<string>();
+    const syncedFieldPaths = new Set<string>();
 
-  // Sync pages
-  for (const pageSchema of schema.pages) {
-    const page = await syncPage(db, pageSchema);
-    syncedPageSlugs.add(page.slug);
-
-    if (verbose) {
-      console.log(`Synced page: ${page.slug}`);
-    }
-
-    // Sync sections
-    for (let i = 0; i < pageSchema.sections.length; i++) {
-      const sectionSchema = pageSchema.sections[i];
-      if (!sectionSchema) continue;
-
-      const section = await syncSection(db, page.id, sectionSchema, i);
-      syncedSectionIds.add(section.id);
+    // Sync pages
+    for (const pageSchema of schema.pages) {
+      const page = await syncPage(tx, pageSchema);
+      syncedPageSlugs.add(page.slug);
 
       if (verbose) {
-        console.log(`  Synced section: ${section.slug}`);
+        console.log(`Synced page: ${page.slug}`);
       }
 
-      // Sync fields
-      for (let j = 0; j < sectionSchema.fields.length; j++) {
-        const fieldSchema = sectionSchema.fields[j];
-        if (!fieldSchema) continue;
+      // Sync sections
+      for (let i = 0; i < pageSchema.sections.length; i++) {
+        const sectionSchema = pageSchema.sections[i];
+        if (!sectionSchema) continue;
 
-        const field = await syncField(db, section.id, fieldSchema, j);
-        syncedFieldPaths.add(field.path);
+        const section = await syncSection(tx, page.id, sectionSchema, i);
+        syncedSectionIds.add(section.id);
 
         if (verbose) {
-          console.log(`    Synced field: ${field.path}`);
-        }
-      }
-    }
-  }
-
-  // Delete removed items if requested
-  if (deleteRemoved) {
-    // Delete removed fields
-    const allPages = await getPages(db);
-    for (const page of allPages) {
-      if (!syncedPageSlugs.has(page.slug)) {
-        await deletePage(db, page.id);
-        result.pages.deleted++;
-        continue;
-      }
-
-      const sections = await getSectionsByPageId(db, page.id);
-      for (const section of sections) {
-        if (!syncedSectionIds.has(section.id)) {
-          await deleteSection(db, section.id);
-          result.sections.deleted++;
-          continue;
+          console.log(`  Synced section: ${section.slug}`);
         }
 
-        const fields = await getFieldsBySectionId(db, section.id);
-        for (const field of fields) {
-          if (!syncedFieldPaths.has(field.path)) {
-            await deleteField(db, field.id);
-            result.fields.deleted++;
+        // Sync fields
+        for (let j = 0; j < sectionSchema.fields.length; j++) {
+          const fieldSchema = sectionSchema.fields[j];
+          if (!fieldSchema) continue;
+
+          const field = await syncField(tx, section.id, fieldSchema, j);
+          syncedFieldPaths.add(field.path);
+
+          if (verbose) {
+            console.log(`    Synced field: ${field.path}`);
           }
         }
       }
     }
-  }
+
+    // Delete removed items if requested
+    if (deleteRemoved) {
+      // Delete removed fields
+      const allPages = await getPages(tx);
+      for (const page of allPages) {
+        if (!syncedPageSlugs.has(page.slug)) {
+          await deletePage(tx, page.id);
+          result.pages.deleted++;
+          continue;
+        }
+
+        const sections = await getSectionsByPageId(tx, page.id);
+        for (const section of sections) {
+          if (!syncedSectionIds.has(section.id)) {
+            await deleteSection(tx, section.id);
+            result.sections.deleted++;
+            continue;
+          }
+
+          const fields = await getFieldsBySectionId(tx, section.id);
+          for (const field of fields) {
+            if (!syncedFieldPaths.has(field.path)) {
+              await deleteField(tx, field.id);
+              result.fields.deleted++;
+            }
+          }
+        }
+      }
+    }
+  });
 
   result.duration = Date.now() - startTime;
   return result;

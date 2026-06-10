@@ -1,5 +1,5 @@
 import { test, expect, waitForNetworkIdle } from './fixtures';
-import { join } from 'path';
+import { join } from 'node:path';
 
 test.describe('Media Library', () => {
   test.describe('Media List', () => {

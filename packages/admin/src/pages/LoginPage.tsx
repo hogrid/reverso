@@ -4,11 +4,12 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore, useCanRegister } from '@/stores/auth';
 import { Loader2, UserPlus } from 'lucide-react';
 import { useState, useEffect, type FormEvent } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 export function LoginPage() {
   const { login, register, isLoading, isAuthenticated, error, clearError, checkSetupStatus } = useAuthStore();
   const canRegister = useCanRegister();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -25,7 +26,8 @@ export function LoginPage() {
   }, [canRegister, isRegister]);
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+    return <Navigate to={from ?? '/'} replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -143,7 +145,7 @@ export function LoginPage() {
               >
                 {isRegister
                   ? 'Already have an account? Sign in'
-                  : "Don't have an account? Contact your admin."
+                  : "Don't have an account? Create one"
                 }
               </button>
             </div>

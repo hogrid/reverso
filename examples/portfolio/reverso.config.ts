@@ -1,16 +1,28 @@
 import { defineConfig } from '@reverso/core';
 
 export default defineConfig({
-  include: ['src/**/*.tsx'],
-  exclude: ['node_modules', '.next'],
-  output: {
-    schema: '.reverso/schema.json',
-    types: '.reverso/types.ts',
-  },
+  name: 'Reverso Portfolio Example',
+
+  // Source directory to scan for data-reverso markers
+  srcDir: './src',
+
+  // Output directory for generated files
+  outputDir: '.reverso',
+
+  // Database configuration
   database: {
     provider: 'sqlite',
     url: '.reverso/portfolio.db',
   },
-  locales: ['en'],
-  defaultLocale: 'en',
+
+  // Scanner configuration
+  scanner: {
+    include: ['**/*.tsx'],
+    exclude: ['**/node_modules/**', '**/.next/**'],
+  },
+
+  // Development server settings
+  dev: {
+    port: 3001,
+  },
 });

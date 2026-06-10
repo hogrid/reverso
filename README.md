@@ -162,6 +162,47 @@ This single command will:
 
 Open `http://localhost:3001/admin` and start editing!
 
+### Read CMS content in your frontend
+
+Install the lightweight client SDK and fetch published content — your JSX
+fallbacks keep rendering whenever the CMS is unreachable:
+
+```bash
+npm install @reverso/client
+```
+
+```tsx
+// src/lib/reverso.ts
+import { createReversoClient } from '@reverso/client';
+
+export const reverso = createReversoClient({
+  url: process.env.NEXT_PUBLIC_REVERSO_URL ?? 'http://localhost:3001',
+});
+```
+
+```tsx
+// app/components/Hero.tsx (React Server Component)
+import { reverso } from '@/lib/reverso';
+
+export async function Hero() {
+  const home = await reverso.getPage('home');
+
+  return (
+    <h1 data-reverso="home.hero.title" data-reverso-type="text">
+      {home.get('home.hero.title', 'Welcome to our site')}
+    </h1>
+  );
+}
+```
+
+Repeater items come back as arrays:
+
+```tsx
+const posts = home.items('home.posts'); // [{ title, image, ... }, ...]
+```
+
+See `examples/blog` and `examples/portfolio` for complete integrations.
+
 ---
 
 ## Marker Reference
@@ -302,17 +343,30 @@ Reverso supports 35+ field types:
 
 ### Example: Repeater
 
+A repeater is a whole section whose `$` marker paths describe the shape of
+each item — no marker is needed on the container element. Reverso creates a
+synthetic `page.section.$` field of type `repeater` automatically, and its
+content value is the array of items.
+
 ```tsx
-<div data-reverso="home.features" data-reverso-type="repeater">
-  <div data-reverso="home.features.$.icon" data-reverso-type="image" />
-  <h3 data-reverso="home.features.$.title" data-reverso-type="text">
-    Feature Title
-  </h3>
-  <p data-reverso="home.features.$.description" data-reverso-type="textarea">
-    Feature description goes here.
-  </p>
+<div className="features-grid">
+  {features.map((feature, index) => (
+    <div key={index}>
+      <img data-reverso="home.features.$.icon" data-reverso-type="image" src={String(feature.icon)} alt="" />
+      <h3 data-reverso="home.features.$.title" data-reverso-type="text">
+        {String(feature.title)}
+      </h3>
+      <p data-reverso="home.features.$.description" data-reverso-type="textarea">
+        {String(feature.description)}
+      </p>
+    </div>
+  ))}
 </div>
 ```
+
+> **Note:** the `$` placeholder must be the 3rd path segment
+> (`page.section.$.subfield`). Nested repeaters like
+> `home.about.stats.$.value` are invalid and skipped with a warning.
 
 ### Example: Full page with multiple types
 
@@ -518,6 +572,7 @@ create-reverso
 | [`@reverso/blocks`](https://www.npmjs.com/package/@reverso/blocks) | 0.1.1 | Tiptap-based block editor component |
 | [`@reverso/forms`](https://www.npmjs.com/package/@reverso/forms) | 0.1.1 | Form builder (react-hook-form + Zod) |
 | [`@reverso/mcp`](https://www.npmjs.com/package/@reverso/mcp) | 0.1.1 | MCP Server for AI tool integration |
+| [`@reverso/client`](https://www.npmjs.com/package/@reverso/client) | 0.1.0 | Frontend SDK for reading published content |
 
 ### Apps (not published)
 
@@ -584,8 +639,12 @@ When the dev server is running, these endpoints are available:
 | `GET` | `/admin` | Admin panel UI |
 | `GET` | `/api/reverso/schema` | Get current schema |
 | `POST` | `/api/reverso/schema/sync` | Sync schema to database |
-| `GET` | `/api/reverso/content/:page` | Get page content |
-| `PUT` | `/api/reverso/content/:page` | Update page content |
+| `GET` | `/api/reverso/content/page/:slug` | Get all content for a page (authenticated) |
+| `PATCH` | `/api/reverso/content/page/:slug` | Bulk update page content |
+| `GET` | `/api/reverso/content/:path` | Get content by field path |
+| `PUT` | `/api/reverso/content/:path` | Update content by field path |
+| `GET` | `/api/reverso/public/content/page/:slug` | Public read of PUBLISHED page content (for frontends) |
+| `GET` | `/api/reverso/public/content/:path` | Public read of a PUBLISHED value |
 | `POST` | `/auth/register` | Register new user |
 | `POST` | `/auth/login` | Login |
 | `GET` | `/auth/setup-status` | Check if setup is needed |

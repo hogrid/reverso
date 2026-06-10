@@ -5,9 +5,12 @@
 
 import type { FieldSchema, PageSchema, ProjectSchema, SectionSchema } from '@reverso/core';
 import {
-  getFieldsBySectionId,
+  type Field,
+  type Section,
+  getFields,
   getPages,
-  getSectionsByPageId,
+  getSchemaStats,
+  getSections,
   parseFieldConfig,
   parseRepeaterConfig,
   parseSourceFiles,
@@ -26,15 +29,43 @@ const schemaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     try {
       const db = request.db;
 
-      const pages = await getPages(db);
+      // Load the entire tree in 3 queries (pages, sections, fields) and group
+      // it in memory, instead of querying sections/fields per page/section
+      // (avoids N+1).
+      const [pages, allSections, allFields] = await Promise.all([
+        getPages(db),
+        getSections(db),
+        getFields(db),
+      ]);
+
+      const sectionsByPageId = new Map<string, Section[]>();
+      for (const section of allSections) {
+        const list = sectionsByPageId.get(section.pageId);
+        if (list) {
+          list.push(section);
+        } else {
+          sectionsByPageId.set(section.pageId, [section]);
+        }
+      }
+
+      const fieldsBySectionId = new Map<string, Field[]>();
+      for (const field of allFields) {
+        const list = fieldsBySectionId.get(field.sectionId);
+        if (list) {
+          list.push(field);
+        } else {
+          fieldsBySectionId.set(field.sectionId, [field]);
+        }
+      }
+
       const schemaPages: PageSchema[] = [];
 
       for (const page of pages) {
-        const sections = await getSectionsByPageId(db, page.id);
+        const sections = sectionsByPageId.get(page.id) ?? [];
         const schemaSections: SectionSchema[] = [];
 
         for (const section of sections) {
-          const fields = await getFieldsBySectionId(db, section.id);
+          const fields = fieldsBySectionId.get(section.id) ?? [];
           const schemaFields: FieldSchema[] = fields.map((field) => ({
             path: field.path,
             type: field.type as FieldSchema['type'],
@@ -140,28 +171,13 @@ const schemaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.get('/schema/stats', async (request, reply) => {
     try {
       const db = request.db;
-      const pages = await getPages(db);
 
-      let totalSections = 0;
-      let totalFields = 0;
-
-      for (const page of pages) {
-        const sections = await getSectionsByPageId(db, page.id);
-        totalSections += sections.length;
-
-        for (const section of sections) {
-          const fields = await getFieldsBySectionId(db, section.id);
-          totalFields += fields.length;
-        }
-      }
+      // 3 COUNT queries instead of walking every page → section → field.
+      const stats = await getSchemaStats(db);
 
       return {
         success: true,
-        data: {
-          pages: pages.length,
-          sections: totalSections,
-          fields: totalFields,
-        },
+        data: stats,
       };
     } catch (error) {
       fastify.log.error(error, 'Failed to get schema stats');

@@ -29,6 +29,36 @@ import {
   sanitizeFilename,
 } from '../validation.js';
 
+/**
+ * Map of allowed MIME types to their expected file extensions.
+ * Used to ensure the file extension matches the declared MIME type,
+ * preventing uploads like "payload.html" declared as "image/png".
+ */
+const MIME_EXTENSIONS: Record<string, readonly string[]> = {
+  // Images
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+  'image/svg+xml': ['.svg'],
+  'image/avif': ['.avif'],
+  // Documents
+  'application/pdf': ['.pdf'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  // Videos
+  'video/mp4': ['.mp4'],
+  'video/webm': ['.webm'],
+  'video/ogg': ['.ogv', '.ogg'],
+  // Audio
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/ogg': ['.ogg', '.oga'],
+  'audio/webm': ['.webm', '.weba'],
+};
+
 const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   const uploadsDir = fastify.config?.uploadsDir || '.reverso/uploads';
 
@@ -229,9 +259,9 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      // Validate MIME type
+      // Validate MIME type BEFORE consuming the stream
       if (!isAllowedMimeType(data.mimetype)) {
-        // Consume the stream to prevent memory leaks
+        // Drain the stream to prevent memory leaks
         data.file.resume();
         return reply.status(400).send({
           success: false,
@@ -242,7 +272,20 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
       // Sanitize filename to prevent path traversal
       const sanitizedOriginalName = sanitizeFilename(data.filename);
-      const ext = extname(sanitizedOriginalName);
+      const ext = extname(sanitizedOriginalName).toLowerCase();
+
+      // Validate file extension matches the declared MIME type BEFORE consuming the stream
+      const allowedExtensions = MIME_EXTENSIONS[data.mimetype] ?? [];
+      if (!ext || !allowedExtensions.includes(ext)) {
+        // Drain the stream to prevent memory leaks
+        data.file.resume();
+        return reply.status(400).send({
+          success: false,
+          error: 'Invalid file extension',
+          message: `File extension "${ext || '(none)'}" does not match the declared file type "${data.mimetype}". Expected: ${allowedExtensions.join(', ')}.`,
+        });
+      }
+
       const id = generateId();
       const filename = `${id}${ext}`;
       const storagePath = join(uploadsDir, filename);

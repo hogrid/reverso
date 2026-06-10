@@ -28,6 +28,14 @@ export interface FieldRendererProps {
   onChange: (value: any) => void;
   className?: string;
   disabled?: boolean;
+  /** Item field schemas for repeater/group containers (paths with `$`). */
+  subFields?: FieldSchema[];
+  /**
+   * Renderer injected into container fields (repeater/group) so they can
+   * render their sub-fields without importing FieldRenderer back
+   * (avoids a module cycle).
+   */
+  renderField?: React.ComponentType<FieldRendererProps>;
 }
 
 // Map field types to their renderers
@@ -109,7 +117,14 @@ const widthClasses: Record<number, string> = {
   12: 'col-span-12',
 };
 
-export function FieldRenderer({ field, value, onChange, className, disabled }: FieldRendererProps) {
+export function FieldRenderer({
+  field,
+  value,
+  onChange,
+  className,
+  disabled,
+  subFields,
+}: FieldRendererProps) {
   const fieldType = field.type || 'text';
   const Renderer = fieldRenderers[fieldType] || TextField;
 
@@ -139,6 +154,8 @@ export function FieldRenderer({ field, value, onChange, className, disabled }: F
         value={value}
         onChange={onChange}
         disabled={disabled || field.readonly}
+        subFields={subFields}
+        renderField={FieldRenderer}
       />
 
       {field.help && <p className="text-xs text-muted-foreground">{field.help}</p>}

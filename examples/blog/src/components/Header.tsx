@@ -1,7 +1,15 @@
+import { reverso } from '@/lib/reverso';
+
+const FALLBACK_NAV = [{ label: 'Home', url: '/' }];
+
 /**
  * Site header with navigation.
+ * Navigation links come from the `site.navigation` repeater.
  */
-export function Header() {
+export async function Header() {
+  const site = await reverso.getPage('site');
+  const navigation = site.items('site.navigation', FALLBACK_NAV);
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
       <nav className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -10,7 +18,7 @@ export function Header() {
           <img
             data-reverso="site.header.logo"
             data-reverso-type="image"
-            src="/logo.svg"
+            src={site.get('site.header.logo', '/logo.svg')}
             alt="Blog logo"
             className="h-8 w-auto"
           />
@@ -19,26 +27,24 @@ export function Header() {
             data-reverso-type="text"
             className="text-xl font-bold"
           >
-            TechBlog
+            {site.get('site.header.siteName', 'TechBlog')}
           </span>
         </a>
 
-        {/* Navigation */}
-        <div
-          data-reverso="site.header.navigation"
-          data-reverso-type="repeater"
-          data-reverso-max="6"
-          className="hidden md:flex items-center gap-6"
-        >
-          <a
-            data-reverso="site.header.navigation.$.label"
-            data-reverso-type="text"
-            data-reverso-link="site.header.navigation.$.url"
-            href="/"
-            className="text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            Home
-          </a>
+        {/* Navigation (site.navigation repeater) */}
+        <div className="hidden md:flex items-center gap-6">
+          {navigation.map((item, index) => (
+            <a
+              key={`${item.label ?? 'nav'}-${index}`}
+              data-reverso="site.navigation.$.label"
+              data-reverso-type="text"
+              href={String(item.url ?? '/')}
+              className="text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              {String(item.label ?? '')}
+            </a>
+          ))}
+          <span data-reverso="site.navigation.$.url" data-reverso-type="url" hidden />
         </div>
 
         {/* Search & CTA */}
@@ -54,7 +60,7 @@ export function Header() {
             href="/subscribe"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
-            Subscribe
+            {site.get('site.header.ctaText', 'Subscribe')}
           </a>
         </div>
       </nav>

@@ -67,7 +67,9 @@ export function FormSubmissionsPage() {
 
   const isLoading = formLoading || submissionsLoading;
   const submissions = submissionsResponse?.data || [];
-  const stats = (submissionsResponse as any)?.meta || { total: 0, new: 0, read: 0, spam: 0 };
+  const stats = (
+    submissionsResponse as { meta?: { total: number; new: number; read: number; spam: number } }
+  )?.meta || { total: 0, new: 0, read: 0, spam: 0 };
 
   const filteredSubmissions =
     statusFilter === 'all'

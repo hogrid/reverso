@@ -257,6 +257,20 @@ interface SectionEditorProps {
 }
 
 function SectionEditor({ pageSlug, section, getFieldValue, onFieldChange }: SectionEditorProps) {
+  // Repeater sections are edited through a single container field
+  // (`page.section.$`, type `repeater`) whose value is the item array;
+  // the `$.subfield` schemas describe the shape of each item.
+  const containerPath = `${pageSlug}.${section.slug}.$`;
+  const repeaterContainer = section.isRepeater
+    ? section.fields.find((f) => f.path === containerPath)
+    : undefined;
+  const repeaterSubFields = section.isRepeater
+    ? section.fields.filter((f) => f.path.includes('.$.'))
+    : [];
+  const simpleFields = section.fields.filter(
+    (f) => f.path !== containerPath && !f.path.includes('.$.')
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -267,19 +281,34 @@ function SectionEditor({ pageSlug, section, getFieldValue, onFieldChange }: Sect
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          {section.fields.map((field) => {
-            const fieldPath = `${pageSlug}.${section.slug}.${field.path.split('.').pop()}`;
-            const value = getFieldValue(fieldPath);
+          {simpleFields.map((field) => {
+            const value = getFieldValue(field.path);
 
             return (
               <FieldRenderer
                 key={field.path}
                 field={field}
                 value={value}
-                onChange={(newValue) => onFieldChange(fieldPath, newValue, value)}
+                onChange={(newValue) => onFieldChange(field.path, newValue, value)}
               />
             );
           })}
+
+          {repeaterContainer && (
+            <FieldRenderer
+              key={repeaterContainer.path}
+              field={repeaterContainer}
+              value={getFieldValue(repeaterContainer.path)}
+              onChange={(newValue) =>
+                onFieldChange(
+                  repeaterContainer.path,
+                  newValue,
+                  getFieldValue(repeaterContainer.path)
+                )
+              }
+              subFields={repeaterSubFields}
+            />
+          )}
         </div>
       </CardContent>
     </Card>

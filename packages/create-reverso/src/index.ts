@@ -241,7 +241,8 @@ async function createProject(config: ProjectConfig): Promise<void> {
  */
 function generatePackageJson(config: ProjectConfig): string {
   const deps: Record<string, string> = {
-    '@reverso/cli': '^0.0.0',
+    '@reverso/cli': 'latest',
+    '@reverso/core': 'latest',
     react: '^18.3.1',
     'react-dom': '^18.3.1',
   };
@@ -323,12 +324,14 @@ function generateTsConfig(config: ProjectConfig): string {
  * Generate Reverso config file.
  */
 function generateReversoConfig(config: ProjectConfig): string {
-  const ext = config.typescript ? 'ts' : 'js';
-  const exportType = config.typescript ? 'export default' : 'module.exports =';
-  const typeAnnotation = config.typescript ? ': ReversoConfig' : '';
-  const typeImport = config.typescript ? "import type { ReversoConfig } from '@reverso/core';\n\n" : '';
+  // ReversoConfig.database.provider is 'sqlite' | 'postgresql' | 'mysql'.
+  const provider = config.database === 'postgres' ? 'postgresql' : config.database;
+  const dbUrl =
+    config.database === 'sqlite'
+      ? "url: '.reverso/dev.db'"
+      : "url: process.env.DATABASE_URL || 'postgresql://localhost:5432/reverso'";
 
-  return `${typeImport}${exportType} {
+  const body = `defineConfig({
   // Source directory to scan for data-reverso markers
   srcDir: './src',
 
@@ -337,22 +340,30 @@ function generateReversoConfig(config: ProjectConfig): string {
 
   // Database configuration
   database: {
-    type: '${config.database}',
-    ${config.database === 'sqlite' ? "url: '.reverso/dev.db'" : "url: process.env.DATABASE_URL || 'postgres://localhost:5432/reverso'"},
+    provider: '${provider}',
+    ${dbUrl},
   },
 
   // API server configuration
   api: {
-    port: 3001,
     cors: true,
+  },
+
+  // Development server settings
+  dev: {
+    port: 3001,
   },
 
   // Admin panel configuration
   admin: {
     title: '${config.projectName}',
   },
-}${typeAnnotation};
-`;
+})`;
+
+  if (config.typescript) {
+    return `import { defineConfig } from '@reverso/core';\n\nexport default ${body};\n`;
+  }
+  return `const { defineConfig } = require('@reverso/core');\n\nmodule.exports = ${body};\n`;
 }
 
 /**

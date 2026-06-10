@@ -5,7 +5,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, initDatabase, resetDatabaseInstance } from '../connection.js';
-import { createDatabase } from '../migrate.js';
+import { createDatabaseSchema } from '../migrate.js';
 import {
   createPage,
   deletePage,
@@ -25,7 +25,7 @@ describe('Page Queries', () => {
     if (existsSync(TEST_DB)) {
       rmSync(TEST_DB, { force: true });
     }
-    await createDatabase(TEST_DB);
+    await createDatabaseSchema(TEST_DB);
     initDatabase({ url: TEST_DB });
   });
 

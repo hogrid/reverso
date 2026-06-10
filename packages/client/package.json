@@ -1,0 +1,55 @@
+{
+  "name": "@reverso/client",
+  "version": "0.1.0",
+  "description": "Lightweight client SDK for reading Reverso CMS content from any frontend",
+  "homepage": "https://reverso.dev/docs/packages/client",
+  "bugs": {
+    "url": "https://github.com/hogrid/reverso/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.0.18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hogrid/reverso.git",
+    "directory": "packages/client"
+  },
+  "keywords": [
+    "reverso",
+    "cms",
+    "client",
+    "sdk"
+  ],
+  "author": "Emerson Nunes <emerson@hogrid.com>",
+  "license": "MIT"
+}
