@@ -52,10 +52,7 @@ uploads/
 .cache/
 .parcel-cache/
 
-# Changesets
-.changeset/*.md
-!.changeset/README.md
-!.changeset/config.json
+# Changesets — changeset .md files MUST be committed (release tooling reads them)
 
 # Misc
 *.local
