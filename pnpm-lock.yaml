@@ -178,6 +178,52 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  examples/showcase:
+    dependencies:
+      '@reverso/client':
+        specifier: workspace:^
+        version: link:../../packages/client
+      next:
+        specifier: ^15.0.0
+        version: 15.5.19(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      sanitize-html:
+        specifier: ^2.17.4
+        version: 2.17.4
+    devDependencies:
+      '@reverso/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@reverso/core':
+        specifier: workspace:^
+        version: link:../../packages/core
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/sanitize-html':
+        specifier: ^2.16.1
+        version: 2.16.1
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.14)
+      postcss:
+        specifier: ^8.4.47
+        version: 8.5.14
+      tailwindcss:
+        specifier: ^3.4.17
+        version: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/admin:
     dependencies:
       '@dnd-kit/core':

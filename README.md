@@ -201,7 +201,67 @@ Repeater items come back as arrays:
 const posts = home.items('home.posts'); // [{ title, image, ... }, ...]
 ```
 
-See `examples/blog` and `examples/portfolio` for complete integrations.
+See `examples/showcase` (every field type), `examples/blog`, and
+`examples/portfolio` for complete integrations.
+
+---
+
+## Try it locally (no npm publish required)
+
+This monorepo is fully self-contained: every internal package is linked via
+`workspace:*`, so you can run the **entire end-to-end flow** — scan → admin →
+edit → frontend — straight from a clone, without publishing anything to npm.
+
+The `examples/showcase` app is built specifically for this: a single front-end
+that exercises **every Reverso field type** across multiple sections, so you can
+verify the full integration in one place.
+
+### 1. Install and build once
+
+```bash
+git clone https://github.com/hogrid/reverso.git
+cd reverso
+pnpm install
+pnpm build
+```
+
+### 2. Start Reverso against the showcase example
+
+```bash
+cd examples/showcase
+npx reverso dev
+```
+
+This scans the showcase components, generates the schema, and starts the API +
+admin panel on **http://localhost:3001** (it auto-picks the next free port if
+3001 is taken — watch the console output for the actual URL).
+
+### 3. Open the admin and create content
+
+1. Open **http://localhost:3001/admin**
+2. First run: click **"Don't have an account? Create one"** and register the
+   first admin user (password must be at least 8 characters).
+3. You'll see the **Showcase** page with every detected field, grouped by
+   section (text, rich text, choices, media, date/time, repeaters, relations,
+   map, …).
+4. Edit some fields — including a **repeater** (add/remove/reorder items) — and
+   click **Save**.
+
+### 4. Run the front-end and see your content
+
+In a second terminal:
+
+```bash
+cd examples/showcase
+NEXT_PUBLIC_REVERSO_URL=http://localhost:3001 PORT=3010 npm run dev
+```
+
+Open **http://localhost:3010**. The content you just edited in the admin is
+rendered on the page. That's the complete loop: **your JSX markers became a CMS,
+and the CMS content flows back into your front-end.**
+
+> **Tip:** the same steps work with `examples/blog` and `examples/portfolio`.
+> Run `reverso scan --verbose` to list every field detected from your code.
 
 ---
 
@@ -580,6 +640,9 @@ create-reverso
 |-----|-------------|
 | `apps/docs` | Documentation site (Astro Starlight) |
 | `apps/playground` | Interactive demo (Vite + Monaco Editor) |
+| `examples/showcase` | Full-coverage example exercising every field type (best starting point for testing) |
+| `examples/blog` | Blog front-end wired to Reverso (`@reverso/client`) |
+| `examples/portfolio` | Portfolio front-end wired to Reverso |
 
 ### Tech Stack
 
