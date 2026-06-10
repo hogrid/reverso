@@ -76,11 +76,33 @@ export class FileWatcher {
     const include = this.options.include ?? [...DEFAULT_INCLUDE_PATTERNS];
     const exclude = this.options.exclude ?? [...DEFAULT_EXCLUDE_PATTERNS];
 
-    // Create glob patterns for chokidar
-    const patterns = include.map((pattern) => `${srcDir}/${pattern}`);
+    // chokidar v4+ removed glob support, so we watch the source directory and
+    // filter with an `ignored` predicate instead of passing glob patterns.
+    // Allowed file extensions are derived from the include patterns
+    // (e.g. "**/*.tsx" -> "tsx"); excluded directories are derived from the
+    // exclude patterns (e.g. "**/node_modules/**" -> "node_modules").
+    const allowedExtensions = include
+      .map((p) => p.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase())
+      .filter((e): e is string => Boolean(e));
+    const excludedDirs = exclude
+      .map((p) => p.replace(/\*+/g, '').replace(/\//g, '').trim())
+      .filter(Boolean);
 
-    this.watcher = watch(patterns, {
-      ignored: exclude,
+    const isIgnored = (filePath: string, stats?: { isFile(): boolean }): boolean => {
+      // Ignore anything under an excluded directory.
+      if (excludedDirs.some((dir) => filePath.split('/').includes(dir))) {
+        return true;
+      }
+      // For files, keep only those with an allowed extension.
+      if (stats?.isFile()) {
+        const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+        return allowedExtensions.length > 0 && !allowedExtensions.includes(ext);
+      }
+      return false;
+    };
+
+    this.watcher = watch(srcDir, {
+      ignored: isIgnored,
       persistent: true,
       ignoreInitial: true,
       awaitWriteFinish: {

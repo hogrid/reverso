@@ -59,8 +59,18 @@ export class AstParser {
     };
 
     // Create ts-morph project
-    this.project = new Project({
-      tsConfigFilePath: options.tsConfigFilePath,
+    this.project = this.createProject();
+  }
+
+  /**
+   * Create a fresh ts-morph Project. A new instance is used for every scan so
+   * that modified files are always read from disk — ts-morph caches source
+   * file contents internally, so reusing the Project (even after removing the
+   * source files) can return stale content in watch mode.
+   */
+  private createProject(): Project {
+    return new Project({
+      tsConfigFilePath: this.options.tsConfigFilePath,
       skipAddingFilesFromTsConfig: true,
       skipFileDependencyResolution: true,
       compilerOptions: {
@@ -143,9 +153,11 @@ export class AstParser {
       // Find all files
       const filePaths = await this.findFiles();
 
-      // Release any source files retained from a previous scan so the ts-morph
-      // Project does not accumulate SourceFiles across rescans (watch mode).
-      this.clear();
+      // Start each scan from a brand-new Project. This both releases the
+      // SourceFiles from the previous scan and guarantees modified files are
+      // re-read from disk (ts-morph caches file contents, so reusing the
+      // Project would return stale content in watch mode).
+      this.project = this.createProject();
 
       // Add files to project
       for (const filePath of filePaths) {

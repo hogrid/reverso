@@ -37,8 +37,16 @@ export async function createReverso(): Promise<void> {
   console.log(chalk.bold.blue('  ╰─────────────────────────────────────╯'));
   console.log();
 
-  // Get project configuration from user
-  const config = await promptConfig();
+  // Parse CLI args: optional positional project name + --yes/-y for defaults.
+  // Usage: npx create-reverso [project-name] [--yes]
+  const argv = process.argv.slice(2);
+  const skipPrompts = argv.includes('--yes') || argv.includes('-y');
+  const positionalName = argv.find((a) => !a.startsWith('-'));
+
+  // Get project configuration (non-interactive when --yes, else prompt)
+  const config = skipPrompts
+    ? defaultConfig(positionalName)
+    : await promptConfig(positionalName);
   if (!config) {
     console.log(chalk.gray('Setup cancelled.'));
     return;
@@ -52,16 +60,32 @@ export async function createReverso(): Promise<void> {
 }
 
 /**
- * Prompt user for project configuration.
+ * Default configuration for non-interactive (`--yes`) project creation.
  */
-async function promptConfig(): Promise<ProjectConfig | null> {
+function defaultConfig(projectName?: string): ProjectConfig {
+  return {
+    projectName: projectName || 'my-reverso-app',
+    framework: 'nextjs',
+    database: 'sqlite',
+    packageManager: 'npm',
+    typescript: true,
+    git: true,
+    install: true,
+  } as ProjectConfig;
+}
+
+/**
+ * Prompt user for project configuration.
+ * A positional project name (if provided) pre-fills the first prompt.
+ */
+async function promptConfig(initialName?: string): Promise<ProjectConfig | null> {
   const response = await prompts(
     [
       {
         type: 'text',
         name: 'projectName',
         message: 'Project name:',
-        initial: 'my-reverso-app',
+        initial: initialName || 'my-reverso-app',
         validate: (value: string) => {
           if (!value) return 'Project name is required';
           if (!/^[a-z0-9-]+$/.test(value)) {

@@ -10,6 +10,13 @@ import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { hostname } from 'node:os';
+import { randomBytes } from 'node:crypto';
+
+/** Generate a strong random password for non-interactive (--yes) admin setup. */
+function generatePassword(): string {
+  // 18 url-safe chars — comfortably above the 8-char minimum.
+  return randomBytes(14).toString('base64url').slice(0, 18);
+}
 import { fileURLToPath } from 'node:url';
 import { showBanner, showSuccess, showTip } from '../ui/index.js';
 
@@ -217,36 +224,57 @@ export function initCommand(program: Command): void {
       console.log(chalk.bold('Admin Account Setup'));
       console.log();
 
-      const adminAnswers = await prompts([
-        {
-          type: 'text',
-          name: 'name',
-          message: 'Admin name',
-          initial: 'Admin',
-        },
-        {
-          type: 'text',
-          name: 'email',
-          message: 'Admin email',
-          initial: `admin@${hostname() || 'localhost'}`,
-          validate: (value: string) => value.includes('@') ? true : 'Invalid email',
-        },
-        {
-          type: 'password',
-          name: 'password',
-          message: 'Admin password (min 8 characters)',
-          validate: (value: string) => value.length >= 8 ? true : 'Password must be at least 8 characters',
-        },
-      ], {
-        onSubmit: () => {
-          // Clear line after prompt for cleaner output
-          console.log('');
-        }
-      });
+      // In non-interactive mode (--yes) we must not block on prompts: generate
+      // default credentials with a strong random password instead.
+      const generatedPassword = generatePassword();
+      const adminAnswers = options.yes
+        ? {
+            name: 'Admin',
+            email: `admin@${hostname() || 'localhost'}`,
+            password: generatedPassword,
+          }
+        : await prompts(
+            [
+              {
+                type: 'text',
+                name: 'name',
+                message: 'Admin name',
+                initial: 'Admin',
+              },
+              {
+                type: 'text',
+                name: 'email',
+                message: 'Admin email',
+                initial: `admin@${hostname() || 'localhost'}`,
+                validate: (value: string) => (value.includes('@') ? true : 'Invalid email'),
+              },
+              {
+                type: 'password',
+                name: 'password',
+                message: 'Admin password (min 8 characters)',
+                validate: (value: string) =>
+                  value.length >= 8 ? true : 'Password must be at least 8 characters',
+              },
+            ],
+            {
+              onSubmit: () => {
+                // Clear line after prompt for cleaner output
+                console.log('');
+              },
+            }
+          );
 
       if (!adminAnswers.name || !adminAnswers.email || !adminAnswers.password) {
         console.log(chalk.red('Admin setup cancelled.'));
         process.exit(1);
+      }
+
+      if (options.yes) {
+        console.log(chalk.gray('  Generated admin credentials (non-interactive mode):'));
+        console.log(chalk.gray('    Email:    ') + chalk.cyan(adminAnswers.email));
+        console.log(chalk.gray('    Password: ') + chalk.cyan(generatedPassword));
+        console.log(chalk.yellow('  Save this password now — it is only shown once.'));
+        console.log();
       }
 
       // Save admin credentials for dev server
