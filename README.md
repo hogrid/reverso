@@ -40,7 +40,7 @@
 
 - Admin panel with all your fields
 - Database schema and migrations
-- REST & GraphQL APIs
+- REST API (GraphQL planned)
 - TypeScript types
 
 > **"From front to back, not the other way around."**
@@ -87,7 +87,7 @@ Reverso covers everything you need from WordPress + Advanced Custom Fields:
 - SEO & Permalinks (like Yoast)
 - Multi-language support
 - User roles & permissions
-- REST & GraphQL APIs
+- REST API (GraphQL planned)
 - Media library
 - Content scheduling
 - Revision history
@@ -216,13 +216,26 @@ The `examples/showcase` app is built specifically for this: a single front-end
 that exercises **every Reverso field type** across multiple sections, so you can
 verify the full integration in one place.
 
+### Prerequisites
+
+| Tool | Version | Check |
+|------|---------|-------|
+| Node.js | 20 or newer | `node -v` |
+| pnpm | 9 or newer | `pnpm -v` (install: `npm i -g pnpm`) |
+| Git | any | `git --version` |
+
+> Reverso uses SQLite (via `better-sqlite3`) by default — no database server to
+> install. On first build it compiles a small native module, so a C toolchain
+> may be needed on Linux (`build-essential`/`python3`); macOS and Windows
+> usually work out of the box.
+
 ### 1. Install and build once
 
 ```bash
 git clone https://github.com/hogrid/reverso.git
 cd reverso
-pnpm install
-pnpm build
+pnpm install      # installs all workspace dependencies
+pnpm build        # builds every package (required before running the examples)
 ```
 
 ### 2. Start Reverso against the showcase example
@@ -262,6 +275,114 @@ and the CMS content flows back into your front-end.**
 
 > **Tip:** the same steps work with `examples/blog` and `examples/portfolio`.
 > Run `reverso scan --verbose` to list every field detected from your code.
+
+---
+
+## The three usage scenarios
+
+The walkthrough above is the quickest way to see Reverso working. The three
+scenarios below cover the real lifecycles a project goes through. They were each
+validated against a local npm registry (see *Validating a real install* further
+down) so they behave exactly like installing from npm.
+
+### Scenario A — Add Reverso to an existing front-end
+
+You already have a React/Next.js site and want to make it editable.
+
+```bash
+# in your existing project, add data-reverso markers to your JSX first, then:
+npm install -D @reverso/cli @reverso/core
+
+# scaffold config + admin account (interactive)
+npx reverso init
+# …or fully non-interactive (generates a random admin password and prints it once):
+npx reverso init --yes
+
+# start the CMS
+npx reverso dev
+```
+
+`reverso init` creates `reverso.config.ts`, a `.reverso/` directory, and admin
+credentials. `reverso dev` then scans your existing components, builds the
+schema, and serves the admin at `http://localhost:3001/admin`. On first run the
+admin account from `init` is seeded automatically — log in with it (or, if you
+skipped `init`, register the first user in the UI).
+
+### Scenario B — Start a brand-new project with Reverso
+
+Nothing exists yet. Scaffold everything at once:
+
+```bash
+# interactive wizard
+npx create-reverso
+
+# …or non-interactive with a project name + defaults
+npx create-reverso my-app --yes
+
+cd my-app
+npm run dev   # runs reverso dev
+```
+
+`create-reverso` generates a Next.js front-end (with example `data-reverso`
+markers), a valid `reverso.config.ts`, and installs the Reverso packages — ready
+to edit in the admin immediately.
+
+### Scenario C — Sync new fields into a running CMS
+
+Reverso is already running (`reverso dev` is up in watch mode). You add new
+content fields simply by adding markers to your code:
+
+```tsx
+// add a new marker anywhere in a watched component
+<span data-reverso="home.hero.badge" data-reverso-type="text">New</span>
+```
+
+Save the file. The watcher re-scans, the new field appears in the admin panel
+automatically, and **all existing content is preserved** — no restart, no
+migration step. Removing a marker removes the field; renaming a path is treated
+as a new field (the old content stays until you delete it).
+
+> You can also trigger a one-off sync without watch mode by running
+> `reverso scan` in another terminal while `reverso dev` is running.
+
+### Validating a real install (optional, advanced)
+
+To test scenarios A and B exactly as an end user would — installing the
+`@reverso/*` packages from a registry instead of `workspace:*` — publish to a
+local [Verdaccio](https://verdaccio.org) registry and point npm at it:
+
+```bash
+# 1. start a local registry
+npx verdaccio --listen 4873
+
+# 2. publish all packages to it (from the monorepo root)
+echo '//localhost:4873/:_authToken=local' > .npmrc
+pnpm -r publish --registry http://localhost:4873 --no-git-checks
+rm .npmrc
+
+# 3. in a fresh test project, point npm at the local registry
+#    (.npmrc in the project)
+echo 'registry=http://localhost:4873/'        >  .npmrc
+echo '//localhost:4873/:_authToken=local'     >> .npmrc
+# now `npx create-reverso my-app --yes` / `npx reverso init` resolve from there
+```
+
+This is how the scenarios above were verified end to end without publishing to
+the public npm registry.
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| `Port 3001 is already in use` | Another process holds the port. `reverso dev` auto-picks the next free port — check the console for the real URL — or pass `reverso dev --port 4000`. Free it with `lsof -ti:3001 \| xargs kill`. |
+| Admin page is blank / 404 at `/admin` | The admin panel wasn't built. Run `pnpm build` at the repo root before starting the example. |
+| New marker doesn't show up in the admin | Make sure `reverso dev` is running (watch mode) and the file is **inside** `srcDir` and matches `scanner.include`. Save the file; the panel updates within ~1s. As a fallback, run `reverso scan` in another terminal. |
+| `must have at least 3 parts` warning during scan | A marker path is invalid. Paths are `page.section.field`; repeaters use `page.section.$.subfield` (the `$` must be the 3rd segment). Invalid markers are skipped, not fatal. |
+| Front-end shows fallback text, not CMS content | The front-end can't reach the API. Confirm `reverso dev` is running and `NEXT_PUBLIC_REVERSO_URL` points at the right port. Content also only appears once it's **saved** in the admin. |
+| `create-reverso` / `reverso init` hangs waiting for input | Use the non-interactive flags: `npx create-reverso my-app --yes` or `npx reverso init --yes`. |
+
+> **Stop everything:** press `Ctrl+C` in each terminal, or
+> `lsof -ti:3001,3010 \| xargs kill` to free the dev ports.
 
 ---
 
@@ -620,19 +741,22 @@ create-reverso
 
 ### Packages
 
-| Package | Version | Description |
-|---------|---------|-------------|
-| [`create-reverso`](https://www.npmjs.com/package/create-reverso) | 0.1.1 | `npx create-reverso` installer wizard |
-| [`@reverso/cli`](https://www.npmjs.com/package/@reverso/cli) | 0.1.23 | CLI commands (`init`, `scan`, `dev`, `build`, `start`, `migrate`) |
-| [`@reverso/core`](https://www.npmjs.com/package/@reverso/core) | 0.1.1 | Shared types, utilities, config system, Zod schemas |
-| [`@reverso/scanner`](https://www.npmjs.com/package/@reverso/scanner) | 0.1.23 | AST parser (ts-morph) for detecting `data-reverso-*` markers |
-| [`@reverso/db`](https://www.npmjs.com/package/@reverso/db) | 0.1.18 | Drizzle ORM schema + migrations (SQLite dev / PostgreSQL prod) |
-| [`@reverso/api`](https://www.npmjs.com/package/@reverso/api) | 0.1.18 | Fastify server with REST + GraphQL endpoints |
-| [`@reverso/admin`](https://www.npmjs.com/package/@reverso/admin) | 0.1.18 | React + Vite + shadcn/ui admin panel |
-| [`@reverso/blocks`](https://www.npmjs.com/package/@reverso/blocks) | 0.1.1 | Tiptap-based block editor component |
-| [`@reverso/forms`](https://www.npmjs.com/package/@reverso/forms) | 0.1.1 | Form builder (react-hook-form + Zod) |
-| [`@reverso/mcp`](https://www.npmjs.com/package/@reverso/mcp) | 0.1.1 | MCP Server for AI tool integration |
-| [`@reverso/client`](https://www.npmjs.com/package/@reverso/client) | 0.1.0 | Frontend SDK for reading published content |
+| Package | Description |
+|---------|-------------|
+| [`create-reverso`](https://www.npmjs.com/package/create-reverso) | `npx create-reverso` installer wizard |
+| [`@reverso/cli`](https://www.npmjs.com/package/@reverso/cli) | CLI commands (`init`, `scan`, `dev`, `build`, `start`, `migrate`) |
+| [`@reverso/core`](https://www.npmjs.com/package/@reverso/core) | Shared types, utilities, config system, Zod schemas |
+| [`@reverso/scanner`](https://www.npmjs.com/package/@reverso/scanner) | AST parser (ts-morph) for detecting `data-reverso-*` markers |
+| [`@reverso/db`](https://www.npmjs.com/package/@reverso/db) | Drizzle ORM schema + migrations (SQLite dev / PostgreSQL prod) |
+| [`@reverso/api`](https://www.npmjs.com/package/@reverso/api) | Fastify server with REST endpoints |
+| [`@reverso/admin`](https://www.npmjs.com/package/@reverso/admin) | React + Vite + shadcn/ui admin panel |
+| [`@reverso/blocks`](https://www.npmjs.com/package/@reverso/blocks) | Tiptap-based block editor component |
+| [`@reverso/forms`](https://www.npmjs.com/package/@reverso/forms) | Form builder (react-hook-form + Zod) |
+| [`@reverso/mcp`](https://www.npmjs.com/package/@reverso/mcp) | MCP Server for AI tool integration |
+| [`@reverso/client`](https://www.npmjs.com/package/@reverso/client) | Frontend SDK for reading published content |
+
+> Current versions are on npm — see each package's badge or run
+> `npm view @reverso/<pkg> version`.
 
 ### Apps (not published)
 
@@ -652,7 +776,6 @@ create-reverso
 | **Package Manager** | pnpm 9+ |
 | **Monorepo** | Turborepo |
 | **API** | Fastify |
-| **GraphQL** | Mercurius |
 | **Database** | SQLite (dev) / PostgreSQL (prod) |
 | **ORM** | Drizzle |
 | **Auth** | Better Auth + bcrypt |
@@ -680,14 +803,14 @@ create-reverso
  └──────────────┘    └──────────────┘   └─────────────┘   └──────────────┘
                            │                    │                  │
                       schema.json          REST API          Edit content
-                      + TS types         + GraphQL          in the browser
+                      + TS types         in the browser
 ```
 
 1. **You code** your React components normally, adding `data-reverso` attributes
 2. **Scanner** parses your JSX using ts-morph, extracting all markers into a schema
 3. **Schema sync** pushes the detected fields to the database via the API
 4. **Admin panel** renders the appropriate input fields for each type
-5. **API** serves the content back to your frontend via REST or GraphQL
+5. **API** serves the content back to your frontend via REST
 6. **Watch mode** keeps everything in sync as you edit your code
 
 ---
