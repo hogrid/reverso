@@ -40,12 +40,12 @@
     "@reverso/db": "workspace:*",
     "@reverso/scanner": "workspace:*",
     "boxen": "^8.0.1",
-    "chalk": "^5.4.1",
-    "commander": "^14.0.3",
+    "chalk": "^6.0.0",
+    "commander": "^15.0.0",
     "dotenv": "^17.4.2",
-    "figlet": "^1.11.0",
+    "figlet": "^1.11.3",
     "gradient-string": "^3.0.0",
-    "ora": "^9.4.0",
+    "ora": "^9.4.1",
     "prompts": "^2.4.2"
   },
   "devDependencies": {
@@ -53,7 +53,7 @@
     "@types/gradient-string": "^1.1.6",
     "@types/node": "^25.2.0",
     "@types/prompts": "^2.4.9",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.18"
   },
   "publishConfig": {
