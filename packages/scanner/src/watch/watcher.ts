@@ -58,6 +58,7 @@ export class FileWatcher {
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
   private debounceDelay: number;
   private isReady = false;
+  private readyWaiters: Array<() => void> = [];
 
   constructor(options: WatcherOptions) {
     this.options = options;
@@ -124,9 +125,23 @@ export class FileWatcher {
 
     this.watcher.on('ready', () => {
       this.isReady = true;
+      for (const resolve of this.readyWaiters.splice(0)) resolve();
       if (this.options.onReady) {
         this.options.onReady();
       }
+    });
+  }
+
+  /**
+   * Resolve once chokidar has finished its initial directory walk. Files
+   * written before that point are treated as pre-existing (ignoreInitial)
+   * and produce no event, so callers must wait for this before relying on
+   * change notifications.
+   */
+  waitUntilReady(): Promise<void> {
+    if (this.isReady || !this.watcher) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.readyWaiters.push(resolve);
     });
   }
 

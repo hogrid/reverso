@@ -211,6 +211,8 @@ export class Scanner {
     });
 
     this.watcher.start();
+    // Only report "watching" once change events can actually fire.
+    await this.watcher.waitUntilReady();
   }
 
   /**

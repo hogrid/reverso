@@ -49,6 +49,7 @@ const DEFAULT_PUBLIC_PATHS = [
   /^\/sitemap\.xml$/,
   /^\/api\/reverso\/sitemap\.xml$/,
   /^\/api\/reverso\/public\//,
+  /^\/api\/reverso\/redirect$/, // Redirect lookup used by frontend middleware
   /^\/admin(\/|$)/, // Admin panel shell + static files (the SPA handles login)
   /^\/favicon\.svg$/,
   /^\/auth\//, // Auth routes (login, register, setup-status, etc) - always accessible
