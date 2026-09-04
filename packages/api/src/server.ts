@@ -10,13 +10,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import csrfProtection from '@fastify/csrf-protection';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import authPlugin, { resolveAuthEnabled } from './plugins/auth.js';
+import { corsOriginFromEnv } from './utils/security.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -110,11 +110,12 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Register CORS
   if (opts.cors) {
-    // In production, require explicit origin configuration
+    // REVERSO_CORS_ORIGIN (single origin, comma-separated list or `*`) wins in
+    // every environment; without it, development allows any origin and
+    // production allows none cross-site (frontends normally read the public
+    // API server-side, and same-origin admin calls are unaffected).
     const isProduction = process.env.NODE_ENV === 'production';
-    const defaultOrigin = isProduction
-      ? process.env.REVERSO_CORS_ORIGIN || 'http://localhost:3000'
-      : true;
+    const defaultOrigin = corsOriginFromEnv() ?? (isProduction ? false : true);
 
     const corsOptions =
       typeof opts.cors === 'object'
@@ -146,7 +147,9 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
-        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+        // Only force https when cookies are explicitly Secure; otherwise a
+        // plain-http deployment would have its own assets upgraded and break.
+        upgradeInsecureRequests: process.env.REVERSO_COOKIE_SECURE === 'true' ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false, // Disable for media uploads
@@ -159,38 +162,10 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
-  // Register CSRF protection.
-  // Primary CSRF defense is already in place: the session cookie is
-  // httpOnly + SameSite=lax (see routes/auth.ts), so cross-site mutating
-  // requests never carry it. Token-based CSRF is an opt-in defense-in-depth
-  // layer, gated by REVERSO_CSRF_ENABLED, because it requires the admin
-  // client to send the x-csrf-token header on every mutation.
-  const csrfEnabled = process.env.REVERSO_CSRF_ENABLED === 'true';
-  if (csrfEnabled) {
-    await server.register(csrfProtection, {
-      sessionPlugin: '@fastify/cookie',
-      cookieOpts: {
-        signed: true,
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      },
-      getToken: (request) => {
-        return (
-          request.headers['x-csrf-token']?.toString() ||
-          request.headers['csrf-token']?.toString()
-        );
-      },
-    });
+  // CSRF: the session cookie is httpOnly + SameSite=Lax and the auth plugin
+  // rejects cookie-authenticated mutations whose Origin is another site.
+  // No token layer is needed for the admin, so none is registered.
 
-    server.get('/api/csrf-token', async (request, reply) => {
-      const token = await reply.generateCsrf();
-      return { csrfToken: token };
-    });
-  }
-
-  // Register rate limiting
   // Rate limiting protects the API and auth endpoints. The admin shell and
   // its static assets are exempt: a single page load fetches dozens of
   // chunks and would otherwise eat the budget of the API calls that follow.
@@ -200,10 +175,20 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     // request.ip already honours X-Forwarded-For when trustProxy is on;
     // reading the header directly would let any client pick its own bucket.
     keyGenerator: (request) => request.headers['x-api-key']?.toString() || request.ip,
-    allowList: (request) =>
-      /^\/(health|favicon\.svg)$/.test(request.url) ||
-      request.url.startsWith('/admin') ||
-      request.url.startsWith('/uploads/'),
+    allowList: (request) => {
+      const path = request.url.split('?')[0] ?? request.url;
+      return (
+        /^\/(health|favicon\.svg)$/.test(path) ||
+        path.startsWith('/admin') ||
+        path.startsWith('/uploads/') ||
+        // Public reads are what frontends (often one SSR server = one IP)
+        // hammer; they are cheap and read-only, so they are not budgeted.
+        (request.method === 'GET' &&
+          (path.startsWith('/api/reverso/public/') ||
+            path === '/api/reverso/redirect' ||
+            path === '/api/reverso/sitemap.xml'))
+      );
+    },
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       success: false,

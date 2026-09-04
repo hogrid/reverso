@@ -97,7 +97,8 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
 
       const options: MediaListOptions = {};
-      if (type) options.mimeType = type;
+      // Accept `image/*` (browser accept syntax) as well as `image/`.
+      if (type) options.mimeType = type.replace(/\*$/, '');
       if (search) options.search = search;
       if (limit) options.limit = limit;
       if (offset) options.offset = offset;

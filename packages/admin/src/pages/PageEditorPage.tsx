@@ -22,7 +22,7 @@ import { useAutosave, useKeyboardShortcuts, editorShortcuts, useUnsavedChangesGu
 import { useEditorStore } from '@/stores/editor';
 import type { ContentValue, SectionSchema } from '@reverso/core';
 import { Check, ChevronLeft, Loader2, Redo, Save, Undo } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 export function PageEditorPage() {
@@ -63,10 +63,17 @@ export function PageEditorPage() {
     clearDirtyFields();
   }, [slug, hasDirtyFields, getDirtyFieldsData, clearDirtyFields, updateContent]);
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { save, isSaving, lastSaved } = useAutosave({
-    onSave: performSave,
+    onSave: async () => {
+      setSaveError(null);
+      await performSave();
+    },
     onError: (error) => {
-      console.error('Autosave failed:', error);
+      console.error('Save failed:', error);
+      const message =
+        (error as { message?: string } | null)?.message ?? 'Could not save your changes.';
+      setSaveError(message);
     },
     debounceMs: 3000,
   });
@@ -154,7 +161,11 @@ export function PageEditorPage() {
           <div className="flex items-center gap-4">
             {/* Status */}
             <div className="flex items-center gap-1.5 text-[13px] text-[hsl(var(--muted-foreground))]">
-              {isSaving ? (
+              {saveError ? (
+                <Badge variant="destructive" className="text-[11px] max-w-md truncate" title={saveError}>
+                  Not saved: {saveError}
+                </Badge>
+              ) : isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Saving...</span>

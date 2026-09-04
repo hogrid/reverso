@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 // Validate hex color format
@@ -37,6 +37,12 @@ export function ColorField({ field, value, onChange, disabled }: FieldRendererPr
   const colorValue = String(value ?? '#000000');
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(colorValue);
+
+  // Presets, the native picker and undo/redo change `value` from outside the
+  // text box; mirror them so the hex input never shows a stale color.
+  useEffect(() => {
+    setInputValue(colorValue);
+  }, [colorValue]);
 
   // Handle hex input changes - only update parent if valid
   const handleInputChange = useCallback(

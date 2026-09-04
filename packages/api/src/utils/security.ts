@@ -173,3 +173,34 @@ export function isValidTokenFormat(token: string): boolean {
 
   return true;
 }
+
+
+/**
+ * Whether cookies should carry the `Secure` flag for this request.
+ *
+ * REVERSO_COOKIE_SECURE:
+ *   - "auto" (default): Secure when the request arrived over HTTPS (behind a
+ *     proxy this needs REVERSO_TRUST_PROXY=true so X-Forwarded-Proto counts).
+ *     Plain-HTTP deployments (internal networks, first boot before TLS) keep
+ *     working instead of silently dropping the login cookie.
+ *   - "true": always Secure (recommended once TLS is in place).
+ *   - "false": never Secure.
+ */
+export function cookieSecure(request: { protocol: string }): boolean {
+  const setting = (process.env.REVERSO_COOKIE_SECURE ?? 'auto').toLowerCase();
+  if (setting === 'true') return true;
+  if (setting === 'false') return false;
+  return request.protocol === 'https';
+}
+
+/**
+ * CORS origin setting from REVERSO_CORS_ORIGIN: `*`, a single origin or a
+ * comma-separated list. Undefined when the variable is not set.
+ */
+export function corsOriginFromEnv(): string | string[] | boolean | undefined {
+  const raw = process.env.REVERSO_CORS_ORIGIN?.trim();
+  if (!raw) return undefined;
+  if (raw === '*' || raw === 'true') return true;
+  const list = raw.split(',').map((o) => o.trim()).filter(Boolean);
+  return list.length === 1 ? list[0] : list;
+}

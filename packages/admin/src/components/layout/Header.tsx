@@ -1,15 +1,12 @@
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
-  Bell,
   ExternalLink,
   FileText,
   FormInput,
   Image,
   LayoutDashboard,
   Menu,
-  Search,
   Settings,
   X,
 } from 'lucide-react';
@@ -89,32 +86,6 @@ export function Header() {
 
         {/* Right side */}
         <div className="flex items-center gap-2 md:gap-4">
-          {/* Search */}
-          <form className="hidden sm:block" onSubmit={(e) => e.preventDefault()}>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]"
-                aria-hidden="true"
-              />
-              <Input
-                type="search"
-                placeholder="Search..."
-                aria-label="Search"
-                className="h-9 w-60 pl-9 pr-3 text-[13px] bg-[hsl(var(--secondary))] border-0 focus:bg-white dark:focus:bg-[hsl(var(--card))]"
-              />
-            </div>
-          </form>
-
-          {/* Notification bell */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
-            aria-label="Notifications"
-          >
-            <Bell className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
-          </Button>
-
           {/* Theme toggle (with system option) */}
           <ThemeToggle />
         </div>

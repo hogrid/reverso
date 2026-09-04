@@ -10,6 +10,7 @@ import {
   type FileScanResult,
   type ScanError,
 } from '@reverso/core';
+import { existsSync } from 'node:fs';
 import { glob } from 'glob';
 import { Project, type SourceFile } from 'ts-morph';
 import { type JsxWalkerOptions, walkJsxElements } from './jsx-walker.js';
@@ -150,6 +151,15 @@ export class AstParser {
     const allFields: DetectedField[] = [];
 
     try {
+      const srcDir = resolve(this.options.srcDir);
+      if (!existsSync(srcDir)) {
+        errors.push({
+          type: 'io',
+          message: `Source directory not found: ${srcDir}. Set "srcDir" in reverso.config.ts to the folder that holds your components.`,
+        });
+        return { fields: [], fileResults: [], errors, duration: performance.now() - startTime };
+      }
+
       // Find all files
       const filePaths = await this.findFiles();
 

@@ -30,6 +30,12 @@ describe('authentication', () => {
 
   describe('public surface', () => {
     it('serves /health, prefixed health, the admin shell and public content without credentials', async () => {
+      await t.server.inject({
+        method: 'POST',
+        url: '/api/reverso/schema/sync',
+        headers: { 'x-api-key': API_KEY },
+        payload: { schema: HOME_SCHEMA },
+      });
       for (const url of [
         '/health',
         '/api/reverso/health',
@@ -61,6 +67,12 @@ describe('authentication', () => {
     });
 
     it('ignores the query string when matching public paths', async () => {
+      await t.server.inject({
+        method: 'POST',
+        url: '/api/reverso/schema/sync',
+        headers: { 'x-api-key': API_KEY },
+        payload: { schema: HOME_SCHEMA },
+      });
       const res = await t.server.inject({
         method: 'GET',
         url: '/api/reverso/public/content/page/home?locale=default',
@@ -239,5 +251,51 @@ describe('authentication', () => {
         await open.close();
       }
     });
+  });
+});
+
+describe('cookie security policy', () => {
+  const saved = process.env.REVERSO_COOKIE_SECURE;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.REVERSO_COOKIE_SECURE;
+    else process.env.REVERSO_COOKIE_SECURE = saved;
+  });
+
+  async function registerAndReadCookie(t: TestServer, headers: Record<string, string> = {}) {
+    const res = await t.server.inject({
+      method: 'POST',
+      url: '/auth/register',
+      headers,
+      payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
+    });
+    const raw = res.headers['set-cookie'];
+    return Array.isArray(raw) ? raw[0] ?? '' : String(raw ?? '');
+  }
+
+  it('auto: the cookie is Secure only when the request came over https', async () => {
+    delete process.env.REVERSO_COOKIE_SECURE;
+    const plain = await createTestServer({ name: 'cookie-plain', authEnabled: true });
+    try {
+      expect(await registerAndReadCookie(plain)).not.toMatch(/;\s*Secure/i);
+    } finally {
+      await plain.close();
+    }
+  });
+
+  it('true: always Secure; false: never', async () => {
+    process.env.REVERSO_COOKIE_SECURE = 'true';
+    const strict = await createTestServer({ name: 'cookie-true', authEnabled: true });
+    try {
+      expect(await registerAndReadCookie(strict)).toMatch(/;\s*Secure/i);
+    } finally {
+      await strict.close();
+    }
+    process.env.REVERSO_COOKIE_SECURE = 'false';
+    const lax = await createTestServer({ name: 'cookie-false', authEnabled: true });
+    try {
+      expect(await registerAndReadCookie(lax)).not.toMatch(/;\s*Secure/i);
+    } finally {
+      await lax.close();
+    }
   });
 });

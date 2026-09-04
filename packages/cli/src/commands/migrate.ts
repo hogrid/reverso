@@ -5,7 +5,7 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { resolve } from 'node:path';
+import { resolveRuntimeConfig } from '../runtime-config.js';
 
 interface MigrateOptions {
   database?: string;
@@ -14,21 +14,12 @@ interface MigrateOptions {
 
 
 /**
- * Resolve the database path: CLI flag wins, then reverso.config database.url,
- * then the .reverso/dev.db default.
+ * Resolve the database path exactly like `dev`, `build` and `start` do
+ * (flag → REVERSO_DB_PATH → reverso.config database.url → default).
  */
 async function resolveDatabasePath(flag: string | undefined): Promise<string> {
-  if (flag) return resolve(flag);
-  try {
-    const { loadConfig } = await import('@reverso/core');
-    const { config } = await loadConfig({ cwd: process.cwd() });
-    if (config.database.provider === 'sqlite' && config.database.url) {
-      return resolve(config.database.url);
-    }
-  } catch {
-    // Fall through to default
-  }
-  return resolve('.reverso/dev.db');
+  const runtime = await resolveRuntimeConfig(process.cwd(), { database: flag });
+  return runtime.databasePath;
 }
 
 export function migrateCommand(program: Command): void {

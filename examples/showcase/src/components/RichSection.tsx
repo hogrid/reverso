@@ -65,6 +65,7 @@ export async function RichSection() {
             data-reverso-label="Code snippet"
             className="overflow-x-auto rounded-lg bg-slate-900 p-4 text-sm text-slate-100"
           >
+            {/* Stored as { code, language }; page.get() with a string fallback returns the source. */}
             <code>{page.get('showcase.rich.snippet', FALLBACK_SNIPPET)}</code>
           </pre>
         </div>

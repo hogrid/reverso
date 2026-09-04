@@ -35,6 +35,9 @@ const FormSubmissionsPage = lazy(() =>
 const RedirectsPage = lazy(() =>
   import('@/pages/RedirectsPage').then((m) => ({ default: m.RedirectsPage }))
 );
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
@@ -124,6 +127,14 @@ const router = createBrowserRouter(
           element: (
             <SuspensePage>
               <RedirectsPage />
+            </SuspensePage>
+          ),
+        },
+        {
+          path: 'settings',
+          element: (
+            <SuspensePage>
+              <SettingsPage />
             </SuspensePage>
           ),
         },

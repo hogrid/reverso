@@ -126,13 +126,11 @@ function getAttributeValue(attr: JsxAttribute): string | undefined {
       return 'false';
     }
 
-    // For other expressions, return the raw text
-    // Cast to JsxExpression since we've checked the kind above
+    // Anything else (variables, template literals with substitutions, calls)
+    // cannot be resolved statically. Treat it as absent rather than turning
+    // the source text into a bogus path or option.
     const jsxExpr = initializer as JsxExpression;
-    const expressionNode = jsxExpr.getExpression();
-    if (expressionNode) {
-      return expressionNode.getText();
-    }
+    void jsxExpr.getExpression();
   }
 
   return undefined;

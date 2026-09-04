@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, sanitizeHtml } from '@/lib/utils';
 import { Bold, Code, Italic, List, ListOrdered, Quote, Underline } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 // Simple WYSIWYG toolbar actions
@@ -20,16 +20,40 @@ const toolbarActions = [
 export function WysiwygField({ field, value, onChange, disabled }: FieldRendererProps) {
   const htmlValue = String(value ?? '');
   const [mode, setMode] = useState<'visual' | 'html'>('visual');
+  const editorRef = useRef<HTMLDivElement>(null);
+  // HTML we last pushed to the parent; used to tell our own edits apart from
+  // external changes (undo/redo, HTML tab, reload) so typing never resets the
+  // caret by re-rendering the contenteditable's innerHTML.
+  const lastEmitted = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Runs again when the Visual tab is remounted after a spell in HTML mode.
+    if (mode !== 'visual') return;
+    const el = editorRef.current;
+    if (!el) return;
+    if (htmlValue === lastEmitted.current) return;
+    const next = sanitizeHtml(htmlValue);
+    if (el.innerHTML !== next) {
+      el.innerHTML = next;
+    }
+    lastEmitted.current = htmlValue;
+  }, [htmlValue, mode]);
 
   // Execute formatting command
   const execCommand = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
-  }, []);
+    const el = editorRef.current;
+    if (el) {
+      lastEmitted.current = el.innerHTML;
+      onChange(el.innerHTML);
+    }
+  }, [onChange]);
 
   // Handle content changes from contenteditable
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLDivElement>) => {
       const content = e.currentTarget.innerHTML;
+      lastEmitted.current = content;
       onChange(content);
     },
     [onChange]
@@ -53,10 +77,12 @@ export function WysiwygField({ field, value, onChange, disabled }: FieldRenderer
             <div className="flex items-center gap-1 py-1">
               {toolbarActions.map((action) => (
                 <Button
-                  key={action.command}
+                  key={action.command + (action.value ?? '')}
+                  type="button"
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => execCommand(action.command, action.value)}
                   disabled={disabled}
                   title={action.label}
@@ -81,15 +107,22 @@ export function WysiwygField({ field, value, onChange, disabled }: FieldRenderer
 
         {/* Content area */}
         <TabsContent value="visual" className="m-0">
+          {/* The HTML is set imperatively (see effect above); React never
+              re-renders the children, so the caret stays where the user is. */}
           <div
+            ref={editorRef}
             id={field.path}
+            role="textbox"
+            aria-multiline="true"
+            aria-label={field.label || field.path}
             contentEditable={!disabled}
+            tabIndex={0}
+            suppressContentEditableWarning
             className={cn(
               'min-h-[200px] p-4 prose prose-sm max-w-none focus:outline-none',
               disabled && 'bg-muted cursor-not-allowed'
             )}
             onInput={handleInput}
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlValue) }}
           />
         </TabsContent>
 

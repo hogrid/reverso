@@ -3,7 +3,7 @@
  */
 
 import type { ContentValue } from '@reverso/core';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import { withTransaction } from '../connection.js';
 import {
@@ -134,14 +134,14 @@ export async function getContentByPathPrefix(
   prefix: string,
   locale = 'default'
 ): Promise<Array<{ path: string; content: Content }>> {
-  const result = await db
+  // GLOB is case-sensitive and uses the index on fields.path; escape the
+  // GLOB metacharacters that could appear in a path.
+  const pattern = `${prefix.replace(/[*?[\]]/g, (c) => `[${c}]`)}*`;
+  return db
     .select({ path: fields.path, content })
     .from(content)
     .innerJoin(fields, eq(content.fieldId, fields.id))
-    .where(eq(content.locale, locale));
-
-  // Filter by prefix in memory (SQLite LIKE is case-insensitive by default)
-  return result.filter((r) => r.path.startsWith(prefix));
+    .where(and(eq(content.locale, locale), sql`${fields.path} GLOB ${pattern}`));
 }
 
 /**

@@ -1,44 +1,69 @@
 /**
- * Start command - starts the production server.
+ * Start command - starts the production server (API + admin).
+ *
+ * Settings come from flags, then environment (REVERSO_PORT, REVERSO_HOST,
+ * REVERSO_DB_PATH), then reverso.config.ts, exactly like `reverso dev`, so the
+ * database prepared by `reverso build` or edited during development is the one
+ * served here.
  */
 
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { corsOption, resolveRuntimeConfig } from '../runtime-config.js';
 
 interface StartOptions {
-  port: string;
-  host: string;
-  database: string;
+  port?: string;
+  host?: string;
+  database?: string;
 }
 
 export function startCommand(program: Command): void {
   program
     .command('start')
     .description('Start the production server')
-    .option('-p, --port <port>', 'Server port', process.env.REVERSO_PORT || '3001')
-    .option('-H, --host <host>', 'Server host', process.env.REVERSO_HOST || '0.0.0.0')
-    .option('-d, --database <path>', 'Database file path', process.env.REVERSO_DB_PATH || '.reverso/reverso.db')
+    .option('-p, --port <port>', 'Server port (default: REVERSO_PORT or reverso.config dev.port)')
+    .option('-H, --host <host>', 'Server host (default: REVERSO_HOST or 0.0.0.0)')
+    .option('-d, --database <path>', 'Database file path (default: REVERSO_DB_PATH or reverso.config database.url)')
     .action(async (options: StartOptions) => {
       const spinner = ora();
 
       try {
-        const port = Number.parseInt(options.port, 10);
-        const dbPath = resolve(options.database);
-
-        if (!existsSync(dbPath)) {
-          console.log(chalk.yellow(`Database not found at ${dbPath}; creating an empty one.`));
-          console.log(
-            chalk.gray('Run `reverso build` (or `reverso scan` against this server) to load the schema.')
-          );
+        const runtime = await resolveRuntimeConfig(process.cwd(), {
+          port: options.port,
+          // Production binds to every interface unless told otherwise.
+          host: options.host ?? process.env.REVERSO_HOST ?? '0.0.0.0',
+          database: options.database,
+        });
+        for (const warning of runtime.warnings) {
+          // A missing source dir is irrelevant for `start`; surface the rest.
+          if (!warning.startsWith('Source directory')) console.log(chalk.yellow(`Warning: ${warning}`));
         }
 
         console.log(chalk.blue.bold('Starting Reverso CMS production server...'));
         console.log();
-        console.log(chalk.gray(`Database: ${dbPath}`));
+        console.log(chalk.gray(`Database (${runtime.databaseSource}): ${runtime.databasePath}`));
+        if (!existsSync(runtime.databasePath)) {
+          console.log(chalk.yellow('Database not found; creating an empty one.'));
+          console.log(
+            chalk.gray('Run `reverso build` (or `reverso scan --api-url <this server>`) to load the schema.')
+          );
+        }
         console.log();
+
+        if (!process.env.REVERSO_COOKIE_SECRET) {
+          console.log(
+            chalk.yellow(
+              'Warning: REVERSO_COOKIE_SECRET is not set. Set it in production (openssl rand -hex 32).'
+            )
+          );
+        }
+        if (!process.env.REVERSO_API_KEY) {
+          console.log(
+            chalk.gray('Info: REVERSO_API_KEY not set; `reverso scan --api-url` cannot sync to this server.')
+          );
+        }
 
         // createApiServer applies pending migrations, opens the database and
         // registers every route (auth included); nothing else must register
@@ -47,10 +72,10 @@ export function startCommand(program: Command): void {
         const { createApiServer, startServer } = await import('@reverso/api');
 
         const server = await createApiServer({
-          port,
-          host: options.host,
-          databaseUrl: dbPath,
-          cors: true,
+          port: runtime.port,
+          host: runtime.host,
+          databaseUrl: runtime.databasePath,
+          cors: corsOption(runtime.config),
           logger: true,
           authEnabled: true,
         });
@@ -65,27 +90,14 @@ export function startCommand(program: Command): void {
         console.log(chalk.gray(`  Admin:   ${address}/admin`));
         console.log(chalk.gray(`  API:     ${address}/api/reverso`));
         console.log(chalk.gray(`  Health:  ${address}/health`));
-        console.log(chalk.gray(`  Auth:    ${address}/auth/login`));
         console.log();
-
-        // Log security reminders in production
-        if (process.env.NODE_ENV === 'production') {
-          if (!process.env.REVERSO_COOKIE_SECRET) {
-            console.log(chalk.yellow('Warning: REVERSO_COOKIE_SECRET not set. Using development fallback.'));
-          }
-          if (!process.env.REVERSO_API_KEY) {
-            console.log(chalk.yellow('Info: No API key configured. Only session auth available.'));
-          }
-        }
-
         console.log(chalk.gray('Press Ctrl+C to stop'));
 
-        // Handle shutdown
         const shutdown = async () => {
           console.log(chalk.gray('\nShutting down gracefully...'));
           await server.close();
           const { closeDatabase } = await import('@reverso/db');
-          await closeDatabase();
+          closeDatabase();
           console.log(chalk.green('Server stopped.'));
           process.exit(0);
         };

@@ -1,5 +1,5 @@
 import type { DetectedField } from '@reverso/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { convertToFieldSchema, generateSchema } from '../schema/generator.js';
 
 describe('generateSchema', () => {
@@ -204,5 +204,53 @@ describe('convertToFieldSchema', () => {
     expect(schema.required).toBe(true);
     expect(schema.multiple).toBe(true);
     expect(schema.readonly).toBe(true);
+  });
+});
+
+describe('generateSchema duplicate paths', () => {
+  const base = { file: '/src/Hero.tsx', line: 1, column: 1, element: 'h1' } as const;
+
+  it('keeps one field per path, the first occurrence winning', () => {
+    const fields: DetectedField[] = [
+      { ...base, path: 'home.hero.title', attributes: { type: 'text', label: 'First' } },
+      { ...base, path: 'home.hero.title', attributes: { type: 'text', label: 'Second' }, file: '/src/Nav.tsx' },
+      { ...base, path: 'home.hero.subtitle', attributes: { type: 'textarea' } },
+    ];
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const schema = generateSchema(fields);
+    warn.mockRestore();
+
+    const section = schema.pages[0]?.sections[0];
+    expect(section?.fields).toHaveLength(2);
+    expect(section?.fields.find((f) => f.path === 'home.hero.title')?.label).toBe('First');
+    expect(schema.totalFields).toBe(2);
+  });
+
+  it('warns when the same path is declared with different types', () => {
+    const fields: DetectedField[] = [
+      { ...base, path: 'home.hero.title', attributes: { type: 'text' } },
+      { ...base, path: 'home.hero.title', attributes: { type: 'wysiwyg' }, file: '/src/Other.tsx', line: 9 },
+    ];
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const schema = generateSchema(fields);
+    const messages = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    warn.mockRestore();
+
+    expect(messages).toContain('different type');
+    expect(messages).toContain('/src/Other.tsx:9');
+    expect(schema.pages[0]?.sections[0]?.fields[0]?.type).toBe('text');
+  });
+
+  it('does not warn for identical duplicates', () => {
+    const fields: DetectedField[] = [
+      { ...base, path: 'home.hero.title', attributes: { type: 'text' } },
+      { ...base, path: 'home.hero.title', attributes: { type: 'text' }, line: 40 },
+    ];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    generateSchema(fields);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

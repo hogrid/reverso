@@ -20,6 +20,7 @@ import {
   type DrizzleDatabase,
 } from '@reverso/db';
 import { z } from 'zod';
+import { cookieSecure } from '../utils/security.js';
 
 const SALT_ROUNDS = 12;
 const SESSION_DURATION_DAYS = 30;
@@ -60,18 +61,6 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
       }
       const ip = request.ip;
 
-    // Check lockout (persistent in database)
-    const lockoutKey = `login:${ip}`;
-    const lockoutStatus = await isLockedOut(db, lockoutKey);
-    if (lockoutStatus.locked) {
-      return reply.status(429).send({
-        success: false,
-        error: 'Too many failed attempts',
-        message: `Account temporarily locked. Try again in ${Math.ceil(lockoutStatus.remainingSeconds / 60)} minutes.`,
-        retryAfter: lockoutStatus.remainingSeconds,
-      });
-    }
-
     // Validate input
     const parseResult = loginSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -83,6 +72,20 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     }
 
     const { email, password } = parseResult.data;
+
+    // Check lockout (persistent in database).
+    // Per account and IP: one attacker cannot lock every user behind a shared
+    // proxy IP, and one IP cannot try unlimited passwords on one account.
+    const lockoutKey = `login:${email.toLowerCase()}:${ip}`;
+    const lockoutStatus = await isLockedOut(db, lockoutKey);
+    if (lockoutStatus.locked) {
+      return reply.status(429).send({
+        success: false,
+        error: 'Too many failed attempts',
+        message: `Account temporarily locked. Try again in ${Math.ceil(lockoutStatus.remainingSeconds / 60)} minutes.`,
+        retryAfter: lockoutStatus.remainingSeconds,
+      });
+    }
 
     // Find user
     const user = await getUserByEmail(db, email);
@@ -138,7 +141,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Set cookie
     reply.setCookie('reverso_session', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: cookieSecure(request),
       sameSite: 'lax',
       path: '/',
       expires: expiresAt,
@@ -334,7 +337,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Set cookie
     reply.setCookie('reverso_session', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: cookieSecure(request),
       sameSite: 'lax',
       path: '/',
       expires: expiresAt,

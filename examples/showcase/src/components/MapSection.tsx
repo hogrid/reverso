@@ -6,6 +6,8 @@ import { reverso } from '@/lib/reverso';
  */
 export async function MapSection() {
   const page = await reverso.getPage('showcase');
+  // Stored as { lat, lng, zoom?, address? }; page.map() returns it typed.
+  const location = page.map('showcase.map.location') ?? { lat: 37.7749, lng: -122.4194 };
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -20,8 +22,17 @@ export async function MapSection() {
           data-reverso-help="Latitude/longitude coordinates."
           className="mt-1 font-mono text-sm"
         >
-          {page.get('showcase.map.location', '37.7749,-122.4194')}
+          {location.lat.toFixed(4)},{location.lng.toFixed(4)}
+          {location.address ? ` (${location.address})` : ''}
         </dd>
+        <a
+          className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+          href={`https://www.openstreetmap.org/?mlat=${location.lat}&mlon=${location.lng}#map=${location.zoom ?? 13}/${location.lat}/${location.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open in OpenStreetMap
+        </a>
       </div>
     </section>
   );

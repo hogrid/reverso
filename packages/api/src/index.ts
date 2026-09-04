@@ -76,12 +76,14 @@ export type {
  * Create and start a fully configured API server.
  * Convenience function that combines createServer, registerDatabase, and registerRoutes.
  */
+import type { CorsOptions } from './server.js';
+
 export async function createApiServer(options: {
   port?: number;
   host?: string;
   databaseUrl: string;
   prefix?: string;
-  cors?: boolean;
+  cors?: boolean | CorsOptions;
   logger?: boolean;
   apiKey?: string;
   authEnabled?: boolean;

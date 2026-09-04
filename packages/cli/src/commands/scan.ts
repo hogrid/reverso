@@ -5,10 +5,11 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import type { ProjectSchema, ScanOptions as CoreScanOptions } from '@reverso/core';
-import { createScanner, scan, type ScannerOptions } from '@reverso/scanner';
+import type { ProjectSchema } from '@reverso/core';
+import { createScanner, type ScannerOptions } from '@reverso/scanner';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolveRuntimeConfig } from '../runtime-config.js';
 
 /** Default API port for sync */
 const DEFAULT_API_PORT = 3001;
@@ -108,31 +109,13 @@ function reportSync(outcome: SyncOutcome, target: SyncTarget): void {
   }
 }
 
-/**
- * Resolved values read from reverso.config (port + srcDir).
- * Uses the real config loader (jiti/AST) instead of regex over the source,
- * so comments and strings can't produce false matches.
- */
-async function readConfigValues(cwd: string): Promise<{ port: number; srcDir?: string }> {
-  try {
-    const { loadConfig } = await import('@reverso/core');
-    const { config } = await loadConfig({ cwd });
-    return {
-      port: config.dev?.port ?? DEFAULT_API_PORT,
-      srcDir: config.srcDir ?? config.scanner?.srcDir,
-    };
-  } catch {
-    return { port: DEFAULT_API_PORT };
-  }
-}
-
 interface CliScanOptions {
   src?: string;
-  output: string;
+  output?: string;
   watch: boolean;
   verbose: boolean;
-  include: string[];
-  exclude: string[];
+  include?: string[];
+  exclude?: string[];
   apiUrl?: string;
   apiKey?: string;
 }
@@ -142,34 +125,42 @@ export function scanCommand(program: Command): void {
     .command('scan')
     .description('Scan project for data-reverso markers and generate schema')
     .option('-s, --src <dir>', 'Source directory to scan')
-    .option('-o, --output <dir>', 'Output directory for schema', '.reverso')
+    .option('-o, --output <dir>', 'Output directory for schema (default: reverso.config outputDir)')
     .option('-w, --watch', 'Watch for changes', false)
     .option('-v, --verbose', 'Verbose output', false)
-    .option('--include <patterns...>', 'Glob patterns to include', ['**/*.tsx', '**/*.jsx'])
-    .option('--exclude <patterns...>', 'Glob patterns to exclude', ['**/node_modules/**', '**/dist/**'])
+    .option('--include <patterns...>', 'Glob patterns to include (default: reverso.config scanner.include)')
+    .option('--exclude <patterns...>', 'Glob patterns to exclude (default: reverso.config scanner.exclude)')
     .option('--api-url <url>', 'Reverso server to sync the schema to (default: local reverso dev)')
     .option('--api-key <key>', 'API key for the server (default: REVERSO_API_KEY or the running reverso dev)')
     .action(async (options: CliScanOptions) => {
       const spinner = ora();
 
-      // Resolve config values once: CLI flags override reverso.config.
-      const configValues = await readConfigValues(process.cwd());
-      const srcDir = options.src ?? configValues.srcDir ?? './src';
-      const syncTarget = resolveSyncTarget(process.cwd(), options, configValues.port);
+      // Flags override env, env overrides reverso.config, config overrides defaults.
+      const runtime = await resolveRuntimeConfig(process.cwd(), {
+        src: options.src,
+        output: options.output,
+        include: options.include,
+        exclude: options.exclude,
+      });
+      for (const warning of runtime.warnings) {
+        console.log(chalk.yellow(`Warning: ${warning}`));
+      }
+      const srcDir = runtime.srcDir;
+      const syncTarget = resolveSyncTarget(process.cwd(), options, runtime.port);
 
       try {
         if (options.watch) {
           // Watch mode uses ScannerOptions
           const scannerOptions: ScannerOptions = {
             srcDir,
-            outputDir: options.output,
-            include: options.include,
-            exclude: options.exclude,
+            outputDir: runtime.outputDir,
+            include: runtime.include,
+            exclude: runtime.exclude,
           };
 
           console.log(chalk.blue('Starting scanner in watch mode...'));
           console.log(chalk.gray(`  Source: ${srcDir}`));
-          console.log(chalk.gray(`  Output: ${options.output}`));
+          console.log(chalk.gray(`  Output: ${runtime.outputDir}`));
           console.log();
 
           const scanner = createScanner(scannerOptions);
@@ -210,17 +201,16 @@ export function scanCommand(program: Command): void {
             process.exit(0);
           });
         } else {
-          // One-time scan uses CoreScanOptions
-          const scanOptions: CoreScanOptions = {
-            srcDir,
-            include: options.include,
-            exclude: options.exclude,
-            verbose: options.verbose,
-          };
-
+          // One-time scan through the same scanner as watch mode so outputDir
+          // and the include/exclude patterns from reverso.config are honoured.
           spinner.start('Scanning for data-reverso markers...');
 
-          const result = await scan(scanOptions);
+          const result = await createScanner({
+            srcDir,
+            outputDir: runtime.outputDir,
+            include: runtime.include,
+            exclude: runtime.exclude,
+          }).scan();
 
           spinner.succeed(chalk.green('Scan complete!'));
 

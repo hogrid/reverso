@@ -9,10 +9,11 @@ import { resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { corsOption, resolveRuntimeConfig } from '../runtime-config.js';
 
 interface DevOptions {
   port?: string;
-  host: string;
+  host?: string;
   database?: string;
   src?: string;
   open: boolean;
@@ -200,7 +201,7 @@ export function devCommand(program: Command): void {
     .command('dev')
     .description('Start development server (API + Admin)')
     .option('-p, --port <port>', 'API server port (default: reverso.config dev.port or 3001)')
-    .option('-H, --host <host>', 'Server host', 'localhost')
+    .option('-H, --host <host>', 'Server host (default: REVERSO_HOST or localhost)')
     .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
     .option('-s, --src <dir>', 'Source directory to watch (default: reverso.config srcDir)')
     .option('--open', 'Open admin panel in browser', false)
@@ -214,41 +215,35 @@ export function devCommand(program: Command): void {
       console.log(chalk.blue('Starting Reverso development server...'));
       console.log();
 
-      // Check 1: Config file exists
+      // Check 1: Config file exists (otherwise initialise with this very CLI)
       const configPath = resolve(cwd, 'reverso.config.ts');
       const configPathJs = resolve(cwd, 'reverso.config.js');
       if (!existsSync(configPath) && !existsSync(configPathJs)) {
-        console.log(chalk.yellow('No reverso.config found. Running init first...'));
+        console.log(chalk.yellow('No reverso.config found. Running `reverso init --yes` first...'));
         console.log();
         try {
-          execFileSync('npx', ['@reverso/cli', 'init', '--yes'], { cwd, stdio: 'inherit' });
-          return; // init will handle everything
+          execFileSync(process.execPath, [process.argv[1] as string, 'init', '--yes'], { cwd, stdio: 'inherit' });
         } catch {
-          console.log(chalk.red('Failed to initialize. Run: npx @reverso/cli init'));
+          console.log(chalk.red('Failed to initialize. Run: npx reverso init'));
           process.exit(1);
         }
       }
 
-      // Load reverso.config so CLI flags only override what the user set there
-      const { loadConfig, mergeWithDefaults } = await import('@reverso/core');
-      let config = mergeWithDefaults({
-        database: { provider: 'sqlite', url: '.reverso/dev.db' },
+      // Flags override env, env overrides reverso.config, config overrides defaults.
+      const runtime = await resolveRuntimeConfig(cwd, {
+        src: options.src,
+        database: options.database,
+        port: options.port,
+        host: options.host,
       });
-      try {
-        ({ config } = await loadConfig({ cwd }));
-      } catch (error) {
-        console.log(
-          chalk.yellow(
-            `Warning: could not load reverso.config (${error instanceof Error ? error.message : error}). Using defaults.`
-          )
-        );
+      for (const warning of runtime.warnings) {
+        console.log(chalk.yellow(`Warning: ${warning}`));
       }
-
-      const srcDir = options.src ?? config.srcDir ?? './src';
-      const databasePath =
-        options.database ??
-        (config.database.provider === 'sqlite' ? config.database.url : '.reverso/dev.db');
-      const defaultPort = config.dev?.port ?? 3001;
+      const config = runtime.config;
+      const host = runtime.host;
+      const srcDir = runtime.srcDir;
+      const databasePath = runtime.databasePath;
+      const defaultPort = runtime.port;
 
       // Check 2: Create .reverso directory if needed
       const reversoDir = resolve(cwd, '.reverso');
@@ -264,7 +259,7 @@ export function devCommand(program: Command): void {
       }
 
       // Check 3: Port availability
-      let port = Number.parseInt(options.port ?? String(defaultPort), 10);
+      let port = defaultPort;
       if (await isPortInUse(port)) {
         spinner.start(`Port ${port} is in use, finding available port...`);
         port = await findAvailablePort(port);
@@ -289,7 +284,7 @@ export function devCommand(program: Command): void {
         const devServerFile = resolve(cwd, DEV_SERVER_FILE);
         writeFileSync(
           devServerFile,
-          JSON.stringify({ apiUrl: `http://${options.host}:${port}`, apiKey, pid: process.pid }),
+          JSON.stringify({ apiUrl: `http://${host}:${port}`, apiKey, pid: process.pid }),
           { mode: 0o600 }
         );
         const syncHeaders = { 'Content-Type': 'application/json', 'X-API-Key': apiKey };
@@ -299,9 +294,9 @@ export function devCommand(program: Command): void {
         const { createScanner } = await import('@reverso/scanner');
         const scanner = createScanner({
           srcDir,
-          outputDir: config.outputDir ?? '.reverso',
-          include: config.scanner?.include,
-          exclude: config.scanner?.exclude,
+          outputDir: runtime.outputDir,
+          include: runtime.include,
+          exclude: runtime.exclude,
         });
 
         // Initial scan
@@ -316,7 +311,7 @@ export function devCommand(program: Command): void {
           if (event.type === 'complete' && event.schema) {
             console.log(chalk.gray(`[scanner] Schema updated: ${event.schema.totalFields} fields`));
             try {
-              const res = await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
+              const res = await fetch(`http://${host}:${port}/api/reverso/schema/sync`, {
                 method: 'POST',
                 headers: syncHeaders,
                 body: JSON.stringify({ schema: event.schema, deleteRemoved: true }),
@@ -337,24 +332,24 @@ export function devCommand(program: Command): void {
 
         const server = await createApiServer({
           port,
-          host: options.host,
+          host: host,
           databaseUrl: dbPath,
-          cors: true,
+          cors: corsOption(config),
           logger: false,
           apiKey,
           authEnabled: true,
         });
 
         await startApiServer(server);
-        spinner.succeed(`API server running at http://${options.host}:${port}`);
+        spinner.succeed(`API server running at http://${host}:${port}`);
 
         // Auto-seed admin user from .reverso/admin.json if no users exist
         if (adminCreds) {
           try {
-            const setupRes = await fetch(`http://${options.host}:${port}/auth/setup-status`);
+            const setupRes = await fetch(`http://${host}:${port}/auth/setup-status`);
             const setupData = await setupRes.json() as { needsSetup?: boolean };
             if (setupData.needsSetup) {
-              const registerRes = await fetch(`http://${options.host}:${port}/auth/register`, {
+              const registerRes = await fetch(`http://${host}:${port}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -384,7 +379,7 @@ export function devCommand(program: Command): void {
         // Sync initial schema to database
         if (initialSchema && initialSchema.totalFields > 0) {
           try {
-            const syncRes = await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
+            const syncRes = await fetch(`http://${host}:${port}/api/reverso/schema/sync`, {
               method: 'POST',
               headers: syncHeaders,
               body: JSON.stringify({ schema: initialSchema, deleteRemoved: true }),
@@ -404,9 +399,9 @@ export function devCommand(program: Command): void {
         console.log(chalk.green.bold('Development server ready!'));
         console.log();
         console.log(chalk.bold('Endpoints:'));
-        console.log(chalk.gray(`  Admin:   `) + chalk.cyan.underline(`http://${options.host}:${port}/admin`));
-        console.log(chalk.gray(`  API:     http://${options.host}:${port}/api/reverso`));
-        console.log(chalk.gray(`  Health:  http://${options.host}:${port}/health`));
+        console.log(chalk.gray(`  Admin:   `) + chalk.cyan.underline(`http://${host}:${port}/admin`));
+        console.log(chalk.gray(`  API:     http://${host}:${port}/api/reverso`));
+        console.log(chalk.gray(`  Health:  http://${host}:${port}/health`));
         console.log();
         console.log(chalk.yellow('Press Ctrl+C to stop'));
 
@@ -415,7 +410,7 @@ export function devCommand(program: Command): void {
           const { spawn } = await import('node:child_process');
 
           // Validate host to prevent command injection
-          const safeHost = /^[a-zA-Z0-9.-]+$/.test(options.host) ? options.host : 'localhost';
+          const safeHost = /^[a-zA-Z0-9.-]+$/.test(host) ? host : 'localhost';
           const safePort = Number.isInteger(port) && port > 0 && port < 65536 ? port : 3001;
           const url = `http://${safeHost}:${safePort}`;
 

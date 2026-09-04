@@ -80,8 +80,10 @@ COPY --from=builder /app/packages/cli/bin ./packages/cli/bin
 COPY --from=builder /app/packages/mcp/package.json ./packages/mcp/
 COPY --from=builder /app/packages/mcp/dist ./packages/mcp/dist
 
-# Create directories
+# Create directories. `.reverso` holds the database and uploads: keep it on a
+# volume so `docker run` without compose does not lose content on restart.
 RUN mkdir -p /app/.reverso/uploads && chown -R reverso:reverso /app
+VOLUME ["/app/.reverso"]
 
 # Switch to non-root user
 USER reverso
@@ -92,6 +94,8 @@ ENV REVERSO_PORT=3001
 ENV REVERSO_HOST=0.0.0.0
 ENV REVERSO_DB_PATH=/app/.reverso/reverso.db
 # Uploads are written relative to the working directory (.reverso/uploads).
+# Behind a reverse proxy (the normal case) client IPs come from X-Forwarded-*.
+ENV REVERSO_TRUST_PROXY=true
 
 # Expose port
 EXPOSE 3001

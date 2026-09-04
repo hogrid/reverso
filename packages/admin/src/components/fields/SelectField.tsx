@@ -14,7 +14,7 @@ export function SelectField({ field, value, onChange, disabled }: FieldRendererP
   const stringValue = String(value ?? '');
 
   // Radio group style
-  if (field.type === 'radio') {
+  if (field.type === 'radio' || field.type === 'buttongroup') {
     return (
       <div className="space-y-2">
         {options.map((option) => (

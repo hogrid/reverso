@@ -53,7 +53,8 @@ export const PATH_REGEX = /^[a-zA-Z0-9_$.]+(?:\.[a-zA-Z0-9_$.]+)*$/;
  * Locale validation regex.
  * Allows standard locale codes like "en", "en-US", "pt-BR".
  */
-export const LOCALE_REGEX = /^[a-z]{2}(?:-[A-Z]{2})?$|^default$/;
+// BCP-47-ish: `en`, `pt-BR`, `pt-br`, `zh-Hans`, `es-419`, 3-letter codes, or `default`.
+export const LOCALE_REGEX = /^(?:default|[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*)$/;
 
 /**
  * Sanitize filename to prevent path traversal attacks.

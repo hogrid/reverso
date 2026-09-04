@@ -110,13 +110,17 @@ export function useUploadMedia() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (files: File[]) => {
-      const formData = new FormData();
+    mutationFn: async (files: File[]): Promise<MediaItem[]> => {
+      // POST /media accepts one file per request; upload sequentially so
+      // multi-file drops (gallery) work and each failure is attributable.
+      const uploaded: MediaItem[] = [];
       for (const file of files) {
-        formData.append('files', file);
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiClient.upload<MediaItem>(endpoints.media.upload(), formData);
+        if (response.data) uploaded.push(response.data);
       }
-      const response = await apiClient.upload<MediaItem[]>(endpoints.media.upload(), formData);
-      return response.data;
+      return uploaded;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['media'] });

@@ -56,10 +56,20 @@ export function useUpdateContent() {
         return response.data;
       }
       // Page-level bulk update via PATCH
-      const response = await apiClient.patch<PageContent>(
+      const response = await apiClient.patch<PageContent & { updated?: number }>(
         endpoints.content.update(pageSlug),
         { data }
       );
+      // The API silently skips paths that no longer exist in the schema
+      // (stale admin tab after markers changed). Never let that pass as a
+      // successful save.
+      const sent = data ? Object.keys(data).length : 0;
+      const updated = response.data?.updated;
+      if (typeof updated === 'number' && updated < sent) {
+        throw new Error(
+          `${sent - updated} of ${sent} field(s) were not saved because they are no longer in the schema. Reload the page and try again.`
+        );
+      }
       return response.data;
     },
     onSuccess: (_, { pageSlug }) => {

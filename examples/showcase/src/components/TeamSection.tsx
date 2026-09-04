@@ -1,3 +1,4 @@
+import { mediaUrl } from '@reverso/client';
 import { reverso } from '@/lib/reverso';
 
 const FALLBACK_TEAM = [
@@ -38,7 +39,7 @@ export async function TeamSection() {
               data-reverso="showcase.team.$.avatar"
               data-reverso-type="image"
               data-reverso-label="Avatar"
-              src={String(member.avatar ?? '/placeholder.jpg')}
+              src={mediaUrl(member.avatar, '/placeholder.jpg')}
               alt="Team member avatar"
               className="h-16 w-16 rounded-full object-cover"
             />

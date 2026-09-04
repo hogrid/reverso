@@ -90,16 +90,39 @@ const fieldRenderers: Partial<Record<FieldType, React.ComponentType<FieldRendere
   relation: RelationField,
   taxonomy: RelationField, // Similar to relation
   pagelink: RelationField, // Similar to relation
-  link: TextField, // URL input
+  link: TextField, // URL input (stored as a string)
   user: RelationField, // Similar to relation
+  oembed: TextField, // Embed URL (stored as a string)
+  buttongroup: SelectField, // Single choice, rendered as radios below
 
   // Advanced
   map: MapField,
-  group: RepeaterField, // Similar structure
 
-  // UI helpers (render as message)
-  message: TextField, // Readonly text display
+  // Structural markers carry no value of their own: their children are the
+  // fields. Rendered as a notice instead of a broken input.
+  group: StructuralNotice,
+  tab: StructuralNotice,
+  accordion: StructuralNotice,
+
+  // Admin-only message: read-only by definition
+  message: MessageNotice,
 };
+
+function StructuralNotice({ field }: FieldRendererProps) {
+  return (
+    <p className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2">
+      <code>{field.type}</code> groups the fields marked inside it; it has no value to edit.
+    </p>
+  );
+}
+
+function MessageNotice({ field }: FieldRendererProps) {
+  return (
+    <p className="text-sm text-muted-foreground rounded-md bg-muted/50 px-3 py-2">
+      {field.defaultContent || field.help || field.label || field.path}
+    </p>
+  );
+}
 
 // Pre-defined width classes for Tailwind JIT compatibility
 const widthClasses: Record<number, string> = {

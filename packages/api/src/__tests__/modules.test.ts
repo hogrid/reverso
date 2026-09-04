@@ -376,6 +376,12 @@ describe('media', () => {
     const images = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media/images' }));
     expect(images.data).toHaveLength(1);
 
+    // Browser `accept` syntax from the media picker must match too.
+    const wildcard = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media?type=image/*' }));
+    expect(wildcard.data).toHaveLength(1);
+    const videos = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media?type=video/*' }));
+    expect(videos.data).toHaveLength(0);
+
     const patched = await t.server.inject({
       method: 'PATCH',
       url: `/api/reverso/media/${media.id}`,
@@ -457,6 +463,37 @@ describe('sitemap and stats', () => {
     expect(res.statusCode).toBe(200);
     expect(json(res).data.pages.total).toBe(1);
     expect(json(res).data.fields.total).toBe(2);
+  });
+
+  it('public page read: 404 for unknown pages, cache header and published-only content', async () => {
+    const missing = await t.server.inject({ method: 'GET', url: '/api/reverso/public/content/page/nope' });
+    expect(missing.statusCode).toBe(404);
+
+    await t.server.inject({
+      method: 'POST',
+      url: '/api/reverso/schema/sync',
+      payload: { schema: HOME_SCHEMA },
+    });
+    await t.server.inject({
+      method: 'PATCH',
+      url: '/api/reverso/content/page/home',
+      payload: { data: { 'home.hero.title': 'Public title' } },
+    });
+    const res = await t.server.inject({ method: 'GET', url: '/api/reverso/public/content/page/home' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toMatch(/s-maxage/);
+    expect(json(res).data.content['home.hero.title']).toBe('Public title');
+
+    // A "homepage" page must not leak into "home" (prefix is path-segment aware).
+    const other = { ...HOME_SCHEMA, pages: [{ ...HOME_SCHEMA.pages[0]!, slug: 'homepage', name: 'Homepage',
+      sections: [{ ...HOME_SCHEMA.pages[0]!.sections[0]!, fields: [{ ...HOME_SCHEMA.pages[0]!.sections[0]!.fields[0]!, path: 'homepage.hero.title' }] }] }] };
+    await t.server.inject({ method: 'POST', url: '/api/reverso/schema/sync', payload: { schema: other, deleteRemoved: false } });
+    await t.server.inject({ method: 'PATCH', url: '/api/reverso/content/page/homepage', payload: { data: { 'homepage.hero.title': 'Other' } } });
+    const home = json(await t.server.inject({ method: 'GET', url: '/api/reverso/public/content/page/home' }));
+    expect(Object.keys(home.data.content)).toEqual(['home.hero.title']);
+
+    const locale = await t.server.inject({ method: 'GET', url: '/api/reverso/public/content/page/home?locale=pt-br' });
+    expect(locale.statusCode).toBe(200);
   });
 
   it('returns field options and config to the editor', async () => {
