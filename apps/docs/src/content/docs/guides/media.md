@@ -214,12 +214,31 @@ DELETE /api/reverso/media/:id
 
 ## Accessing Media in Frontend
 
-Media files are served from `/uploads/` by default:
+Media values are stored as objects (`{ url, alt, width, height }` for images,
+`{ url, filename, size, mimeType }` for files and videos, an array of images for
+galleries). Files are served by the CMS at `/uploads/<file>`.
+
+`@reverso/client` rewrites those relative paths to absolute URLs on the CMS
+origin, so a frontend running on another domain can use them directly:
 
 ```tsx
-// In your frontend
-const imageUrl = `${API_URL}/uploads/${media.filename}`;
+import { createReversoClient, mediaUrl } from '@reverso/client';
+
+const reverso = createReversoClient({ url: process.env.NEXT_PUBLIC_REVERSO_URL! });
+const page = await reverso.getPage('about');
+
+const photo = page.image('about.team.photo');          // { url, alt, width, height } | null
+const gallery = page.images('about.gallery');           // ReversoImage[]
+const brochure = page.file('about.downloads.brochure'); // { url, filename, ... } | null
+const url = page.get('about.team.photo', '/fallback.jpg'); // string: URL or fallback
+
+// Repeater items keep the raw object; mediaUrl() extracts the URL safely.
+const members = page.items('about.team');
+<img src={mediaUrl(members[0]?.avatar, '/placeholder.svg')} />
 ```
+
+Serving uploads from a CDN or proxy? Pass `mediaBaseUrl: 'https://cdn.example.com'`
+to `createReversoClient`, or `mediaBaseUrl: false` to keep the stored paths.
 
 ## Best Practices
 

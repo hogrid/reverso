@@ -28,6 +28,14 @@
  * "lat,lng", a code block becomes its source. Use the typed accessors
  * (`image`, `file`, `map`, `code`, `list`, `items`) when you need the full
  * object.
+ *
+ * Media URLs
+ * ----------
+ * Uploads are stored as paths relative to the CMS (`/uploads/<file>`). Since
+ * the frontend usually runs on another origin, the client rewrites them to
+ * absolute URLs on the CMS (`options.url`) so `<img src>` just works. Point
+ * `mediaBaseUrl` at a CDN or proxy when files are served from elsewhere, or
+ * set it to `false` to keep the stored paths untouched.
  */
 
 /** A single repeater item: sub-field name → value. */
@@ -91,6 +99,12 @@ export interface ReversoClientOptions {
    * content; this only surfaces the failure so it isn't swallowed silently.
    */
   onError?: (error: { path: string; status?: number; cause?: unknown }) => void;
+  /**
+   * Origin that serves uploaded files. Relative media paths (`/uploads/...`)
+   * in the content are rewritten to absolute URLs on this base. Defaults to
+   * `url`; pass `false` to leave stored paths as they are.
+   */
+  mediaBaseUrl?: string | false;
 }
 
 /** Content of a single page, with typed accessors. */
@@ -153,6 +167,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isEmpty(value: unknown): boolean {
   return value === undefined || value === null || value === '';
+}
+
+/** Path prefix under which the Reverso API serves uploaded files. */
+export const MEDIA_PATH_PREFIX = '/uploads/';
+
+/**
+ * Rewrite every relative upload path in a stored value to an absolute URL on
+ * `baseUrl`. Walks objects and arrays (galleries, repeater items) and leaves
+ * every other string untouched, so site-internal links keep working.
+ */
+export function resolveMediaUrls<T>(value: T, baseUrl: string): T {
+  const base = baseUrl.replace(/\/+$/, '');
+  if (base === '') return value;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') {
+      return v.startsWith(MEDIA_PATH_PREFIX) ? `${base}${v}` : v;
+    }
+    if (Array.isArray(v)) {
+      const items = v.map(walk);
+      return items.some((item, i) => item !== v[i]) ? items : v;
+    }
+    if (isRecord(v)) {
+      let changed = false;
+      const out: Record<string, unknown> = {};
+      for (const [k, inner] of Object.entries(v)) {
+        const next = walk(inner);
+        if (next !== inner) changed = true;
+        out[k] = next;
+      }
+      return changed ? out : v;
+    }
+    return v;
+  };
+  return walk(value) as T;
 }
 
 /**
@@ -346,6 +394,7 @@ export function createReversoClient(options: ReversoClientOptions): ReversoClien
   const baseUrl = options.url.replace(/\/+$/, '');
   const timeoutMs = options.timeoutMs ?? 5000;
   const cache = options.cache ?? 'no-store';
+  const mediaBase = options.mediaBaseUrl === false ? '' : (options.mediaBaseUrl ?? baseUrl);
 
   async function fetchJson<T>(path: string): Promise<T | undefined> {
     const url = new URL(`${baseUrl}${path}`);
@@ -378,7 +427,7 @@ export function createReversoClient(options: ReversoClientOptions): ReversoClien
         `/api/reverso/public/content/page/${encodeURIComponent(slug)}`
       );
       const content = body?.success ? (body.data?.content ?? {}) : {};
-      return buildPage(slug, content);
+      return buildPage(slug, resolveMediaUrls(content, mediaBase));
     },
 
     async getValue<T>(path: string, fallback: T): Promise<T> {
@@ -386,7 +435,7 @@ export function createReversoClient(options: ReversoClientOptions): ReversoClien
         `/api/reverso/public/content/${encodeURIComponent(path)}`
       );
       const value = body?.success ? body.data?.value : undefined;
-      return coerceLike(value, fallback);
+      return coerceLike(resolveMediaUrls(value, mediaBase), fallback);
     },
   };
 }

@@ -200,11 +200,21 @@ export async function Hero() {
 }
 ```
 
-Repeater items come back as arrays:
+`get()` always returns the kind of value you passed as fallback (an image
+becomes its URL, a number stays a number). Rich fields have typed accessors,
+and repeater items come back as arrays:
 
 ```tsx
-const posts = home.items('home.posts'); // [{ title, image, ... }, ...]
+const hero = home.image('home.hero.image');      // { url, alt, width, height } | null
+const files = home.file('home.downloads.brochure'); // { url, filename, size, mimeType } | null
+const shots = home.images('home.gallery');       // ReversoImage[]
+const where = home.map('home.contact.location'); // { lat, lng, zoom, address } | null
+const tags = home.list('home.meta.tags');        // string[]
+const posts = home.items('home.posts');          // [{ title, image, ... }, ...]
 ```
+
+Uploaded files come back as absolute URLs on the CMS origin, so `<img src>`
+works from any domain. Pass `mediaBaseUrl` to serve them from a CDN instead.
 
 See `examples/showcase` (every field type), `examples/blog`, and
 `examples/portfolio` for complete integrations.
@@ -903,9 +913,16 @@ Node.js host with a persistent disk for `.reverso/` (database + uploads).
 | `REVERSO_API_KEY` | for remote sync/CI/MCP | Admin-level key for `X-API-Key` / `reverso scan --api-key` |
 | `REVERSO_PORT`, `REVERSO_HOST` | no | Defaults `3001`, `0.0.0.0` |
 | `REVERSO_DB_PATH` | no | SQLite file (default `.reverso/reverso.db`) |
-| `REVERSO_CORS_ORIGIN` | no | Origin allowed to call the API cross-site |
+| `REVERSO_CORS_ORIGIN` | when a browser calls the API | Origins allowed cross-site, comma-separated (or `*`). Server-side reads need nothing |
 | `REVERSO_TRUST_PROXY` | behind a proxy | `true` to honour `X-Forwarded-*` |
+| `REVERSO_COOKIE_SECURE` | no | `auto` (default, Secure only over HTTPS), `true` or `false` |
+| `REVERSO_API_URL` | for `reverso scan` against a remote CMS | Where the schema is pushed when no local `reverso dev` is running |
+| `REVERSO_SRC_DIR` | no | Overrides `srcDir` from `reverso.config.ts` |
 | `REVERSO_AUTH_ENABLED` | never in production | `false` disables authentication (local experiments only) |
+
+Uploaded files are served by the CMS at `/uploads/<file>`. `@reverso/client`
+rewrites those paths to absolute URLs on the CMS origin, so `<img src>` works
+from a frontend on another domain; pass `mediaBaseUrl` to point at a CDN.
 
 ### Loading the schema into a deployed CMS
 

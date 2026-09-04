@@ -20,11 +20,13 @@ test.describe('media library', () => {
 
     const res = await request.get('/api/reverso/media');
     expect(res.status()).toBe(200);
-    const body = (await res.json()) as { data: Array<{ mimeType: string; url: string }> };
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0]?.mimeType).toBe('image/gif');
+    const body = (await res.json()) as { data: Array<{ mimeType: string; url: string; originalName?: string }> };
+    // Other specs upload too; look for this file rather than assuming an empty library.
+    const gif = body.data.find((m) => m.mimeType === 'image/gif');
+    expect(gif).toBeDefined();
+    expect(gif?.originalName).toBe('pixel.gif');
 
-    const file = await request.get(body.data[0]?.url ?? '');
+    const file = await request.get(gif?.url ?? '');
     expect(file.status()).toBe(200);
   });
 });

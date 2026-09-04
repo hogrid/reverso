@@ -15,6 +15,17 @@ export interface MediaUploaderProps {
   disabled?: boolean;
 }
 
+/** Human readable message for anything the upload path can throw. */
+function uploadErrorMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (cause && typeof cause === 'object') {
+    const { message, error } = cause as { message?: unknown; error?: unknown };
+    if (typeof message === 'string' && message) return message;
+    if (typeof error === 'string' && error) return error;
+  }
+  return 'Upload failed. Please try again.';
+}
+
 export function MediaUploader({
   accept,
   multiple = true,
@@ -25,17 +36,22 @@ export function MediaUploader({
   disabled = false,
 }: MediaUploaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  // Last failure, shown inline so a rejected file (type, size) is never silent.
+  const [error, setError] = useState<string | null>(null);
   const uploadMedia = useUploadMedia();
 
   const handleFileSelect = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0 || disabled) return;
 
+      setError(null);
       try {
         await uploadMedia.mutateAsync(Array.from(files));
         onUploadComplete?.();
-      } catch (error) {
-        onUploadError?.(error instanceof Error ? error : new Error('Upload failed'));
+      } catch (cause) {
+        const message = uploadErrorMessage(cause);
+        setError(message);
+        onUploadError?.(cause instanceof Error ? cause : new Error(message));
       }
     },
     [uploadMedia, onUploadComplete, onUploadError, disabled]
@@ -115,6 +131,11 @@ export function MediaUploader({
           </p>
           {accept && !compact && (
             <p className="text-xs text-muted-foreground mt-1">Accepted: {accept}</p>
+          )}
+          {error && (
+            <p role="alert" className="text-xs text-destructive mt-2 break-words">
+              {error}
+            </p>
           )}
         </>
       )}

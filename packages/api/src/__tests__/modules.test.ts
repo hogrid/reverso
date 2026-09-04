@@ -357,6 +357,9 @@ describe('media', () => {
     expect(media.mimeType).toBe('image/gif');
     expect(media.size).toBe(TINY_GIF.length);
     expect(media.url).toMatch(/^\/uploads\/.+\.gif$/);
+    // Dimensions are read from the file header so image values carry them.
+    expect(media.width).toBe(1);
+    expect(media.height).toBe(1);
     expect(existsSync(join(t.uploadsDir, media.filename))).toBe(true);
 
     const list = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media' }));

@@ -7,6 +7,8 @@ export interface MediaItem {
   id: string;
   url: string;
   filename: string;
+  /** Name the file had when uploaded; what editors and visitors expect to see. */
+  originalName?: string | null;
   mimeType: string;
   size: number;
   width?: number;
@@ -117,8 +119,18 @@ export function useUploadMedia() {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await apiClient.upload<MediaItem>(endpoints.media.upload(), formData);
-        if (response.data) uploaded.push(response.data);
+        try {
+          const response = await apiClient.upload<MediaItem>(endpoints.media.upload(), formData);
+          if (response.data) uploaded.push(response.data);
+        } catch (cause) {
+          const detail =
+            cause && typeof cause === 'object' && typeof (cause as { message?: unknown }).message === 'string'
+              ? (cause as { message: string }).message
+              : cause instanceof Error
+                ? cause.message
+                : 'upload failed';
+          throw new Error(`${file.name}: ${detail}`);
+        }
       }
       return uploaded;
     },
@@ -182,15 +194,18 @@ export function useBulkDeleteMedia() {
  * Convert MediaItem to ImageValue for field storage
  */
 export function mediaToImageValue(media: MediaItem): ImageValue {
-  return {
+  // The API returns null for unknown alt/width/height; the value contract
+  // promises strings and numbers, so drop the nulls instead of storing them.
+  const value: ImageValue = {
     url: media.url,
-    alt: media.alt,
-    width: media.width,
-    height: media.height,
+    alt: media.alt ?? '',
     filename: media.filename,
     size: media.size,
     mimeType: media.mimeType,
   };
+  if (typeof media.width === 'number') value.width = media.width;
+  if (typeof media.height === 'number') value.height = media.height;
+  return value;
 }
 
 /**
@@ -199,7 +214,7 @@ export function mediaToImageValue(media: MediaItem): ImageValue {
 export function mediaToFileValue(media: MediaItem): FileValue {
   return {
     url: media.url,
-    filename: media.filename,
+    filename: media.originalName || media.filename,
     size: media.size,
     mimeType: media.mimeType,
   };

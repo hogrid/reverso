@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createReversoClient, mediaUrl } from '../index.js';
+import { createReversoClient, mediaUrl, resolveMediaUrls } from '../index.js';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -168,7 +168,8 @@ describe('value contract', () => {
   beforeEach(async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: { page: 'p', content } }));
     vi.stubGlobal('fetch', fetchMock);
-    page = await createReversoClient({ url: 'http://cms.test' }).getPage('p');
+    // Media URL rewriting has its own suite below; keep stored paths here.
+    page = await createReversoClient({ url: 'http://cms.test', mediaBaseUrl: false }).getPage('p');
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -208,5 +209,61 @@ describe('value contract', () => {
     expect(mediaUrl(item?.avatar, '/placeholder.png')).toBe('/av.png');
     expect(mediaUrl(undefined, '/placeholder.png')).toBe('/placeholder.png');
     expect(mediaUrl('/direct.png')).toBe('/direct.png');
+  });
+});
+
+describe('media URL resolution', () => {
+  const content = {
+    'p.s.image': { url: '/uploads/a.png', alt: 'A' },
+    'p.s.gallery': [{ url: '/uploads/1.png' }, { url: 'https://cdn.example.com/2.png' }],
+    'p.s.video': '/uploads/promo.mp4',
+    'p.s.link': '/about',
+    'p.s.$': [{ title: 'Item', avatar: { url: '/uploads/av.png' } }],
+  } as Record<string, unknown>;
+
+  function mockPage() {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, data: { page: 'p', content } })));
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('rewrites relative upload paths to absolute URLs on the CMS by default', async () => {
+    mockPage();
+    const page = await createReversoClient({ url: 'http://cms.test/' }).getPage('p');
+    expect(page.image('p.s.image')?.url).toBe('http://cms.test/uploads/a.png');
+    expect(page.get('p.s.image', '')).toBe('http://cms.test/uploads/a.png');
+    expect(page.images('p.s.gallery').map((i) => i.url)).toEqual([
+      'http://cms.test/uploads/1.png',
+      'https://cdn.example.com/2.png',
+    ]);
+    expect(page.get('p.s.video', '')).toBe('http://cms.test/uploads/promo.mp4');
+    expect(mediaUrl(page.items('p.s')[0]?.avatar)).toBe('http://cms.test/uploads/av.png');
+  });
+
+  it('leaves other relative paths alone', async () => {
+    mockPage();
+    const page = await createReversoClient({ url: 'http://cms.test' }).getPage('p');
+    expect(page.get('p.s.link', '')).toBe('/about');
+  });
+
+  it('honours mediaBaseUrl and can be switched off', async () => {
+    mockPage();
+    const cdn = await createReversoClient({ url: 'http://cms.test', mediaBaseUrl: 'https://cdn.test/' }).getPage('p');
+    expect(cdn.image('p.s.image')?.url).toBe('https://cdn.test/uploads/a.png');
+
+    mockPage();
+    const raw = await createReversoClient({ url: 'http://cms.test', mediaBaseUrl: false }).getPage('p');
+    expect(raw.image('p.s.image')?.url).toBe('/uploads/a.png');
+  });
+
+  it('applies to single values too', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, data: { value: { url: '/uploads/x.pdf' } } })));
+    const value = await createReversoClient({ url: 'http://cms.test' }).getValue('p.s.file', '');
+    expect(value).toBe('http://cms.test/uploads/x.pdf');
+  });
+
+  it('resolveMediaUrls returns the same object when nothing changes', () => {
+    const input = { a: 'x', b: [1, 2] };
+    expect(resolveMediaUrls(input, 'http://cms.test')).toBe(input);
   });
 });

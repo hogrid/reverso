@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Placeholder image">
+  <rect width="640" height="360" fill="#e2e8f0"/>
+  <path d="M200 250l90-110 70 80 50-50 80 80H200z" fill="#94a3b8"/>
+  <circle cx="440" cy="120" r="30" fill="#94a3b8"/>
+  <text x="320" y="330" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#64748b">No image selected yet</text>
+</svg>

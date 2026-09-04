@@ -116,6 +116,7 @@ Atualizado em 2026-09-04, na branch `claude/project-roadmap-launch-xnvhul`.
 | 2. Rede de testes | Concluída | 9 pacotes com suíte própria; API com 45 testes de integração (auth ativa, forms, redirects, media, sitemap); smoke test do binário `reverso build` + `start`; Playwright com 17 specs contra `reverso dev` real, rodando em cerca de 20 segundos; job `e2e` no CI |
 | 3. Pronto para lançar | Concluída | Versões 0.3.0 via changesets, release workflow com guarda de `NPM_TOKEN`, README, docs, `.env.example`, SECURITY e CONTRIBUTING alinhados ao produto |
 | 4. Verificação final | Concluída | Instalação limpa com lockfile congelado, build, typecheck, lint, testes e E2E verdes sem cache |
+| 5. Revisão de produção | Concluída | Cada tipo de campo exercitado no navegador (texto, rich text, código, select, radio, switch, data, hora, cor, imagem, galeria, arquivo, link, mapa, repeater) e lido pelo front Next via `@reverso/client`; 28 specs E2E cobrindo o fluxo; config única para `init`, `dev`, `scan`, `build`, `start` e `migrate` |
 
 Bugs adicionais encontrados e corrigidos pelos testes novos, além dos listados
 no diagnóstico: plugin de auth não validava o cookie de sessão (o admin nunca
@@ -126,6 +127,18 @@ renderizavam a lista (formato de resposta divergente dos hooks); botão
 limit contava assets estáticos e respondia 500; `content_get_content` do MCP
 devolvia JSON serializado; `startWatch` do scanner resolvia antes do watcher
 ficar pronto.
+
+Bugs encontrados e corrigidos na revisão de produção (fase 5): uploads eram
+gravados como `/uploads/...` e o front em outro domínio pedia o arquivo a si
+mesmo (imagem quebrada); `page.get()` devolvia objetos para `src` e `href`;
+o editor WYSIWYG invertia o texto digitado; upload rejeitado pela API não
+mostrava nada ao usuário; valores de arquivo perdiam o nome original; imagens
+não tinham largura e altura; campos de mapa, data, número e cor não
+persistiam de forma consistente; `reverso build`, `start` e `dev` podiam
+apontar para bancos diferentes; `reverso init` gerava `srcDir` inexistente;
+marcadores com expressões dinâmicas viravam caminhos inválidos; cookie de
+sessão com `Secure` fixo impedia login em HTTP interno; CSRF exigia header
+que o admin não enviava.
 
 Os relatórios da auditoria anterior (`RELATORIO-DEBITOS-TECNICOS.md`,
 `GITHUB-ISSUES.md`, `.devils-advocate/`) ficam como histórico; este arquivo é a
