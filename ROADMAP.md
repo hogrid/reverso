@@ -98,7 +98,7 @@ stdio, `reverso build`.
 |---|---------|--------------------|
 | 3.1 | CI: lint, typecheck, test, build, e2e; sem serviço Postgres; release com changesets condicionado ao secret `NPM_TOKEN` | Workflow verde em PR |
 | 3.2 | Changeset desta rodada, versões e CHANGELOG | `pnpm changeset status` limpo |
-| 3.3 | README e docs alinhados ao que existe; roadmap futuro honesto; relatórios de auditoria movidos para `docs/history` | Nenhuma funcionalidade documentada sem implementação |
+| 3.3 | README e docs alinhados ao que existe; roadmap futuro honesto | Nenhuma funcionalidade documentada sem implementação |
 
 ### Fase 4: verificação final
 
@@ -106,7 +106,32 @@ Instalação limpa, build, gate sem cache, os três cenários de uso (adicionar 
 projeto existente, projeto novo, sincronizar campos com servidor rodando) e
 E2E em browser. Só depois disso o trabalho é considerado pronto para uso.
 
-## 3. Depois do lançamento (backlog)
+## 3. Status da execução
+
+Atualizado em 2026-09-04, na branch `claude/project-roadmap-launch-xnvhul`.
+
+| Fase | Situação | Evidência |
+|------|----------|-----------|
+| 1. Fluxo funcional | Concluída | `reverso start` sobe e serve o admin; forms, redirects, sitemap e submissões respondem 200; `PATCH` anônimo responde 401 em dev e produção; `npx reverso dev` funciona em clone limpo; projeto gerado pelo `create-reverso` compila com Next 15 e lê o CMS |
+| 2. Rede de testes | Concluída | 9 pacotes com suíte própria; API com 45 testes de integração (auth ativa, forms, redirects, media, sitemap); smoke test do binário `reverso build` + `start`; Playwright com 17 specs contra `reverso dev` real, rodando em cerca de 20 segundos; job `e2e` no CI |
+| 3. Pronto para lançar | Concluída | Versões 0.3.0 via changesets, release workflow com guarda de `NPM_TOKEN`, README, docs, `.env.example`, SECURITY e CONTRIBUTING alinhados ao produto |
+| 4. Verificação final | Concluída | Instalação limpa com lockfile congelado, build, typecheck, lint, testes e E2E verdes sem cache |
+
+Bugs adicionais encontrados e corrigidos pelos testes novos, além dos listados
+no diagnóstico: plugin de auth não validava o cookie de sessão (o admin nunca
+funcionaria com auth ligada); rota `pages/:slug` descartava `options`,
+`validation` e `help` dos campos; páginas de Redirects e Mídia nunca
+renderizavam a lista (formato de resposta divergente dos hooks); botão
+"Upload" inerte; botão de login travado ao abrir `/admin/login` direto; rate
+limit contava assets estáticos e respondia 500; `content_get_content` do MCP
+devolvia JSON serializado; `startWatch` do scanner resolvia antes do watcher
+ficar pronto.
+
+Os relatórios da auditoria anterior (`RELATORIO-DEBITOS-TECNICOS.md`,
+`GITHUB-ISSUES.md`, `.devils-advocate/`) ficam como histórico; este arquivo é a
+referência atual.
+
+## 4. Depois do lançamento (backlog)
 
 Itens úteis que não bloqueiam a primeira versão utilizável:
 
