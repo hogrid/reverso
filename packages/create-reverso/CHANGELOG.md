@@ -1,5 +1,83 @@
 # create-reverso
 
+## 0.3.0
+
+### Minor Changes
+
+- 2be80c8: Fix the three real-world install/usage flows (validated against a local npm registry):
+  - **Watch mode now detects file changes** (`@reverso/scanner`): chokidar v4+
+    dropped glob-pattern support, so the watcher (which passed `src/**/*.tsx`
+    globs) never fired — new/edited markers were ignored until a full restart.
+    The watcher now watches the source directory and filters with an `ignored`
+    predicate (extensions from `include`, dirs from `exclude`). Incremental
+    field sync works again. Also recreates the ts-morph Project per scan so
+    modified files are always re-read from disk (no stale content).
+  - **`reverso init --yes` no longer blocks** on the admin-account prompt; in
+    non-interactive mode it generates a strong random password and prints it
+    once.
+  - **`create-reverso` supports non-interactive use**: accepts an optional
+    positional project name and a `--yes` flag to scaffold with defaults
+    (e.g. `npx create-reverso my-app --yes`).
+
+- Launch-readiness release: the whole flow (scan, admin, edit, publish, read,
+  production start) now works end to end and is covered by tests.
+
+  **Breaking**
+  - Authentication is enabled by default in every environment. `reverso dev`
+    and `reverso start` require a login (first account is created in the admin)
+    or an API key. Set `REVERSO_AUTH_ENABLED=false` only for local experiments.
+  - `@reverso/db` creates its schema from Drizzle migrations shipped with the
+    package. Existing databases created by older versions are upgraded in place
+    on first open. `reverso migrate:create` was removed; `reverso migrate:status`
+    now reports applied and pending migrations.
+
+  **Fixed**
+  - `reverso start` crashed with a duplicate `/auth/login` route; the Docker
+    image started a file that did not exist.
+  - Forms, redirects, sitemap and submissions returned 500 because the tables
+    lacked the columns the query layer uses.
+  - The admin could never call a protected API: the auth plugin ignored the
+    session cookie. The admin now sends the cookie, handles 401 by returning to
+    login, and cross-site cookie mutations are rejected.
+  - Radio/select fields had no options in the editor; boolean fields showed two
+    labels; redirects and media pages never rendered rows; the media "Upload"
+    button did nothing; opening `/admin/login` directly left the button disabled.
+  - `npx reverso dev` failed on a fresh clone because the binary was linked
+    before `dist/` existed (committed `bin/` shims for cli, create-reverso, mcp).
+  - Rate limiting counted admin assets and answered 500 instead of 429.
+  - MCP `content_get_content` returned JSON-encoded strings; page lookups
+    matched slug prefixes.
+
+  **Added**
+  - `reverso dev` records its URL and a per-session API key in
+    `.reverso/dev-server.json`; `reverso scan` uses it automatically and accepts
+    `--api-url` / `--api-key` (or `REVERSO_API_URL` / `REVERSO_API_KEY`) to sync a
+    remote server.
+  - `GET /api/reverso/media?search=` and `meta.total` on the media list;
+    `GET /api/reverso/redirect?path=` is public for frontend middleware.
+  - `REVERSO_TRUST_PROXY=true` for deployments behind a reverse proxy.
+  - `create-reverso` scaffolds Next.js 15 / React 19 (or Vite, Astro) projects
+    wired to `@reverso/client`, with versions pinned to the installer release.
+  - Scanner `startWatch()` resolves when the watcher is ready.
+
+- 2be80c8: Production-hardening pass across the stack (audit-driven):
+  - **Data integrity:** `syncSchema` and `bulkUpdateContent` now run inside atomic transactions (`withTransaction`, rollback-tested); content history is pruned to a bounded size.
+  - **Performance:** removed N+1 queries from `GET /schema` and `/schema/stats` (batched loads).
+  - **Security:** WYSIWYG/Markdown HTML sanitized with DOMPurify; session token no longer mirrored into localStorage (httpOnly cookie remains the source of truth); CSRF protection gated by `REVERSO_CSRF_ENABLED`; SSRF validation on form webhook creation/update; file uploads validate extension before streaming; CLI uses `execFileSync` (no shell).
+  - **Config loading:** `reverso.config.ts` loads on Node 20+ via jiti; CLI `scan`/`dev`/`migrate` read config through the real loader instead of regex; unified default values; `create-reverso` now emits a valid config and dependency set.
+  - **Reliability:** scanner releases AST sources and debounce timers between runs (no watch-mode leak); admin fetches have timeouts and tolerate non-JSON responses; the `@reverso/client` SDK exposes an `onError` hook.
+  - **Quality:** removed module import cycles in the admin field renderer; de-duplicated upload logic behind a shared `useFileDropZone` hook; replaced mock data in relation/map fields with real sources; tightened `any` casts.
+
+### Patch Changes
+
+- Updated dependencies [2be80c8]
+- Updated dependencies [2be80c8]
+- Updated dependencies
+- Updated dependencies [2be80c8]
+  - @reverso/core@0.3.0
+  - @reverso/cli@0.3.0
+  - @reverso/client@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes

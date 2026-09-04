@@ -10,8 +10,13 @@ Get your CMS running in 5 minutes.
 ## 1. Create a new project
 
 ```bash
-npx create-reverso@latest
+npx create-reverso@latest my-site
+cd my-site
 ```
+
+The generated site (Next.js by default) already reads its content through
+`@reverso/client`; the components carry `data-reverso` markers with fallback
+text.
 
 ## 2. Add markers to your components
 
@@ -31,19 +36,28 @@ export default function Home() {
 }
 ```
 
-## 3. Scan and start
+## 3. Start the CMS
 
 ```bash
-# Scan your code for markers
-npx reverso scan
-
-# Start the CMS
-npx reverso dev
+# Scans markers, creates the database, serves API + admin, watches for changes
+npm run reverso:dev      # or: npx reverso dev
 ```
 
-## 4. Edit content
+## 4. Create the first admin and edit content
 
-Open `http://localhost:3001/admin` and start editing!
+Open `http://localhost:3001/admin`. On a fresh install the login page opens
+in **create your account** mode. Register, open the page detected from your
+markers, edit a field and save: it is published immediately.
+
+## 5. Run your site
+
+```bash
+npm run dev
+```
+
+Your site renders the content you saved; until then it shows the fallback
+text from the components. Add a new marker to any component and it appears
+in the admin without restarting anything.
 
 ## Next Steps
 

@@ -13,7 +13,17 @@ import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
 
-export const VERSION = '0.0.0';
+/** Package version, read from package.json so it always matches the release. */
+export const VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+    ) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 export type Framework = 'nextjs' | 'vite' | 'astro';
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';

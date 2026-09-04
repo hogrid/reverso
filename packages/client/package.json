@@ -1,6 +1,6 @@
 {
   "name": "@reverso/client",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Lightweight client SDK for reading Reverso CMS content from any frontend",
   "homepage": "https://reverso.dev/docs/packages/client",
   "bugs": {

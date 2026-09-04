@@ -15,20 +15,31 @@ http://localhost:4000/api/reverso
 
 ## Authentication
 
-Most endpoints require authentication. Include the session cookie or Bearer token:
+Authentication is always on. Every endpoint requires one of:
 
 ```bash
-# Cookie-based (from login)
-curl -b "session=<token>" http://localhost:4000/api/reverso/content/home.hero.title
+# Session cookie set by POST /auth/login (what the admin panel uses)
+curl -b "reverso_session=<token>" http://localhost:3001/api/reverso/content/home.hero.title
 
-# Bearer token
-curl -H "Authorization: Bearer <token>" http://localhost:4000/api/reverso/content/home.hero.title
+# The same session token as a Bearer token
+curl -H "Authorization: Bearer <token>" http://localhost:3001/api/reverso/content/home.hero.title
+
+# The API key from REVERSO_API_KEY (scripts, CI, `reverso scan --api-key`)
+curl -H "X-API-Key: $REVERSO_API_KEY" http://localhost:3001/api/reverso/content/home.hero.title
 ```
+
+Cookie-authenticated `POST`/`PUT`/`PATCH`/`DELETE` requests whose `Origin`
+header points to another site are rejected with `403`.
 
 ### Public Endpoints
 
 These don't require authentication:
+- `GET /health` and `GET /api/reverso/health`
+- `GET /public/content/page/:slug` and `GET /public/content/:path` (published content)
 - `POST /public/forms/:slug/submit`
+- `GET /redirect?path=/old-path`
+- `GET /sitemap.xml`
+- `GET /uploads/*` (media files)
 
 ---
 
@@ -660,12 +671,16 @@ All errors follow this format:
 ## Rate Limiting
 
 Default limits:
-- 100 requests per minute per IP
-- 1000 requests per minute per authenticated user
+- 600 requests per minute per IP (or per API key); admin assets, uploads and health checks are exempt
+- 10 public form submissions per minute per IP
+- Login lockout after repeated failed attempts
 
 Headers in response:
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 595
 X-RateLimit-Reset: 1705327200
 ```
+
+Set `REVERSO_TRUST_PROXY=true` behind a reverse proxy so limits apply to the
+real client IP.

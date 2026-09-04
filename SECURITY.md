@@ -4,8 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 0.3.x   | :white_check_mark: |
+| < 0.3   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -42,6 +42,12 @@ When we receive a security bug report, we will:
 
 When using Reverso in production:
 
+- Keep authentication on (the default). `REVERSO_AUTH_ENABLED=false` is for
+  local experiments only.
+- Set `REVERSO_COOKIE_SECRET` and, if you sync from CI or scripts, a strong
+  `REVERSO_API_KEY` (`openssl rand -hex 24`).
+- Set `REVERSO_TRUST_PROXY=true` behind a reverse proxy so rate limiting and
+  login lockout see real client IPs.
 - Keep Reverso and all dependencies up to date
 - Use strong, unique passwords for admin accounts
 - Enable HTTPS in production

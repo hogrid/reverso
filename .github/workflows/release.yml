@@ -8,14 +8,35 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  # Publishing needs an npm token. Without it the workflow exits cleanly
+  # instead of failing on every push to main.
+  preflight:
+    name: Check publish credentials
+    runs-on: ubuntu-latest
+    if: github.repository == 'hogrid/reverso'
+    outputs:
+      can-publish: ${{ steps.check.outputs.can-publish }}
+    steps:
+      - id: check
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "can-publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can-publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN is not configured; skipping release."
+          fi
+
   release:
-    name: Release
+    name: Version packages / publish
+    needs: preflight
+    if: needs.preflight.outputs.can-publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
       id-token: write
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,3 +67,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

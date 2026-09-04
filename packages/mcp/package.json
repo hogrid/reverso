@@ -1,6 +1,6 @@
 {
   "name": "@reverso/mcp",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "description": "MCP Server for AI integration with Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/mcp",
   "bugs": {

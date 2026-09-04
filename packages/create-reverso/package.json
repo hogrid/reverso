@@ -1,6 +1,6 @@
 {
   "name": "create-reverso",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI installer for Reverso CMS - The front-to-back CMS",
   "homepage": "https://reverso.dev/docs/packages/create-reverso",
   "bugs": {
