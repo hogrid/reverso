@@ -6,7 +6,12 @@ import type { FieldRendererProps } from './FieldRenderer';
 
 export function BooleanField({ field, value, onChange, disabled }: FieldRendererProps) {
   const boolValue = Boolean(value);
-  const label = field.label || formatLabel(field.path);
+  const label = (
+    <>
+      {field.label || formatLabel(field.path)}
+      {field.required && <span className="text-destructive ml-1">*</span>}
+    </>
+  );
 
   // Checkbox style
   if (field.type === 'checkbox') {

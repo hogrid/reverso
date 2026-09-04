@@ -1,8 +1,20 @@
 /**
  * Database migration runner.
+ *
+ * The database schema is defined once, in `src/schema/*.ts` (Drizzle). The SQL
+ * that creates it lives in the `migrations/` folder and is *generated* from that
+ * schema by `pnpm db:generate` (drizzle-kit). This module applies those
+ * migrations; nothing here hand-writes `CREATE TABLE` statements, so the tables
+ * can no longer drift from what the query layer expects.
+ *
+ * Databases created by @reverso/db <= 0.1.18 (before migrations existed) are
+ * detected and adopted in place: missing columns are added, renamed columns are
+ * renamed, and the baseline migration is recorded as applied so that future
+ * migrations run normally on top of it.
  */
 
-import { existsSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
@@ -10,6 +22,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Folder shipped with the package (sibling of `dist/`). */
+export const DEFAULT_MIGRATIONS_FOLDER = join(__dirname, '../migrations');
+
+const MIGRATIONS_TABLE = '__drizzle_migrations';
 
 export interface MigrateOptions {
   /** Database file path */
@@ -20,34 +37,201 @@ export interface MigrateOptions {
   verbose?: boolean;
 }
 
+export interface MigrationStatus {
+  /** Migrations present in the folder, in order. */
+  available: string[];
+  /** Tags already recorded in the database. */
+  applied: string[];
+  /** Tags that `runMigrations` would apply. */
+  pending: string[];
+  /** True when the file exists but predates the migration system. */
+  legacy: boolean;
+}
+
+interface JournalEntry {
+  idx: number;
+  when: number;
+  tag: string;
+}
+
+interface SnapshotColumn {
+  name: string;
+  type: string;
+  notNull: boolean;
+  default?: unknown;
+}
+
+interface Snapshot {
+  tables: Record<string, { name: string; columns: Record<string, SnapshotColumn> }>;
+}
+
+function readJournal(migrationsFolder: string): JournalEntry[] {
+  const journalPath = join(migrationsFolder, 'meta/_journal.json');
+  if (!existsSync(journalPath)) {
+    throw new Error(`Migrations journal not found at ${journalPath}`);
+  }
+  const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries: JournalEntry[] };
+  return journal.entries;
+}
+
+function tableExists(sqlite: Database.Database, name: string): boolean {
+  const row = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(name);
+  return row !== undefined;
+}
+
+function columnNames(sqlite: Database.Database, table: string): Set<string> {
+  const rows = sqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
+  return new Set(rows.map((r) => r.name));
+}
+
 /**
- * Run database migrations.
+ * A database is "legacy" when it already has Reverso tables but no migration
+ * bookkeeping: it was created by the old hand-written DDL.
+ */
+export function isLegacyDatabase(sqlite: Database.Database): boolean {
+  if (!tableExists(sqlite, 'pages')) return false;
+  if (!tableExists(sqlite, MIGRATIONS_TABLE)) return true;
+  const row = sqlite.prepare(`SELECT COUNT(*) AS n FROM "${MIGRATIONS_TABLE}"`).get() as {
+    n: number;
+  };
+  return row.n === 0;
+}
+
+/** Column renames between the legacy DDL and the Drizzle schema. */
+const LEGACY_RENAMES: Array<{ table: string; from: string; to: string }> = [
+  { table: 'redirects', from: 'enabled', to: 'is_enabled' },
+  { table: 'redirects', from: 'hits', to: 'hit_count' },
+  { table: 'form_submissions', from: 'webhook_sent', to: 'webhook_sent_at' },
+];
+
+function sqlDefault(value: unknown): string {
+  if (value === true) return '1';
+  if (value === false) return '0';
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') {
+    // drizzle-kit already quotes string defaults ("'draft'"); keep as-is.
+    return value.startsWith("'") ? value : `'${value.replace(/'/g, "''")}'`;
+  }
+  return 'NULL';
+}
+
+/**
+ * Bring a legacy database up to the baseline snapshot without dropping data,
+ * then record the baseline migration as applied.
+ */
+function adoptLegacyDatabase(
+  sqlite: Database.Database,
+  migrationsFolder: string,
+  verbose: boolean
+): void {
+  const entries = readJournal(migrationsFolder);
+  const baseline = entries[0];
+  if (!baseline) {
+    throw new Error('Migrations journal is empty');
+  }
+
+  const snapshotPath = join(
+    migrationsFolder,
+    `meta/${String(baseline.idx).padStart(4, '0')}_snapshot.json`
+  );
+  const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf-8')) as Snapshot;
+  const baselineSql = readFileSync(join(migrationsFolder, `${baseline.tag}.sql`), 'utf-8');
+  const statements = baselineSql
+    .split('--> statement-breakpoint')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (verbose) {
+    console.log('Legacy database detected; adopting it into the migration system...');
+  }
+
+  const adopt = sqlite.transaction(() => {
+    // 1. Renames (only when the old column exists and the new one does not).
+    for (const { table, from, to } of LEGACY_RENAMES) {
+      if (!tableExists(sqlite, table)) continue;
+      const cols = columnNames(sqlite, table);
+      if (cols.has(from) && !cols.has(to)) {
+        sqlite.exec(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
+        if (verbose) console.log(`  renamed ${table}.${from} -> ${to}`);
+      }
+    }
+
+    // 2. Missing tables: run their CREATE TABLE from the baseline migration.
+    //    Missing indexes: create them if absent.
+    for (const stmt of statements) {
+      const createTable = /^CREATE TABLE `([^`]+)`/i.exec(stmt);
+      if (createTable?.[1]) {
+        if (!tableExists(sqlite, createTable[1])) {
+          sqlite.exec(stmt);
+          if (verbose) console.log(`  created table ${createTable[1]}`);
+        }
+        continue;
+      }
+      if (/^CREATE (UNIQUE )?INDEX/i.test(stmt)) {
+        sqlite.exec(stmt.replace(/^CREATE (UNIQUE )?INDEX/i, 'CREATE $1INDEX IF NOT EXISTS'));
+      }
+    }
+
+    // 3. Missing columns on existing tables.
+    for (const table of Object.values(snapshot.tables)) {
+      const existing = columnNames(sqlite, table.name);
+      for (const column of Object.values(table.columns)) {
+        if (existing.has(column.name)) continue;
+        // SQLite cannot add a NOT NULL column without a default to a table
+        // that may already have rows; relax it (the app always writes it).
+        const hasDefault = column.default !== undefined;
+        const constraint = hasDefault
+          ? ` DEFAULT ${sqlDefault(column.default)}${column.notNull ? ' NOT NULL' : ''}`
+          : '';
+        sqlite.exec(
+          `ALTER TABLE "${table.name}" ADD COLUMN "${column.name}" ${column.type}${constraint}`
+        );
+        if (verbose) console.log(`  added column ${table.name}.${column.name}`);
+      }
+    }
+
+    // 4. Record the baseline as applied (same bookkeeping drizzle's migrator uses).
+    sqlite.exec(
+      `CREATE TABLE IF NOT EXISTS "${MIGRATIONS_TABLE}" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)`
+    );
+    const hash = createHash('sha256').update(baselineSql).digest('hex');
+    sqlite
+      .prepare(`INSERT INTO "${MIGRATIONS_TABLE}" (hash, created_at) VALUES (?, ?)`)
+      .run(hash, baseline.when);
+  });
+
+  adopt();
+}
+
+/**
+ * Open a SQLite database and apply every pending migration.
+ * Safe to call repeatedly: already-applied migrations are skipped.
  */
 export async function runMigrations(options: MigrateOptions): Promise<void> {
-  const { dbPath, migrationsFolder = join(__dirname, '../migrations'), verbose = false } = options;
+  const { dbPath, migrationsFolder = DEFAULT_MIGRATIONS_FOLDER, verbose = false } = options;
 
-  // Ensure database directory exists
   const dbDir = dirname(dbPath);
-  if (!existsSync(dbDir)) {
+  if (dbPath !== ':memory:' && !existsSync(dbDir)) {
     mkdirSync(dbDir, { recursive: true });
   }
 
   if (verbose) {
-    console.log(`Running migrations...`);
+    console.log('Running migrations...');
     console.log(`  Database: ${dbPath}`);
     console.log(`  Migrations: ${migrationsFolder}`);
   }
 
   const sqlite = new Database(dbPath);
-
-  // Enable WAL mode
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
 
-  const db = drizzle(sqlite);
-
   try {
-    migrate(db, { migrationsFolder });
+    if (isLegacyDatabase(sqlite)) {
+      adoptLegacyDatabase(sqlite, migrationsFolder, verbose);
+    }
+    migrate(drizzle(sqlite), { migrationsFolder, migrationsTable: MIGRATIONS_TABLE });
 
     if (verbose) {
       console.log('Migrations completed successfully!');
@@ -58,254 +242,48 @@ export async function runMigrations(options: MigrateOptions): Promise<void> {
 }
 
 /**
- * Create the initial database *schema* (tables + indexes) without running the
- * generated migration files. Useful for development and testing.
+ * Report which migrations are applied and which are pending, without changing
+ * the database.
+ */
+export function getMigrationStatus(
+  dbPath: string,
+  migrationsFolder: string = DEFAULT_MIGRATIONS_FOLDER
+): MigrationStatus {
+  const entries = readJournal(migrationsFolder);
+  const available = entries.map((e) => e.tag);
+
+  if (!existsSync(dbPath)) {
+    return { available, applied: [], pending: available, legacy: false };
+  }
+
+  const sqlite = new Database(dbPath, { readonly: true });
+  try {
+    const legacy = isLegacyDatabase(sqlite);
+    let lastApplied = -1;
+    if (tableExists(sqlite, MIGRATIONS_TABLE)) {
+      const row = sqlite
+        .prepare(`SELECT created_at FROM "${MIGRATIONS_TABLE}" ORDER BY created_at DESC LIMIT 1`)
+        .get() as { created_at: number } | undefined;
+      lastApplied = row ? Number(row.created_at) : -1;
+    }
+    const applied = entries.filter((e) => e.when <= lastApplied).map((e) => e.tag);
+    const pending = entries.filter((e) => e.when > lastApplied).map((e) => e.tag);
+    return { available, applied, pending, legacy };
+  } finally {
+    sqlite.close();
+  }
+}
+
+/**
+ * Create (or upgrade) the database *schema* at `dbPath`.
  *
- * Naming (TD-007): this creates the schema. It is distinct from
- * {@link import('./connection.js').createDatabase}, which opens a *connection*
- * to an existing database. This function is re-exported from the package root
- * as `createDatabaseSchema`; the source name matches that public name to avoid
- * ambiguity with the connection helper.
+ * This is the single entry point every runtime uses before opening a
+ * connection (`reverso dev`, `reverso build`, the API server, tests). It is an
+ * alias of {@link runMigrations} kept for API compatibility; it is distinct from
+ * `createDatabase` in `connection.ts`, which only opens a connection.
  */
 export async function createDatabaseSchema(dbPath: string): Promise<void> {
-  const { initDatabase } = await import('./connection.js');
-  const { allTables } = await import('./schema/index.js');
-
-  // Ensure database directory exists
-  const dbDir = dirname(dbPath);
-  if (!existsSync(dbDir)) {
-    mkdirSync(dbDir, { recursive: true });
-  }
-
-  const { sqlite } = initDatabase({ url: dbPath });
-
-  // Create tables using raw SQL from Drizzle schema
-  // This is a simplified approach - in production use migrations
-  const createTableStatements = [
-    // Pages
-    `CREATE TABLE IF NOT EXISTS pages (
-      id TEXT PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      source_files TEXT,
-      field_count INTEGER DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Sections
-    `CREATE TABLE IF NOT EXISTS sections (
-      id TEXT PRIMARY KEY,
-      page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-      slug TEXT NOT NULL,
-      name TEXT NOT NULL,
-      is_repeater INTEGER DEFAULT 0,
-      repeater_config TEXT,
-      sort_order INTEGER DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE(page_id, slug)
-    )`,
-    // Fields
-    `CREATE TABLE IF NOT EXISTS fields (
-      id TEXT PRIMARY KEY,
-      section_id TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
-      path TEXT UNIQUE NOT NULL,
-      type TEXT NOT NULL,
-      label TEXT,
-      placeholder TEXT,
-      required INTEGER DEFAULT 0,
-      validation TEXT,
-      options TEXT,
-      condition TEXT,
-      config TEXT,
-      default_value TEXT,
-      help TEXT,
-      source_file TEXT,
-      source_line INTEGER,
-      source_column INTEGER,
-      sort_order INTEGER DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Content
-    `CREATE TABLE IF NOT EXISTS content (
-      id TEXT PRIMARY KEY,
-      field_id TEXT NOT NULL REFERENCES fields(id) ON DELETE CASCADE,
-      locale TEXT DEFAULT 'default' NOT NULL,
-      value TEXT,
-      published INTEGER DEFAULT 0,
-      published_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE(field_id, locale)
-    )`,
-    // Content history
-    `CREATE TABLE IF NOT EXISTS content_history (
-      id TEXT PRIMARY KEY,
-      content_id TEXT NOT NULL REFERENCES content(id) ON DELETE CASCADE,
-      value TEXT,
-      changed_by TEXT,
-      changed_at INTEGER NOT NULL
-    )`,
-    // Media
-    `CREATE TABLE IF NOT EXISTS media (
-      id TEXT PRIMARY KEY,
-      filename TEXT NOT NULL,
-      original_name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      width INTEGER,
-      height INTEGER,
-      alt TEXT,
-      caption TEXT,
-      storage_path TEXT NOT NULL,
-      storage_provider TEXT DEFAULT 'local',
-      metadata TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Users
-    `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      email_verified INTEGER DEFAULT 0,
-      image TEXT,
-      role TEXT DEFAULT 'user',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Sessions
-    `CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT UNIQUE NOT NULL,
-      expires_at INTEGER NOT NULL,
-      ip_address TEXT,
-      user_agent TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Accounts
-    `CREATE TABLE IF NOT EXISTS accounts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      account_id TEXT NOT NULL,
-      provider_id TEXT NOT NULL,
-      access_token TEXT,
-      refresh_token TEXT,
-      access_token_expires_at INTEGER,
-      refresh_token_expires_at INTEGER,
-      scope TEXT,
-      id_token TEXT,
-      password TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Verifications
-    `CREATE TABLE IF NOT EXISTS verifications (
-      id TEXT PRIMARY KEY,
-      identifier TEXT NOT NULL,
-      value TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER,
-      updated_at INTEGER
-    )`,
-    // Login attempts (brute force protection)
-    `CREATE TABLE IF NOT EXISTS login_attempts (
-      id TEXT PRIMARY KEY,
-      key TEXT NOT NULL,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      locked_until INTEGER,
-      first_attempt_at INTEGER NOT NULL,
-      last_attempt_at INTEGER NOT NULL
-    )`,
-    // Forms
-    `CREATE TABLE IF NOT EXISTS forms (
-      id TEXT PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'draft',
-      steps TEXT,
-      settings TEXT,
-      notify_emails TEXT,
-      webhook_url TEXT,
-      success_message TEXT,
-      redirect_url TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Form fields
-    `CREATE TABLE IF NOT EXISTS form_fields (
-      id TEXT PRIMARY KEY,
-      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      label TEXT,
-      placeholder TEXT,
-      required INTEGER DEFAULT 0,
-      config TEXT,
-      condition TEXT,
-      step INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Form submissions
-    `CREATE TABLE IF NOT EXISTS form_submissions (
-      id TEXT PRIMARY KEY,
-      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-      data TEXT NOT NULL,
-      status TEXT DEFAULT 'new',
-      ip_address TEXT,
-      user_agent TEXT,
-      referrer TEXT,
-      attachments TEXT,
-      webhook_sent INTEGER DEFAULT 0,
-      webhook_response TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    // Redirects
-    `CREATE TABLE IF NOT EXISTS redirects (
-      id TEXT PRIMARY KEY,
-      from_path TEXT UNIQUE NOT NULL,
-      to_path TEXT NOT NULL,
-      status_code INTEGER DEFAULT 301,
-      enabled INTEGER DEFAULT 1,
-      hits INTEGER DEFAULT 0,
-      last_hit_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-  ];
-
-  for (const sql of createTableStatements) {
-    sqlite.exec(sql);
-  }
-
-  // Create indexes
-  const indexes = [
-    'CREATE INDEX IF NOT EXISTS idx_sections_page_id ON sections(page_id)',
-    'CREATE INDEX IF NOT EXISTS idx_fields_section_id ON fields(section_id)',
-    'CREATE INDEX IF NOT EXISTS idx_fields_path ON fields(path)',
-    'CREATE INDEX IF NOT EXISTS idx_content_field_id ON content(field_id)',
-    'CREATE INDEX IF NOT EXISTS idx_content_locale ON content(locale)',
-    'CREATE INDEX IF NOT EXISTS idx_content_history_content_id ON content_history(content_id)',
-    'CREATE INDEX IF NOT EXISTS idx_media_mime_type ON media(mime_type)',
-    'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)',
-    'CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)',
-    'CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)',
-    'CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON login_attempts(key)',
-    'CREATE INDEX IF NOT EXISTS idx_form_fields_form_id ON form_fields(form_id)',
-    'CREATE INDEX IF NOT EXISTS idx_form_submissions_form_id ON form_submissions(form_id)',
-    'CREATE INDEX IF NOT EXISTS idx_redirects_from_path ON redirects(from_path)',
-  ];
-
-  for (const sql of indexes) {
-    sqlite.exec(sql);
-  }
+  await runMigrations({ dbPath });
 }
 
 // CLI runner

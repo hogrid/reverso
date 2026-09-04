@@ -140,14 +140,19 @@ export function FieldRenderer({
     return null;
   }
 
+  // Boolean renderers place the label next to the control themselves.
+  const rendersOwnLabel = fieldType === 'boolean' || fieldType === 'checkbox';
+
   return (
     <div className={cn('space-y-2', widthClass, className)}>
-      <div className="flex items-center justify-between">
-        <Label htmlFor={field.path}>
-          {label}
-          {field.required && <span className="text-destructive ml-1">*</span>}
-        </Label>
-      </div>
+      {!rendersOwnLabel && (
+        <div className="flex items-center justify-between">
+          <Label htmlFor={field.path}>
+            {label}
+            {field.required && <span className="text-destructive ml-1">*</span>}
+          </Label>
+        </div>
+      )}
 
       <Renderer
         field={field}

@@ -16,7 +16,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import authPlugin from './plugins/auth.js';
+import authPlugin, { resolveAuthEnabled } from './plugins/auth.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -35,8 +35,17 @@ export interface ServerConfig {
   prefix?: string;
   /** API key for authentication */
   apiKey?: string;
-  /** Enable authentication (default: true in production) */
+  /**
+   * Enable authentication (default: true everywhere; `REVERSO_AUTH_ENABLED=false`
+   * or `authEnabled: false` turns it off for local experiments only).
+   */
   authEnabled?: boolean;
+  /**
+   * Trust `X-Forwarded-*` headers from a reverse proxy (default:
+   * `REVERSO_TRUST_PROXY=true`). Needed for correct client IPs behind nginx,
+   * Caddy, Coolify, Railway, etc.
+   */
+  trustProxy?: boolean;
 }
 
 export interface CorsOptions {
@@ -72,7 +81,8 @@ const defaultConfig: Required<ServerConfig> = {
   logger: true,
   prefix: '/api/reverso',
   apiKey: process.env.REVERSO_API_KEY || '',
-  authEnabled: process.env.NODE_ENV === 'production',
+  authEnabled: resolveAuthEnabled(),
+  trustProxy: process.env.REVERSO_TRUST_PROXY === 'true',
 };
 
 /**
@@ -82,6 +92,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   const opts = { ...defaultConfig, ...config };
 
   const fastifyOptions: FastifyServerOptions = {
+    trustProxy: opts.trustProxy,
     logger: opts.logger
       ? {
           transport: {
@@ -181,15 +192,11 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Register rate limiting
   await server.register(rateLimit, {
-    max: 100,
+    max: 300,
     timeWindow: '1 minute',
-    keyGenerator: (request) => {
-      return (
-        request.headers['x-api-key']?.toString() ||
-        request.headers['x-forwarded-for']?.toString() ||
-        request.ip
-      );
-    },
+    // request.ip already honours X-Forwarded-For when trustProxy is on;
+    // reading the header directly would let any client pick its own bucket.
+    keyGenerator: (request) => request.headers['x-api-key']?.toString() || request.ip,
     allowList: ['/health'],
     errorResponseBuilder: () => ({
       success: false,
@@ -241,6 +248,14 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       const content = readFileSync(indexPath, 'utf-8');
       return reply.type('text/html').send(content);
     });
+
+    // The admin shell references /favicon.svg at the site root.
+    const faviconPath = join(adminDistPath, 'favicon.svg');
+    if (existsSync(faviconPath)) {
+      server.get('/favicon.svg', async (_request, reply) => {
+        return reply.type('image/svg+xml').send(readFileSync(faviconPath));
+      });
+    }
   }
 
   // Global error handler
@@ -277,7 +292,7 @@ export async function registerAuth(server: FastifyInstance, config: ServerConfig
 
   await server.register(authPlugin, {
     apiKey: opts.apiKey,
-    enabled: opts.authEnabled,
+    enabled: resolveAuthEnabled(opts.authEnabled),
     publicPaths: [
       /^\/api\/reverso\/public\//,
       /^\/sitemap\.xml$/,

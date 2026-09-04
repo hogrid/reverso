@@ -28,11 +28,11 @@ export function startCommand(program: Command): void {
         const port = Number.parseInt(options.port, 10);
         const dbPath = resolve(options.database);
 
-        // Validate database exists
         if (!existsSync(dbPath)) {
-          console.error(chalk.red(`Database not found: ${dbPath}`));
-          console.error(chalk.yellow('Run `reverso build` first to initialize the database.'));
-          process.exit(1);
+          console.log(chalk.yellow(`Database not found at ${dbPath}; creating an empty one.`));
+          console.log(
+            chalk.gray('Run `reverso build` (or `reverso scan` against this server) to load the schema.')
+          );
         }
 
         console.log(chalk.blue.bold('Starting Reverso CMS production server...'));
@@ -40,15 +40,11 @@ export function startCommand(program: Command): void {
         console.log(chalk.gray(`Database: ${dbPath}`));
         console.log();
 
-        // Initialize database
-        spinner.start('Connecting to database...');
-        const { initDatabase } = await import('@reverso/db');
-        initDatabase({ url: dbPath });
-        spinner.succeed('Database connected');
-
-        // Start API server
+        // createApiServer applies pending migrations, opens the database and
+        // registers every route (auth included); nothing else must register
+        // routes on this instance or Fastify rejects the duplicates.
         spinner.start('Starting server...');
-        const { createApiServer, startServer, registerRoutes } = await import('@reverso/api');
+        const { createApiServer, startServer } = await import('@reverso/api');
 
         const server = await createApiServer({
           port,
@@ -56,10 +52,8 @@ export function startCommand(program: Command): void {
           databaseUrl: dbPath,
           cors: true,
           logger: true,
+          authEnabled: true,
         });
-
-        // Register routes with database
-        await registerRoutes(server);
 
         const address = await startServer(server);
         spinner.succeed(`Server running at ${address}`);
@@ -68,6 +62,7 @@ export function startCommand(program: Command): void {
         console.log(chalk.green.bold('Production server ready!'));
         console.log();
         console.log(chalk.bold('Endpoints:'));
+        console.log(chalk.gray(`  Admin:   ${address}/admin`));
         console.log(chalk.gray(`  API:     ${address}/api/reverso`));
         console.log(chalk.gray(`  Health:  ${address}/health`));
         console.log(chalk.gray(`  Auth:    ${address}/auth/login`));

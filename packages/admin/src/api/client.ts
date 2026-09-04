@@ -35,6 +35,18 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Name of the DOM event dispatched when the API answers 401. The auth store
+ * listens for it and sends the user back to the login page.
+ */
+export const UNAUTHORIZED_EVENT = 'reverso:unauthorized';
+
+function notifyUnauthorized(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -45,6 +57,8 @@ class ApiClient {
   private async request<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${url}`, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      // Always send the httpOnly session cookie (also through the Vite proxy).
+      credentials: 'include',
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -55,6 +69,7 @@ class ApiClient {
     const data = await parseJsonSafe(response);
 
     if (!response.ok) {
+      if (response.status === 401) notifyUnauthorized();
       const errBody = (data ?? {}) as Partial<ApiError>;
       throw {
         success: false,
@@ -100,6 +115,7 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}${url}`, {
       method: 'POST',
       body: formData,
+      credentials: 'include',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       // Don't set Content-Type header for FormData
     });
@@ -107,6 +123,7 @@ class ApiClient {
     const data = await parseJsonSafe(response);
 
     if (!response.ok) {
+      if (response.status === 401) notifyUnauthorized();
       const errBody = (data ?? {}) as Partial<ApiError>;
       throw {
         success: false,

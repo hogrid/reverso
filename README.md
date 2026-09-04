@@ -708,7 +708,6 @@ reverso start
 reverso migrate
 
 # Create a new migration
-reverso migrate:create
 
 # Check migration status
 reverso migrate:status

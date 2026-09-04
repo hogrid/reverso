@@ -287,5 +287,9 @@ export { generateId, now, parseJson, toJson } from './utils.js';
 export {
   runMigrations,
   createDatabaseSchema,
+  getMigrationStatus,
+  isLegacyDatabase,
+  DEFAULT_MIGRATIONS_FOLDER,
   type MigrateOptions,
+  type MigrationStatus,
 } from './migrate.js';

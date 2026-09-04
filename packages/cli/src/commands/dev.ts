@@ -7,7 +7,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 interface DevOptions {
   port?: string;
@@ -162,6 +163,23 @@ async function findAvailablePort(startPort: number): Promise<number> {
 }
 
 /**
+ * File where `reverso dev` records where it listens and its API key, so a
+ * `reverso scan` in another terminal can sync to it. Removed on shutdown.
+ */
+export const DEV_SERVER_FILE = '.reverso/dev-server.json';
+
+/**
+ * API key used by the scanner (and `reverso scan` in another terminal) to
+ * push schema updates into the running dev server. Uses REVERSO_API_KEY when
+ * set, otherwise a random key valid for this session only.
+ */
+function resolveDevApiKey(): string {
+  const fromEnv = process.env.REVERSO_API_KEY;
+  if (fromEnv && fromEnv.length >= 16) return fromEnv;
+  return randomBytes(24).toString('hex');
+}
+
+/**
  * Read admin credentials from .reverso/admin.json
  */
 function readAdminCredentials(cwd: string): AdminCredentials | null {
@@ -265,6 +283,17 @@ export function devCommand(program: Command): void {
         // Read admin credentials for auto-seeding after server starts
         const adminCreds = readAdminCredentials(cwd);
 
+        // Every request to the API is authenticated. The scanner and
+        // `reverso scan` authenticate with this key.
+        const apiKey = resolveDevApiKey();
+        const devServerFile = resolve(cwd, DEV_SERVER_FILE);
+        writeFileSync(
+          devServerFile,
+          JSON.stringify({ apiUrl: `http://${options.host}:${port}`, apiKey, pid: process.pid }),
+          { mode: 0o600 }
+        );
+        const syncHeaders = { 'Content-Type': 'application/json', 'X-API-Key': apiKey };
+
         // Start scanner in watch mode
         spinner.start('Starting file scanner...');
         const { createScanner } = await import('@reverso/scanner');
@@ -287,11 +316,14 @@ export function devCommand(program: Command): void {
           if (event.type === 'complete' && event.schema) {
             console.log(chalk.gray(`[scanner] Schema updated: ${event.schema.totalFields} fields`));
             try {
-              await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
+              const res = await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: syncHeaders,
                 body: JSON.stringify({ schema: event.schema, deleteRemoved: true }),
               });
+              if (!res.ok) {
+                console.log(chalk.yellow(`[scanner] Schema sync failed (HTTP ${res.status})`));
+              }
             } catch {
               // Server might not be ready yet, ignore
             }
@@ -309,6 +341,8 @@ export function devCommand(program: Command): void {
           databaseUrl: dbPath,
           cors: true,
           logger: false,
+          apiKey,
+          authEnabled: true,
         });
 
         await startApiServer(server);
@@ -352,15 +386,17 @@ export function devCommand(program: Command): void {
           try {
             const syncRes = await fetch(`http://${options.host}:${port}/api/reverso/schema/sync`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: syncHeaders,
               body: JSON.stringify({ schema: initialSchema, deleteRemoved: true }),
             });
             const syncData = await syncRes.json() as { success?: boolean };
             if (syncData.success) {
               console.log(chalk.green(`  Schema synced: ${initialSchema.totalFields} fields across ${initialSchema.pageCount} page(s)`));
+            } else {
+              console.log(chalk.yellow(`  Schema sync failed (HTTP ${syncRes.status})`));
             }
-          } catch {
-            // Ignore sync errors
+          } catch (error) {
+            console.log(chalk.yellow(`  Schema sync failed: ${error instanceof Error ? error.message : error}`));
           }
         }
 
@@ -402,6 +438,11 @@ export function devCommand(program: Command): void {
           console.log(chalk.gray('\nShutting down...'));
           scanner.stopWatch();
           await server.close();
+          try {
+            unlinkSync(devServerFile);
+          } catch {
+            // Already gone
+          }
           process.exit(0);
         };
 

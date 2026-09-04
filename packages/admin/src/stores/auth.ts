@@ -29,6 +29,8 @@ export interface AuthActions {
   checkAuth: () => Promise<void>;
   checkSetupStatus: () => Promise<void>;
   clearError: () => void;
+  /** Drop the local session after the API rejected it (401). */
+  sessionExpired: () => void;
 }
 
 // Auth routes are at /auth/* (no /api/reverso prefix)
@@ -224,6 +226,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       clearError: () => {
         set({ error: null });
+      },
+
+      sessionExpired: () => {
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: 'Your session has expired. Please sign in again.',
+        });
       },
     }),
     {
