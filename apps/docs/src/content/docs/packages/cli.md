@@ -112,46 +112,25 @@ reverso build --output ./dist
 
 ### reverso init
 
-Initialize Reverso in an existing project:
+Initialize Reverso in an existing project (a `package.json` must exist):
 
 ```bash
-reverso init
-
-# Interactive prompts:
-# - Database type (SQLite/PostgreSQL)
-# - Content directory
-# - i18n configuration
+reverso init                 # asks for the admin account and installs @reverso/*
+reverso init --yes           # no prompts: generated admin password, printed once
+reverso init --skip-install  # write files only (monorepos, CI)
+reverso init --force         # overwrite an existing reverso.config.ts
+reverso init --example       # also add an example component with markers
 ```
 
-Creates:
-- `reverso.config.ts`
-- `.reverso/` directory
-- Database file (if SQLite)
+What it does:
 
-### reverso export
-
-Export content to JSON:
-
-```bash
-reverso export
-
-# Options
-reverso export --output content.json
-reverso export --locale en
-reverso export --page home
-```
-
-### reverso import
-
-Import content from JSON:
-
-```bash
-reverso import content.json
-
-# Options
-reverso import content.json --merge     # Merge with existing
-reverso import content.json --overwrite # Overwrite existing
-```
+- writes `reverso.config.ts` with `srcDir` set to the folder it detects
+  (`src/`, `app/`, `pages/`, `components/` or the project root)
+- creates `.reverso/` and adds it to `.gitignore` (creating the file if needed)
+- stores the first admin account in `.reverso/admin.json`; the next
+  `reverso dev` creates the user and deletes that file
+- installs `@reverso/cli`, `@reverso/core` and `@reverso/client` pinned to the
+  CLI's own version, unless `--skip-install` is given
 
 ## Configuration
 

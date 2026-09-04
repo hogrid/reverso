@@ -653,8 +653,11 @@ reverso init --force
 # Create with example component
 reverso init --example
 
-# Non-interactive mode (accept all defaults)
+# Non-interactive mode (accept all defaults; prints the generated admin password once)
 reverso init --yes
+
+# Skip installing @reverso packages (monorepos, CI, or when you install yourself)
+reverso init --yes --skip-install
 ```
 
 ### Development

@@ -76,12 +76,15 @@ export function reversoVersions(): { cli: string; core: string; client: string }
  */
 export async function createReverso(): Promise<void> {
   console.log();
-  console.log(chalk.bold.blue('  ╭─────────────────────────────────────╮'));
-  console.log(chalk.bold.blue('  │                                     │'));
-  console.log(chalk.bold.blue('  │  ') + chalk.bold.white('Reverso CMS') + chalk.bold.blue('                       │'));
-  console.log(chalk.bold.blue('  │  ') + chalk.gray('The front-to-back headless CMS') + chalk.bold.blue('  │'));
-  console.log(chalk.bold.blue('  │                                     │'));
-  console.log(chalk.bold.blue('  ╰─────────────────────────────────────╯'));
+  const width = 36;
+  const line = (text: string, paint: (t: string) => string) =>
+    chalk.bold.blue('  │  ') + paint(text) + ' '.repeat(Math.max(0, width - text.length - 4)) + chalk.bold.blue('│');
+  console.log(chalk.bold.blue(`  ╭${'─'.repeat(width)}╮`));
+  console.log(chalk.bold.blue(`  │${' '.repeat(width)}│`));
+  console.log(line('Reverso CMS', (t) => chalk.bold.white(t)));
+  console.log(line('The front-to-back headless CMS', (t) => chalk.gray(t)));
+  console.log(chalk.bold.blue(`  │${' '.repeat(width)}│`));
+  console.log(chalk.bold.blue(`  ╰${'─'.repeat(width)}╯`));
   console.log();
 
   // Parse CLI args: optional positional project name + --yes/-y for defaults.
@@ -386,7 +389,7 @@ function generateReversoConfig(config: ProjectConfig): string {
   const provider = config.database === 'postgres' ? 'postgresql' : config.database;
   const dbUrl =
     config.database === 'sqlite'
-      ? "url: '.reverso/dev.db'"
+      ? "url: '.reverso/reverso.db'"
       : "url: process.env.DATABASE_URL || 'postgresql://localhost:5432/reverso'";
 
   const body = `defineConfig({
@@ -406,7 +409,9 @@ function generateReversoConfig(config: ProjectConfig): string {
 
   // Files to scan for markers
   scanner: {
-    include: ['**/*.tsx', '**/*.jsx', '**/*.astro'],
+    // Markers are read from React components; .astro files themselves are
+    // not parsed, so keep them as React islands when using Astro.
+    include: ['**/*.tsx', '**/*.jsx'],
     exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**'],
   },
 

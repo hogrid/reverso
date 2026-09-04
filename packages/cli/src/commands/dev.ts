@@ -358,7 +358,11 @@ export function devCommand(program: Command): void {
                   name: adminCreds.name,
                 }),
               });
-              const registerData = await registerRes.json() as { success?: boolean };
+              const registerData = (await registerRes.json()) as {
+                success?: boolean;
+                message?: string;
+                details?: Array<{ path?: unknown[]; message?: string }>;
+              };
               if (registerData.success) {
                 // Delete admin.json to avoid leaving plaintext credentials on disk
                 try {
@@ -369,10 +373,25 @@ export function devCommand(program: Command): void {
                 console.log();
                 console.log(chalk.green('  Admin account created and credentials removed from disk'));
                 console.log(chalk.gray('  Email:    ') + chalk.cyan(adminCreds.email));
+              } else {
+                // Never fail silently: the user would open /admin expecting to log in.
+                const reason =
+                  registerData.details?.map((d) => `${(d.path ?? []).join('.')}: ${d.message}`).join('; ') ||
+                  registerData.message ||
+                  `HTTP ${registerRes.status}`;
+                console.log();
+                console.log(chalk.yellow(`  Could not create the admin account from .reverso/admin.json (${reason}).`));
+                console.log(chalk.gray('  Fix the credentials in that file, or create the account at /admin/login.'));
               }
             }
-          } catch {
-            // Silently fail - user can still register manually
+          } catch (error) {
+            console.log();
+            console.log(
+              chalk.yellow(
+                `  Could not create the admin account automatically: ${error instanceof Error ? error.message : String(error)}`
+              )
+            );
+            console.log(chalk.gray('  You can still create it at /admin/login.'));
           }
         }
 
@@ -399,7 +418,7 @@ export function devCommand(program: Command): void {
         console.log(chalk.green.bold('Development server ready!'));
         console.log();
         console.log(chalk.bold('Endpoints:'));
-        console.log(chalk.gray(`  Admin:   `) + chalk.cyan.underline(`http://${host}:${port}/admin`));
+        console.log(chalk.gray('  Admin:   ') + chalk.cyan.underline(`http://${host}:${port}/admin`));
         console.log(chalk.gray(`  API:     http://${host}:${port}/api/reverso`));
         console.log(chalk.gray(`  Health:  http://${host}:${port}/health`));
         console.log();
@@ -487,7 +506,7 @@ export function devCommand(program: Command): void {
             errorCode === 'ERR_MODULE_NOT_FOUND') {
 
           // Extract package name from error
-          const missingPkgMatch = errorMsg.match(/Cannot find (?:package|module) ['"]?(@?[^'"\/\s]+(?:\/[^'"\/\s]+)?)/);
+          const missingPkgMatch = errorMsg.match(/Cannot find (?:package|module) ['"]?(@?[^'"/\s]+(?:\/[^'"/\s]+)?)/);
           const missingPackages: string[] = [];
 
           if (missingPkgMatch?.[1]) {

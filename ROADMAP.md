@@ -140,6 +140,17 @@ marcadores com expressões dinâmicas viravam caminhos inválidos; cookie de
 sessão com `Secure` fixo impedia login em HTTP interno; CSRF exigia header
 que o admin não enviava.
 
+Cenários reais validados com os pacotes do workspace: (A) `reverso init --yes`
+em um projeto Next existente seguido de `reverso dev` (schema com os
+marcadores, admin semeado, API pública respondendo); (B) projeto gerado pelo
+`create-reverso`, `reverso dev` + `next dev`, registro do admin, publicação via
+API e o site exibindo o novo valor. Corrigido no caminho: e-mail padrão do
+`init --yes` (`admin@<hostname>`) era rejeitado pela API e a semeadura do admin
+falhava em silêncio; `init` não criava `.gitignore` quando o projeto não tinha
+um (deixando `.reverso/admin.json` com senha em texto puro versionável);
+template do `create-reverso` usava `.reverso/dev.db` e incluía `**/*.astro`,
+que o scanner não lê; novo `reverso init --skip-install` para monorepos e CI.
+
 Os relatórios da auditoria anterior (`RELATORIO-DEBITOS-TECNICOS.md`,
 `GITHUB-ISSUES.md`, `.devils-advocate/`) ficam como histórico; este arquivo é a
 referência atual.

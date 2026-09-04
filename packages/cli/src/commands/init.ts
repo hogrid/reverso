@@ -9,7 +9,6 @@ import prompts from 'prompts';
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
-import { hostname } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
 /** Generate a strong random password for non-interactive (--yes) admin setup. */
@@ -123,7 +122,8 @@ export function initCommand(program: Command): void {
     .option('-f, --force', 'Overwrite existing configuration', false)
     .option('--example', 'Create an example component with markers', false)
     .option('-y, --yes', 'Skip prompts and use defaults', false)
-    .action(async (options: { force: boolean; example: boolean; yes: boolean }) => {
+    .option('--skip-install', 'Do not install @reverso packages (monorepos, CI)', false)
+    .action(async (options: { force: boolean; example: boolean; yes: boolean; skipInstall: boolean }) => {
       const spinner = ora();
 
       // Show branded banner
@@ -212,22 +212,24 @@ export function initCommand(program: Command): void {
         }
       }
 
-      // Add to .gitignore if it exists
+      // Keep .reverso/ out of git: it holds the database, uploads and, until
+      // the first `reverso dev`, the admin credentials in plain text.
       spinner.start('Updating .gitignore...');
       try {
         const gitignorePath = resolve(cwd, '.gitignore');
+        const additions = '\n# Reverso (database, uploads, admin credentials)\n.reverso/\n';
         if (existsSync(gitignorePath)) {
-          const { readFileSync, appendFileSync } = await import('node:fs');
+          const { appendFileSync } = await import('node:fs');
           const content = readFileSync(gitignorePath, 'utf-8');
           if (!content.includes('.reverso')) {
-            const additions = '\n# Reverso\n.reverso/\n';
             appendFileSync(gitignorePath, additions);
             spinner.succeed('Added .reverso/ to .gitignore');
           } else {
             spinner.info('.reverso/ already in .gitignore');
           }
         } else {
-          spinner.info('No .gitignore found, skipping');
+          writeFileSync(gitignorePath, `node_modules/${additions}`);
+          spinner.succeed('Created .gitignore with .reverso/');
         }
       } catch {
         spinner.info('Could not update .gitignore');
@@ -245,7 +247,9 @@ export function initCommand(program: Command): void {
       const adminAnswers = options.yes
         ? {
             name: 'Admin',
-            email: `admin@${hostname() || 'localhost'}`,
+            // Must pass the API's email validation (a real domain with a TLD);
+            // the machine hostname usually does not.
+            email: 'admin@example.com',
             password: generatedPassword,
           }
         : await prompts(
@@ -260,8 +264,9 @@ export function initCommand(program: Command): void {
                 type: 'text',
                 name: 'email',
                 message: 'Admin email',
-                initial: `admin@${hostname() || 'localhost'}`,
-                validate: (value: string) => (value.includes('@') ? true : 'Invalid email'),
+                initial: 'admin@example.com',
+                validate: (value: string) =>
+                  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) ? true : 'Enter a valid email (name@domain.tld)',
               },
               {
                 type: 'password',
@@ -309,7 +314,9 @@ export function initCommand(program: Command): void {
       console.log();
 
       // Install dependencies
-      const installDeps = options.yes || (await prompts({
+      const installDeps = options.skipInstall
+        ? false
+        : options.yes || (await prompts({
         type: 'confirm',
         name: 'value',
         message: 'Install Reverso dependencies?',
