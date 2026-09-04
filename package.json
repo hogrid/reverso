@@ -39,7 +39,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build && changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:e2e": "pnpm --filter @reverso/admin test:e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",

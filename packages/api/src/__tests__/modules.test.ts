@@ -361,6 +361,17 @@ describe('media', () => {
 
     const list = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media' }));
     expect(list.data).toHaveLength(1);
+    expect(list.meta.total).toBe(1);
+
+    const searched = json(
+      await t.server.inject({ method: 'GET', url: '/api/reverso/media?search=avat' })
+    );
+    expect(searched.data).toHaveLength(1);
+    const missed = json(
+      await t.server.inject({ method: 'GET', url: '/api/reverso/media?search=nothing-here' })
+    );
+    expect(missed.data).toHaveLength(0);
+    expect(missed.meta.total).toBe(0);
 
     const images = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media/images' }));
     expect(images.data).toHaveLength(1);

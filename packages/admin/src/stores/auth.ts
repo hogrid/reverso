@@ -17,9 +17,14 @@ export interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  /** True while the initial session check (checkAuth) is running. */
   isLoading: boolean;
+  /** True while a login or registration request is in flight. */
+  isSubmitting: boolean;
   error: string | null;
   canRegister: boolean; // Whether registration is open (no users exist yet)
+  /** True on a fresh install (no users yet); null until checked. */
+  needsSetup: boolean | null;
 }
 
 export interface AuthActions {
@@ -83,11 +88,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // checkAuth() before deciding to redirect, otherwise deep links
       // (e.g. /admin/pages/home) bounce to /login → / on every reload.
       isLoading: true,
+      isSubmitting: false,
       error: null,
       canRegister: true, // Default to true, will be checked on mount
+      needsSetup: null,
 
       login: async (email: string, password: string) => {
-        set({ isLoading: true, error: null });
+        set({ isSubmitting: true, error: null });
 
         try {
           const { ok, data } = await authFetch('/auth/login', {
@@ -100,7 +107,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           if (!ok) {
             set({
-              isLoading: false,
+              isSubmitting: false,
               error: data?.message || 'Login failed',
             });
             return false;
@@ -111,14 +118,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             token: data?.session?.token || null,
             isAuthenticated: true,
             isLoading: false,
+            isSubmitting: false,
             error: null,
             canRegister: false, // After login, registration is closed
+            needsSetup: false,
           });
 
           return true;
         } catch (error) {
           set({
-            isLoading: false,
+            isSubmitting: false,
             error: error instanceof Error ? error.message : 'Network error',
           });
           return false;
@@ -126,7 +135,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       },
 
       register: async (email: string, password: string, name: string) => {
-        set({ isLoading: true, error: null });
+        set({ isSubmitting: true, error: null });
 
         try {
           const { ok, data } = await authFetch('/auth/register', {
@@ -139,7 +148,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           if (!ok) {
             set({
-              isLoading: false,
+              isSubmitting: false,
               error: data?.message || 'Registration failed',
             });
             return false;
@@ -150,14 +159,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             token: data?.session?.token || null,
             isAuthenticated: true,
             isLoading: false,
+            isSubmitting: false,
             error: null,
             canRegister: false, // After registration, no more users can be created
+            needsSetup: false,
           });
 
           return true;
         } catch (error) {
           set({
-            isLoading: false,
+            isSubmitting: false,
             error: error instanceof Error ? error.message : 'Network error',
           });
           return false;
@@ -216,7 +227,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const { ok, data } = await authFetch('/auth/setup-status');
 
           if (ok) {
-            set({ canRegister: data?.canRegister ?? true });
+            set({
+              canRegister: data?.canRegister ?? true,
+              needsSetup: data?.needsSetup ?? null,
+            });
           }
         } catch {
           // On error, assume registration is allowed (fail open)

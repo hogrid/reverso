@@ -13,6 +13,7 @@ import {
   generateId,
   getImages,
   getMediaById,
+  getMediaCount,
   getMediaList,
   parseMediaMetadata,
   updateMedia,
@@ -75,6 +76,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.get<{
     Querystring: {
       type?: string;
+      search?: string;
       limit?: string;
       offset?: string;
     };
@@ -91,18 +93,23 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      const { type, limit, offset } = queryResult.data;
+      const { type, search, limit, offset } = queryResult.data;
       const db = request.db;
 
       const options: MediaListOptions = {};
       if (type) options.mimeType = type;
+      if (search) options.search = search;
       if (limit) options.limit = limit;
       if (offset) options.offset = offset;
 
-      const media = await getMediaList(db, options);
+      const [media, total] = await Promise.all([
+        getMediaList(db, options),
+        getMediaCount(db, { mimeType: options.mimeType, search: options.search }),
+      ]);
 
       return {
         success: true,
+        meta: { total, limit: limit ?? null, offset: offset ?? 0 },
         data: media.map((m) => ({
           id: m.id,
           filename: m.filename,

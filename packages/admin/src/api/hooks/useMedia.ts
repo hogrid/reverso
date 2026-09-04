@@ -35,7 +35,7 @@ export interface MediaFilters {
  * Fetch media library items with pagination
  */
 export function useMedia(filters: MediaFilters = {}) {
-  return useQuery({
+  return useQuery<MediaListResponse>({
     queryKey: ['media', filters],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -47,8 +47,21 @@ export function useMedia(filters: MediaFilters = {}) {
       params.set('offset', String((page - 1) * pageSize));
 
       const url = `${endpoints.media.list()}${params.toString() ? `?${params}` : ''}`;
-      const response = await apiClient.get<MediaListResponse>(url);
-      return response.data;
+      // The API answers { data: MediaItem[], meta: { total, limit, offset } };
+      // expose it in the paginated shape the pages and pickers render.
+      const response = (await apiClient.get<MediaItem[]>(url)) as {
+        data: MediaItem[];
+        meta?: { total?: number; limit?: number; offset?: number };
+      };
+      const items = response.data ?? [];
+      const total = response.meta?.total ?? items.length;
+      return {
+        items,
+        total,
+        page,
+        pageSize,
+        hasMore: (page - 1) * pageSize + items.length < total,
+      };
     },
   });
 }

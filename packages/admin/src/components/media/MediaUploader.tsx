@@ -2,13 +2,15 @@ import { useUploadMedia } from '@/api/hooks/useMedia';
 import { LoadingState } from '@/components/common/LoadingState';
 import { cn } from '@/lib/utils';
 import { Upload } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { type RefObject, useCallback, useRef, useState } from 'react';
 
 export interface MediaUploaderProps {
   accept?: string;
   multiple?: boolean;
   onUploadComplete?: () => void;
   onUploadError?: (error: Error) => void;
+  /** Lets a parent (e.g. a toolbar "Upload" button) open the file picker. */
+  inputRef?: RefObject<HTMLInputElement | null>;
   compact?: boolean;
   disabled?: boolean;
 }
@@ -18,6 +20,7 @@ export function MediaUploader({
   multiple = true,
   onUploadComplete,
   onUploadError,
+  inputRef,
   compact = false,
   disabled = false,
 }: MediaUploaderProps) {
@@ -58,17 +61,12 @@ export function MediaUploader({
     setIsDragOver(false);
   };
 
+  const localInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = inputRef ?? localInputRef;
+
   const handleClick = () => {
     if (disabled) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = multiple;
-    if (accept) input.accept = accept;
-    input.onchange = (e) => {
-      const target = e.target as HTMLInputElement;
-      handleFileSelect(target.files);
-    };
-    input.click();
+    fileInputRef.current?.click();
   };
 
   return (
@@ -87,6 +85,21 @@ export function MediaUploader({
         disabled && 'opacity-50 cursor-not-allowed'
       )}
     >
+      {/* Real file input (visually hidden) so the picker is accessible and testable. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple={multiple}
+        accept={accept}
+        disabled={disabled}
+        className="sr-only"
+        aria-label="Upload files"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          handleFileSelect(e.target.files);
+          e.target.value = '';
+        }}
+      />
       {uploadMedia.isPending ? (
         <LoadingState size="sm" message="Uploading files..." />
       ) : (

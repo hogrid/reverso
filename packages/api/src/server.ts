@@ -191,17 +191,24 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   }
 
   // Register rate limiting
+  // Rate limiting protects the API and auth endpoints. The admin shell and
+  // its static assets are exempt: a single page load fetches dozens of
+  // chunks and would otherwise eat the budget of the API calls that follow.
   await server.register(rateLimit, {
-    max: 300,
+    max: 600,
     timeWindow: '1 minute',
     // request.ip already honours X-Forwarded-For when trustProxy is on;
     // reading the header directly would let any client pick its own bucket.
     keyGenerator: (request) => request.headers['x-api-key']?.toString() || request.ip,
-    allowList: ['/health'],
-    errorResponseBuilder: () => ({
+    allowList: (request) =>
+      /^\/(health|favicon\.svg)$/.test(request.url) ||
+      request.url.startsWith('/admin') ||
+      request.url.startsWith('/uploads/'),
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
       success: false,
       error: 'Too Many Requests',
-      message: 'Rate limit exceeded. Please try again later.',
+      message: `Rate limit exceeded. Try again in ${Math.ceil(context.ttl / 1000)}s.`,
     }),
   });
 

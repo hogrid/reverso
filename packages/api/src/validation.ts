@@ -163,6 +163,7 @@ export const paginationSchema = z.object({
  */
 export const mediaListQuerySchema = paginationSchema.extend({
   type: z.string().optional(),
+  search: z.string().max(200).optional(),
 });
 
 /**
