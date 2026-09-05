@@ -22,6 +22,9 @@ import {
 import { z } from 'zod';
 import { cookieSecure } from '../utils/security.js';
 
+/** Failed logins from one address (any account) within the window before it is locked. */
+const IP_MAX_FAILED_LOGINS = 20;
+
 const SALT_ROUNDS = 12;
 const SESSION_DURATION_DAYS = 30;
 
@@ -73,24 +76,38 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
 
     const { email, password } = parseResult.data;
 
-    // Check lockout (persistent in database).
-    // Per account and IP: one attacker cannot lock every user behind a shared
-    // proxy IP, and one IP cannot try unlimited passwords on one account.
-    const lockoutKey = `login:${email.toLowerCase()}:${ip}`;
-    const lockoutStatus = await isLockedOut(db, lockoutKey);
-    if (lockoutStatus.locked) {
+    // Two independent lockout buckets (persistent in database):
+    //  - per account: one IP cannot try unlimited passwords on one user;
+    //  - per IP, with a higher ceiling for offices behind one NAT: one source
+    //    cannot spray a few guesses across arbitrarily many accounts.
+    const accountKey = `login:account:${email.toLowerCase()}`;
+    const ipKey = `login:ip:${ip}`;
+    const [accountLock, ipLock] = await Promise.all([
+      isLockedOut(db, accountKey),
+      isLockedOut(db, ipKey),
+    ]);
+    const lock = accountLock.locked ? accountLock : ipLock.locked ? ipLock : null;
+    if (lock) {
+      const minutes = Math.ceil(lock.remainingSeconds / 60);
       return reply.status(429).send({
         success: false,
         error: 'Too many failed attempts',
-        message: `Account temporarily locked. Try again in ${Math.ceil(lockoutStatus.remainingSeconds / 60)} minutes.`,
-        retryAfter: lockoutStatus.remainingSeconds,
+        message: accountLock.locked
+          ? `Account temporarily locked. Try again in ${minutes} minutes.`
+          : `Too many failed logins from this address. Try again in ${minutes} minutes.`,
+        retryAfter: lock.remainingSeconds,
       });
     }
+    const recordFailure = () =>
+      Promise.all([
+        recordFailedLoginAttempt(db, accountKey),
+        recordFailedLoginAttempt(db, ipKey, IP_MAX_FAILED_LOGINS),
+      ]);
 
     // Find user
     const user = await getUserByEmail(db, email);
     if (!user) {
-      await recordFailedLoginAttempt(db, lockoutKey);
+      await recordFailure();
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -101,7 +118,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Get account with password
     const account = await getAccountByUserId(db, user.id, 'credential');
     if (!account || !account.password) {
-      await recordFailedLoginAttempt(db, lockoutKey);
+      await recordFailure();
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -112,7 +129,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     // Verify password
     const passwordValid = await bcrypt.compare(password, account.password);
     if (!passwordValid) {
-      await recordFailedLoginAttempt(db, lockoutKey);
+      await recordFailure();
       return reply.status(401).send({
         success: false,
         error: 'Invalid credentials',
@@ -121,7 +138,8 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     }
 
     // Clear failed attempts on successful login
-    await clearLoginAttempts(db, lockoutKey);
+    // A correct password clears the account bucket; the IP bucket simply ages out.
+    await clearLoginAttempts(db, accountKey);
 
     // Create session
     const token = generateSessionToken();

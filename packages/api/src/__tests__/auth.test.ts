@@ -239,6 +239,53 @@ describe('authentication', () => {
       }
       expect(last).toBe(429);
     });
+
+    it('locks an address that sprays guesses across many accounts', async () => {
+      await registerAdmin();
+      // A fresh email per attempt never trips the per-account bucket; the
+      // per-IP bucket must still stop the source (ceiling of 20 per window).
+      let last = 0;
+      let attempts = 0;
+      for (; attempts < 30 && last !== 429; attempts++) {
+        const res = await t.server.inject({
+          method: 'POST',
+          url: '/auth/login',
+          payload: { email: `user${attempts}@example.com`, password: 'wrong-password' },
+        });
+        expect([401, 429]).toContain(res.statusCode);
+        last = res.statusCode;
+      }
+      expect(last).toBe(429);
+      expect(attempts).toBeLessThanOrEqual(21);
+      expect(json(await t.server.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: 'admin@example.com', password: 'password123' },
+      })).message).toMatch(/from this address/);
+    });
+
+    it('one locked account does not lock the others', async () => {
+      await registerAdmin();
+      for (let i = 0; i < 6; i++) {
+        await t.server.inject({
+          method: 'POST',
+          url: '/auth/login',
+          payload: { email: 'victim@example.com', password: 'wrong-password' },
+        });
+      }
+      const victim = await t.server.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: 'victim@example.com', password: 'wrong-password' },
+      });
+      expect(victim.statusCode).toBe(429);
+      const admin = await t.server.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: 'admin@example.com', password: 'password123' },
+      });
+      expect(admin.statusCode).toBe(200);
+    });
   });
 
   describe('disabled auth (explicit opt-out)', () => {

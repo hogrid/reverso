@@ -287,16 +287,18 @@ function apiUrlEnvVar(framework: Framework): string {
 function generatePackageJson(config: ProjectConfig): string {
   const versions = reversoVersions();
 
+  // The CLI and core are runtime dependencies: `reverso start` serves the CMS
+  // in production and `reverso.config.ts` imports `defineConfig` when loaded.
+  // Keeping them out of devDependencies means `npm ci --omit=dev` still works.
   const deps: Record<string, string> = {
+    '@reverso/cli': versions.cli,
     '@reverso/client': versions.client,
+    '@reverso/core': versions.core,
     react: '^19.0.0',
     'react-dom': '^19.0.0',
   };
 
-  const devDeps: Record<string, string> = {
-    '@reverso/cli': versions.cli,
-    '@reverso/core': versions.core,
-  };
+  const devDeps: Record<string, string> = {};
 
   if (config.typescript) {
     devDeps.typescript = '^5.7.0';

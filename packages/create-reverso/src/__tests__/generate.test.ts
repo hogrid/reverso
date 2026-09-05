@@ -63,8 +63,10 @@ describe('generateProjectFiles', () => {
     const pkg = JSON.parse(files['package.json'] ?? '{}');
     expect(pkg.name).toBe('demo-app');
     expect(pkg.dependencies['@reverso/client']).toBeDefined();
-    expect(pkg.devDependencies['@reverso/cli']).toBeDefined();
-    expect(pkg.devDependencies['@reverso/core']).toBeDefined();
+    // Runtime packages: `reverso start` and reverso.config.ts need them in production.
+    expect(pkg.dependencies['@reverso/cli']).toBeDefined();
+    expect(pkg.dependencies['@reverso/core']).toBeDefined();
+    expect(pkg.devDependencies['@reverso/cli']).toBeUndefined();
     expect(pkg.scripts['reverso:dev']).toBe('reverso dev');
     expect(pkg.scripts.dev).toBeDefined();
 

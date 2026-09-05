@@ -72,7 +72,12 @@ function getCookieSecret(): string {
   return 'reverso-dev-secret-do-not-use-in-production';
 }
 
-const defaultConfig: Required<ServerConfig> = {
+/**
+ * Defaults, resolved when a server is created (not at import time) so that
+ * environment variables loaded late (dotenv in the CLI, test setups) count.
+ */
+function defaultConfig(): Required<ServerConfig> {
+  return {
   port: 3001,
   host: '0.0.0.0',
   cors: true,
@@ -83,13 +88,20 @@ const defaultConfig: Required<ServerConfig> = {
   apiKey: process.env.REVERSO_API_KEY || '',
   authEnabled: resolveAuthEnabled(),
   trustProxy: process.env.REVERSO_TRUST_PROXY === 'true',
-};
+  };
+}
 
 /**
  * Create a Fastify server instance.
  */
 export async function createServer(config: ServerConfig = {}): Promise<FastifyInstance> {
-  const opts = { ...defaultConfig, ...config };
+  // Callers often forward optional settings they did not resolve themselves
+  // (`trustProxy: options.trustProxy`). An explicit `undefined` must not
+  // override the environment-derived defaults above.
+  const provided = Object.fromEntries(
+    Object.entries(config).filter(([, value]) => value !== undefined)
+  ) as ServerConfig;
+  const opts = { ...defaultConfig(), ...provided };
 
   const fastifyOptions: FastifyServerOptions = {
     trustProxy: opts.trustProxy,
@@ -280,7 +292,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
  * Should be called AFTER the database plugin to ensure request.db is available.
  */
 export async function registerAuth(server: FastifyInstance, config: ServerConfig = {}): Promise<void> {
-  const opts = { ...defaultConfig, ...server.config, ...config };
+  const opts = { ...defaultConfig(), ...server.config, ...config };
 
   await server.register(authPlugin, {
     apiKey: opts.apiKey,
@@ -357,7 +369,7 @@ export async function startServer(
   config: ServerConfig = {}
 ): Promise<string> {
   // Use server's stored config as base, then override with passed config
-  const opts = { ...defaultConfig, ...server.config, ...config };
+  const opts = { ...defaultConfig(), ...server.config, ...config };
 
   try {
     const address = await server.listen({

@@ -61,7 +61,8 @@ export async function isLockedOut(
  */
 export async function recordFailedLoginAttempt(
   db: DrizzleDatabase,
-  key: string
+  key: string,
+  maxAttempts: number = MAX_ATTEMPTS
 ): Promise<{ locked: boolean; attempts: number }> {
   const now = new Date();
   const attempt = await getLoginAttempt(db, key);
@@ -93,7 +94,7 @@ export async function recordFailedLoginAttempt(
   }
 
   const newAttempts = attempt.attempts + 1;
-  const shouldLock = newAttempts >= MAX_ATTEMPTS;
+  const shouldLock = newAttempts >= maxAttempts;
 
   await db.update(loginAttempts)
     .set({

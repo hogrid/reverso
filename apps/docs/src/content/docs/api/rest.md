@@ -673,7 +673,7 @@ All errors follow this format:
 Default limits:
 - 600 requests per minute per IP (or per API key); admin assets, uploads and health checks are exempt
 - 10 public form submissions per minute per IP
-- Login lockout after repeated failed attempts
+- Login lockout after repeated failed attempts: 5 per account and 20 per source address within an hour, each bucket independent (15 minute lock)
 
 Headers in response:
 ```

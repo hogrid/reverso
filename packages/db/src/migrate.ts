@@ -99,12 +99,29 @@ export function isLegacyDatabase(sqlite: Database.Database): boolean {
   return row.n === 0;
 }
 
-/** Column renames between the legacy DDL and the Drizzle schema. */
+/** Column renames between the legacy DDL and the Drizzle schema (same type). */
 const LEGACY_RENAMES: Array<{ table: string; from: string; to: string }> = [
   { table: 'redirects', from: 'enabled', to: 'is_enabled' },
   { table: 'redirects', from: 'hits', to: 'hit_count' },
-  { table: 'form_submissions', from: 'webhook_sent', to: 'webhook_sent_at' },
 ];
+
+/**
+ * `form_submissions.webhook_sent` (boolean 0/1) became `webhook_sent_at`
+ * (timestamp). A plain rename would turn every unsent row into "sent at
+ * 1970", so the values are translated: false → NULL, true → the submission's
+ * creation time (the closest defensible moment).
+ */
+function migrateWebhookSentColumn(sqlite: Database.Database, verbose: boolean): void {
+  if (!tableExists(sqlite, 'form_submissions')) return;
+  const cols = columnNames(sqlite, 'form_submissions');
+  if (!cols.has('webhook_sent') || cols.has('webhook_sent_at')) return;
+  sqlite.exec('ALTER TABLE "form_submissions" ADD COLUMN "webhook_sent_at" integer');
+  sqlite.exec(
+    'UPDATE "form_submissions" SET "webhook_sent_at" = "created_at" WHERE "webhook_sent" = 1'
+  );
+  sqlite.exec('ALTER TABLE "form_submissions" DROP COLUMN "webhook_sent"');
+  if (verbose) console.log('  migrated form_submissions.webhook_sent -> webhook_sent_at');
+}
 
 function sqlDefault(value: unknown): string {
   if (value === true) return '1';
@@ -157,6 +174,9 @@ function adoptLegacyDatabase(
         if (verbose) console.log(`  renamed ${table}.${from} -> ${to}`);
       }
     }
+
+    // 1b. Columns whose type changed need their values translated.
+    migrateWebhookSentColumn(sqlite, verbose);
 
     // 2. Missing tables: run their CREATE TABLE from the baseline migration.
     //    Missing indexes: create them if absent.

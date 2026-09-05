@@ -876,7 +876,7 @@ the admin session cookie (set by `/auth/login`), the same session token as
 | `GET` | `/api/reverso/stats` | Dashboard statistics |
 
 Rate limit: 600 requests per minute per IP (admin assets excluded), 10 public
-form submissions per minute per IP, login lockout after repeated failures.
+form submissions per minute per IP, login lockout after repeated failures, tracked per account (5 in an hour) and per source address (20 in an hour) independently.
 
 ---
 

@@ -111,6 +111,12 @@ describe('migrations', () => {
           "INSERT INTO forms (id, slug, name, status, created_at, updated_at) VALUES ('f1', 'legacy-form', 'Legacy', 'draft', ?, ?)"
         )
         .run(now, now);
+      // One submission whose webhook was sent, one whose was not (boolean flag).
+      const insertSubmission = sqlite.prepare(
+        "INSERT INTO form_submissions (id, form_id, data, webhook_sent, created_at, updated_at) VALUES (?, 'f1', '{}', ?, ?, ?)"
+      );
+      insertSubmission.run('s-sent', 1, now, now);
+      insertSubmission.run('s-unsent', 0, now, now);
       sqlite.close();
     }
 
@@ -151,6 +157,28 @@ describe('migrations', () => {
       const forms = await getForms(db);
       expect(forms).toHaveLength(1);
       expect(forms[0]?.slug).toBe('legacy-form');
+    });
+
+    it('translates the boolean webhook flag into a timestamp instead of renaming it', async () => {
+      createLegacyDb();
+      await runMigrations({ dbPath: LEGACY_DB });
+
+      const sqlite = new Database(LEGACY_DB, { readonly: true });
+      const columns = new Set(
+        (sqlite.prepare('PRAGMA table_info("form_submissions")').all() as { name: string }[]).map((c) => c.name)
+      );
+      const rows = sqlite
+        .prepare('SELECT id, webhook_sent_at, created_at FROM form_submissions ORDER BY id')
+        .all() as { id: string; webhook_sent_at: number | null; created_at: number }[];
+      sqlite.close();
+
+      expect(columns.has('webhook_sent')).toBe(false);
+      expect(columns.has('webhook_sent_at')).toBe(true);
+      const sent = rows.find((r) => r.id === 's-sent');
+      const unsent = rows.find((r) => r.id === 's-unsent');
+      // Unsent must stay NULL (a rename would have produced "sent at 1970").
+      expect(unsent?.webhook_sent_at).toBeNull();
+      expect(sent?.webhook_sent_at).toBe(sent?.created_at);
     });
 
     it('runs the adoption only once', async () => {
