@@ -35,7 +35,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 type ViewMode = 'grid' | 'list';
 type MediaType = 'all' | 'image' | 'video' | 'audio' | 'document';
@@ -51,6 +51,7 @@ const mediaTypeFilters: { value: MediaType; label: string; icon: typeof ImageIco
 export function MediaPage() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [mediaType, setMediaType] = useState<MediaType>('all');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -194,7 +195,10 @@ export function MediaPage() {
             </button>
           </div>
 
-          <Button className="h-10 px-5 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90" onClick={() => {}}>
+          <Button
+            className="h-10 px-5 text-[13px] font-medium bg-foreground text-white hover:bg-foreground/90"
+            onClick={() => uploadInputRef.current?.click()}
+          >
             <Upload className="h-4 w-4 mr-2" />
             Upload
           </Button>
@@ -213,7 +217,7 @@ export function MediaPage() {
       )}
 
       {/* Upload area */}
-      <MediaUploader onUploadComplete={() => refetch()} />
+      <MediaUploader inputRef={uploadInputRef} onUploadComplete={() => refetch()} />
 
       {/* Media grid/list */}
       {media?.items && media.items.length > 0 ? (

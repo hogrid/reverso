@@ -2,7 +2,7 @@
 # Multi-stage build for optimal image size
 
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install native build toolchain so better-sqlite3 (and any other native
 # addons) can compile from source on alpine/musl, where prebuilt binaries
@@ -43,7 +43,7 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 # Stage 2: Production
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -63,6 +63,7 @@ COPY --from=builder /app/packages/core/package.json ./packages/core/
 COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/db/package.json ./packages/db/
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/db/migrations ./packages/db/migrations
 COPY --from=builder /app/packages/api/package.json ./packages/api/
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/admin/package.json ./packages/admin/
@@ -75,11 +76,14 @@ COPY --from=builder /app/packages/scanner/package.json ./packages/scanner/
 COPY --from=builder /app/packages/scanner/dist ./packages/scanner/dist
 COPY --from=builder /app/packages/cli/package.json ./packages/cli/
 COPY --from=builder /app/packages/cli/dist ./packages/cli/dist
+COPY --from=builder /app/packages/cli/bin ./packages/cli/bin
 COPY --from=builder /app/packages/mcp/package.json ./packages/mcp/
 COPY --from=builder /app/packages/mcp/dist ./packages/mcp/dist
 
-# Create directories
+# Create directories. `.reverso` holds the database and uploads: keep it on a
+# volume so `docker run` without compose does not lose content on restart.
 RUN mkdir -p /app/.reverso/uploads && chown -R reverso:reverso /app
+VOLUME ["/app/.reverso"]
 
 # Switch to non-root user
 USER reverso
@@ -89,6 +93,9 @@ ENV NODE_ENV=production
 ENV REVERSO_PORT=3001
 ENV REVERSO_HOST=0.0.0.0
 ENV REVERSO_DB_PATH=/app/.reverso/reverso.db
+# Uploads are written relative to the working directory (.reverso/uploads).
+# Behind a reverse proxy (the normal case) client IPs come from X-Forwarded-*.
+ENV REVERSO_TRUST_PROXY=true
 
 # Expose port
 EXPOSE 3001
@@ -97,5 +104,7 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Start the server
-CMD ["node", "packages/api/dist/cli.js", "start"]
+# Start the production server (API + admin). The schema is loaded by running
+# `reverso scan --api-url <this server> --api-key $REVERSO_API_KEY` from the
+# project that holds the data-reverso markers.
+CMD ["node", "packages/cli/bin/reverso.js", "start"]

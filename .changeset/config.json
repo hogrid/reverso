@@ -4,10 +4,28 @@
   "commit": false,
   "fixed": [],
   "linked": [
-    ["@reverso/core", "@reverso/scanner", "@reverso/db", "@reverso/api", "@reverso/admin", "@reverso/blocks", "@reverso/forms", "@reverso/cli", "@reverso/mcp", "create-reverso"]
+    [
+      "@reverso/core",
+      "@reverso/scanner",
+      "@reverso/db",
+      "@reverso/api",
+      "@reverso/admin",
+      "@reverso/blocks",
+      "@reverso/forms",
+      "@reverso/cli",
+      "@reverso/client",
+      "@reverso/mcp",
+      "create-reverso"
+    ]
   ],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@reverso/docs", "@reverso/playground"]
+  "ignore": [
+    "@reverso/docs",
+    "@reverso/playground",
+    "reverso-blog-example",
+    "reverso-portfolio-example",
+    "reverso-showcase-example"
+  ]
 }

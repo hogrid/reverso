@@ -2,7 +2,7 @@
  * Media queries.
  */
 
-import { desc, eq, like, sql } from 'drizzle-orm';
+import { and, desc, eq, like, or, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import { type Media, type NewMedia, media } from '../schema/index.js';
 import { generateId, now, parseJson, toJson } from '../utils.js';
@@ -29,8 +29,23 @@ export interface UpdateMediaInput {
 
 export interface MediaListOptions {
   mimeType?: string;
+  /** Case-insensitive match on the original file name or alt text. */
+  search?: string;
   limit?: number;
   offset?: number;
+}
+
+/** WHERE clause shared by the list and count queries. */
+function mediaFilter(options: MediaListOptions) {
+  const conditions = [];
+  if (options.mimeType) {
+    conditions.push(like(media.mimeType, `${options.mimeType}%`));
+  }
+  if (options.search) {
+    const pattern = `%${options.search.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+    conditions.push(or(like(media.originalName, pattern), like(media.alt, pattern)));
+  }
+  return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 /**
@@ -86,8 +101,9 @@ export async function getMediaList(
 ): Promise<Media[]> {
   let query = db.select().from(media).orderBy(desc(media.createdAt));
 
-  if (options.mimeType) {
-    query = query.where(like(media.mimeType, `${options.mimeType}%`)) as typeof query;
+  const where = mediaFilter(options);
+  if (where) {
+    query = query.where(where) as typeof query;
   }
 
   if (options.limit) {
@@ -168,8 +184,16 @@ export async function deleteMedia(db: DrizzleDatabase, id: string): Promise<Medi
 /**
  * Get total media count.
  */
-export async function getMediaCount(db: DrizzleDatabase): Promise<number> {
-  const result = await db.select({ count: sql<number>`count(*)` }).from(media);
+export async function getMediaCount(
+  db: DrizzleDatabase,
+  options: MediaListOptions = {}
+): Promise<number> {
+  let query = db.select({ count: sql<number>`count(*)` }).from(media);
+  const where = mediaFilter(options);
+  if (where) {
+    query = query.where(where) as typeof query;
+  }
+  const result = await query;
   return result[0]?.count ?? 0;
 }
 

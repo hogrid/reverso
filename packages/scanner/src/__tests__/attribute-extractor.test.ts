@@ -204,3 +204,37 @@ describe('getElementTextContent', () => {
   // Note: Text content extraction is validated in integration tests
   // The unit test setup with in-memory fs has AST structure differences
 });
+
+describe('extractAttributes with non-literal expressions', () => {
+  it('ignores a marker whose path cannot be resolved statically', () => {
+    const element = createTestElement('<h1 data-reverso={`home.${slug}.title`}>Title</h1>');
+    expect(extractAttributes(element!)).toBeNull();
+  });
+
+  it('ignores a marker whose path is a variable', () => {
+    const element = createTestElement('<h1 data-reverso={path}>Title</h1>');
+    expect(extractAttributes(element!)).toBeNull();
+  });
+
+  it('drops attributes that are expressions but keeps the literal path', () => {
+    const element = createTestElement(
+      '<h1 data-reverso="home.hero.title" data-reverso-label={t("label")} data-reverso-options={opts.join(",")} data-reverso-type="select">Title</h1>'
+    );
+    const result = extractAttributes(element!);
+    expect(result?.path).toBe('home.hero.title');
+    expect(result?.attributes.type).toBe('select');
+    expect(result?.attributes.label).toBeUndefined();
+    expect(result?.attributes.options).toBeUndefined();
+  });
+
+  it('still resolves literal expressions', () => {
+    const element = createTestElement(
+      '<h1 data-reverso={"home.hero.title"} data-reverso-label={`Title`} data-reverso-required={true} data-reverso-max={12}>Title</h1>'
+    );
+    const result = extractAttributes(element!);
+    expect(result?.path).toBe('home.hero.title');
+    expect(result?.attributes.label).toBe('Title');
+    expect(result?.attributes.required).toBe(true);
+    expect(result?.attributes.max).toBe(12);
+  });
+});

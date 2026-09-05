@@ -1,12 +1,26 @@
 import { reverso } from '@/lib/reverso';
 
+const FALLBACK_GALLERY = [
+  { url: '/placeholder.svg', alt: 'Gallery item 1' },
+  { url: '/placeholder.svg', alt: 'Gallery item 2' },
+  { url: '/placeholder.svg', alt: 'Gallery item 3' },
+];
+
 /**
  * Media family field types.
  * Covers: image, gallery, file, video, color.
+ *
+ * Media values are stored as objects ({ url, alt, ... }). `page.image()`,
+ * `page.images()` and `page.file()` return them typed; `page.get()` with a
+ * string fallback returns just the URL.
  */
 export async function MediaSection() {
   const page = await reverso.getPage('showcase');
   const brandColor = page.get('showcase.media.brandColor', '#2563eb');
+  const cover = page.image('showcase.media.cover') ?? { url: '/placeholder.svg', alt: 'Cover' };
+  const gallery = page.images('showcase.media.gallery', FALLBACK_GALLERY);
+  const attachment = page.file('showcase.media.attachment') ?? { url: '#', filename: 'placeholder.pdf' };
+  const promo = page.file('showcase.media.promo');
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -19,8 +33,8 @@ export async function MediaSection() {
             data-reverso="showcase.media.cover"
             data-reverso-type="image"
             data-reverso-label="Cover image"
-            src={page.get('showcase.media.cover', '/placeholder.jpg')}
-            alt="Cover"
+            src={cover.url}
+            alt={cover.alt ?? 'Cover'}
             className="h-48 w-full rounded-lg object-cover"
           />
         </div>
@@ -33,9 +47,14 @@ export async function MediaSection() {
             data-reverso-label="Image gallery"
             className="grid grid-cols-3 gap-3"
           >
-            <img src="/placeholder.jpg" alt="Gallery item 1" className="h-24 w-full rounded object-cover" />
-            <img src="/placeholder.jpg" alt="Gallery item 2" className="h-24 w-full rounded object-cover" />
-            <img src="/placeholder.jpg" alt="Gallery item 3" className="h-24 w-full rounded object-cover" />
+            {gallery.map((image, index) => (
+              <img
+                key={`${image.url}-${index}`}
+                src={image.url}
+                alt={image.alt ?? `Gallery item ${index + 1}`}
+                className="h-24 w-full rounded object-cover"
+              />
+            ))}
           </div>
         </div>
 
@@ -46,10 +65,10 @@ export async function MediaSection() {
               data-reverso="showcase.media.attachment"
               data-reverso-type="file"
               data-reverso-label="Attachment"
-              href={page.get('showcase.media.attachment', '/placeholder.pdf')}
+              href={attachment.url}
               className="text-blue-600 hover:underline"
             >
-              Download attachment
+              Download {attachment.filename ?? 'attachment'}
             </a>
           </div>
 
@@ -74,14 +93,26 @@ export async function MediaSection() {
 
         <div>
           <h3 className="mb-2 text-sm font-medium text-slate-500">Promo (video)</h3>
-          <video
-            data-reverso="showcase.media.promo"
-            data-reverso-type="video"
-            data-reverso-label="Promo video"
-            src={page.get('showcase.media.promo', '/placeholder.mp4')}
-            controls
-            className="w-full rounded-lg bg-slate-900"
-          />
+          {/* Stored as { url, filename, ... }; page.file() returns null until a video is chosen. */}
+          {promo ? (
+            <video
+              data-reverso="showcase.media.promo"
+              data-reverso-type="video"
+              data-reverso-label="Promo video"
+              src={promo.url}
+              controls
+              className="w-full rounded-lg bg-slate-900"
+            />
+          ) : (
+            <div
+              data-reverso="showcase.media.promo"
+              data-reverso-type="video"
+              data-reverso-label="Promo video"
+              className="flex h-40 w-full items-center justify-center rounded-lg bg-slate-900 text-sm text-slate-400"
+            >
+              No promo video selected yet
+            </div>
+          )}
         </div>
       </div>
     </section>

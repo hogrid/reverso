@@ -1,6 +1,6 @@
 {
   "name": "@reverso/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Command line interface for Reverso CMS",
   "homepage": "https://reverso.dev/docs/packages/cli",
   "bugs": {
@@ -13,7 +13,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "reverso": "./dist/bin.js"
+    "reverso": "./bin/reverso.js"
   },
   "exports": {
     ".": {
@@ -23,6 +23,7 @@
   },
   "files": [
     "dist",
+    "bin",
     "README.md"
   ],
   "scripts": {
@@ -30,7 +31,7 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo"
   },

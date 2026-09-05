@@ -2,26 +2,73 @@
  * create-reverso
  *
  * CLI installer for Reverso CMS - The front-to-back CMS.
- * Run with: npx create-reverso@latest
+ * Run with: npx create-reverso@latest [project-name] [--yes]
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
 
-export const VERSION = '0.0.0';
+/** Package version, read from package.json so it always matches the release. */
+export const VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+    ) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
-interface ProjectConfig {
+export type Framework = 'nextjs' | 'vite' | 'astro';
+export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
+
+export interface ProjectConfig {
   projectName: string;
-  framework: 'nextjs' | 'vite' | 'astro';
+  framework: Framework;
   database: 'sqlite' | 'postgres';
-  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun';
+  packageManager: PackageManager;
   typescript: boolean;
   git: boolean;
   install: boolean;
+}
+
+/** Relative file path → file content. */
+export type ProjectFiles = Record<string, string>;
+
+/**
+ * Versions of the Reverso packages written into generated projects.
+ *
+ * They are read from this package's own `dependencies`, which changesets keeps
+ * in lock-step with the published packages, so a scaffolded project always
+ * pins the same release as the installer that created it.
+ */
+export function reversoVersions(): { cli: string; core: string; client: string } {
+  const fallback = 'latest';
+  try {
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '../package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
+      dependencies?: Record<string, string>;
+    };
+    const deps = pkg.dependencies ?? {};
+    const pick = (name: string) => {
+      const v = deps[name];
+      // workspace:* inside the monorepo → no usable range, use latest.
+      return v && !v.startsWith('workspace:') ? v : fallback;
+    };
+    return {
+      cli: pick('@reverso/cli'),
+      core: pick('@reverso/core'),
+      client: pick('@reverso/client'),
+    };
+  } catch {
+    return { cli: fallback, core: fallback, client: fallback };
+  }
 }
 
 /**
@@ -29,40 +76,36 @@ interface ProjectConfig {
  */
 export async function createReverso(): Promise<void> {
   console.log();
-  console.log(chalk.bold.blue('  ╭─────────────────────────────────────╮'));
-  console.log(chalk.bold.blue('  │                                     │'));
-  console.log(chalk.bold.blue('  │  ') + chalk.bold.white('Reverso CMS') + chalk.bold.blue('                       │'));
-  console.log(chalk.bold.blue('  │  ') + chalk.gray('The front-to-back headless CMS') + chalk.bold.blue('  │'));
-  console.log(chalk.bold.blue('  │                                     │'));
-  console.log(chalk.bold.blue('  ╰─────────────────────────────────────╯'));
+  const width = 36;
+  const line = (text: string, paint: (t: string) => string) =>
+    chalk.bold.blue('  │  ') + paint(text) + ' '.repeat(Math.max(0, width - text.length - 4)) + chalk.bold.blue('│');
+  console.log(chalk.bold.blue(`  ╭${'─'.repeat(width)}╮`));
+  console.log(chalk.bold.blue(`  │${' '.repeat(width)}│`));
+  console.log(line('Reverso CMS', (t) => chalk.bold.white(t)));
+  console.log(line('The front-to-back headless CMS', (t) => chalk.gray(t)));
+  console.log(chalk.bold.blue(`  │${' '.repeat(width)}│`));
+  console.log(chalk.bold.blue(`  ╰${'─'.repeat(width)}╯`));
   console.log();
 
   // Parse CLI args: optional positional project name + --yes/-y for defaults.
-  // Usage: npx create-reverso [project-name] [--yes]
   const argv = process.argv.slice(2);
   const skipPrompts = argv.includes('--yes') || argv.includes('-y');
   const positionalName = argv.find((a) => !a.startsWith('-'));
 
-  // Get project configuration (non-interactive when --yes, else prompt)
-  const config = skipPrompts
-    ? defaultConfig(positionalName)
-    : await promptConfig(positionalName);
+  const config = skipPrompts ? defaultConfig(positionalName) : await promptConfig(positionalName);
   if (!config) {
     console.log(chalk.gray('Setup cancelled.'));
     return;
   }
 
-  // Create the project
   await createProject(config);
-
-  // Print success message
   printSuccessMessage(config);
 }
 
 /**
  * Default configuration for non-interactive (`--yes`) project creation.
  */
-function defaultConfig(projectName?: string): ProjectConfig {
+export function defaultConfig(projectName?: string): ProjectConfig {
   return {
     projectName: projectName || 'my-reverso-app',
     framework: 'nextjs',
@@ -71,12 +114,11 @@ function defaultConfig(projectName?: string): ProjectConfig {
     typescript: true,
     git: true,
     install: true,
-  } as ProjectConfig;
+  };
 }
 
 /**
  * Prompt user for project configuration.
- * A positional project name (if provided) pre-fills the first prompt.
  */
 async function promptConfig(initialName?: string): Promise<ProjectConfig | null> {
   const response = await prompts(
@@ -99,7 +141,7 @@ async function promptConfig(initialName?: string): Promise<ProjectConfig | null>
         name: 'framework',
         message: 'Framework:',
         choices: [
-          { title: 'Next.js', value: 'nextjs', description: 'React framework with SSR/SSG' },
+          { title: 'Next.js', value: 'nextjs', description: 'React framework with server components' },
           { title: 'Vite + React', value: 'vite', description: 'Fast build tool with React' },
           { title: 'Astro', value: 'astro', description: 'Content-focused static site builder' },
         ],
@@ -110,8 +152,8 @@ async function promptConfig(initialName?: string): Promise<ProjectConfig | null>
         name: 'database',
         message: 'Database:',
         choices: [
-          { title: 'SQLite', value: 'sqlite', description: 'Simple file-based database (great for development)' },
-          { title: 'PostgreSQL', value: 'postgres', description: 'Production-ready relational database' },
+          { title: 'SQLite', value: 'sqlite', description: 'File-based, zero setup (recommended)' },
+          { title: 'PostgreSQL', value: 'postgres', description: 'Planned; scaffolds a config you can switch later' },
         ],
         initial: 0,
       },
@@ -127,33 +169,13 @@ async function promptConfig(initialName?: string): Promise<ProjectConfig | null>
         ],
         initial: 0,
       },
-      {
-        type: 'confirm',
-        name: 'typescript',
-        message: 'Use TypeScript?',
-        initial: true,
-      },
-      {
-        type: 'confirm',
-        name: 'git',
-        message: 'Initialize git repository?',
-        initial: true,
-      },
-      {
-        type: 'confirm',
-        name: 'install',
-        message: 'Install dependencies?',
-        initial: true,
-      },
+      { type: 'confirm', name: 'typescript', message: 'Use TypeScript?', initial: true },
+      { type: 'confirm', name: 'git', message: 'Initialize git repository?', initial: true },
+      { type: 'confirm', name: 'install', message: 'Install dependencies?', initial: true },
     ],
-    {
-      onCancel: () => {
-        return false;
-      },
-    }
+    { onCancel: () => false }
   );
 
-  // Check if user cancelled
   if (!response.projectName) {
     return null;
   }
@@ -168,75 +190,15 @@ async function createProject(config: ProjectConfig): Promise<void> {
   const spinner = ora();
   const projectPath = resolve(config.projectName);
 
-  // Check if directory already exists
   if (existsSync(projectPath)) {
     console.log(chalk.red(`Error: Directory "${config.projectName}" already exists.`));
     process.exit(1);
   }
 
-  // Create project directory
-  spinner.start('Creating project directory...');
-  mkdirSync(projectPath, { recursive: true });
-  mkdirSync(join(projectPath, 'src'), { recursive: true });
-  mkdirSync(join(projectPath, 'src', 'components'), { recursive: true });
-  mkdirSync(join(projectPath, '.reverso'), { recursive: true });
-  spinner.succeed('Project directory created');
-
-  // Generate files
   spinner.start('Generating project files...');
-
-  // package.json
-  writeFileSync(
-    join(projectPath, 'package.json'),
-    generatePackageJson(config)
-  );
-
-  // TypeScript config
-  if (config.typescript) {
-    writeFileSync(
-      join(projectPath, 'tsconfig.json'),
-      generateTsConfig(config)
-    );
-  }
-
-  // Reverso config
-  writeFileSync(
-    join(projectPath, `reverso.config.${config.typescript ? 'ts' : 'js'}`),
-    generateReversoConfig(config)
-  );
-
-  // .gitignore
-  writeFileSync(
-    join(projectPath, '.gitignore'),
-    generateGitignore()
-  );
-
-  // Example components
-  writeFileSync(
-    join(projectPath, 'src', 'components', `Hero.${config.typescript ? 'tsx' : 'jsx'}`),
-    generateHeroComponent(config)
-  );
-  writeFileSync(
-    join(projectPath, 'src', 'components', `Features.${config.typescript ? 'tsx' : 'jsx'}`),
-    generateFeaturesComponent(config)
-  );
-  writeFileSync(
-    join(projectPath, 'src', 'components', `About.${config.typescript ? 'tsx' : 'jsx'}`),
-    generateAboutComponent(config)
-  );
-
-  // Framework-specific files
-  if (config.framework === 'nextjs') {
-    generateNextJsFiles(projectPath, config);
-  } else if (config.framework === 'vite') {
-    generateViteFiles(projectPath, config);
-  } else if (config.framework === 'astro') {
-    generateAstroFiles(projectPath, config);
-  }
-
+  writeProjectFiles(projectPath, generateProjectFiles(config));
   spinner.succeed('Project files generated');
 
-  // Initialize git
   if (config.git) {
     spinner.start('Initializing git repository...');
     try {
@@ -247,12 +209,10 @@ async function createProject(config: ProjectConfig): Promise<void> {
     }
   }
 
-  // Install dependencies
   if (config.install) {
     spinner.start(`Installing dependencies with ${config.packageManager}...`);
     try {
-      const installCmd = getInstallCommand(config.packageManager);
-      execSync(installCmd, { cwd: projectPath, stdio: 'ignore' });
+      execSync(getInstallCommand(config.packageManager), { cwd: projectPath, stdio: 'ignore' });
       spinner.succeed('Dependencies installed');
     } catch {
       spinner.warn('Failed to install dependencies. Run install manually.');
@@ -260,52 +220,132 @@ async function createProject(config: ProjectConfig): Promise<void> {
   }
 }
 
+/** Write every generated file, creating directories as needed. */
+export function writeProjectFiles(projectPath: string, files: ProjectFiles): void {
+  mkdirSync(join(projectPath, '.reverso'), { recursive: true });
+  for (const [relativePath, content] of Object.entries(files)) {
+    const target = join(projectPath, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, content);
+  }
+}
+
+/**
+ * Build the full set of files for a project. Pure: no filesystem access, so
+ * templates can be unit-tested.
+ */
+export function generateProjectFiles(config: ProjectConfig): ProjectFiles {
+  const ext = config.typescript ? 'tsx' : 'jsx';
+  const scriptExt = config.typescript ? 'ts' : 'js';
+
+  const files: ProjectFiles = {
+    'package.json': generatePackageJson(config),
+    [`reverso.config.${scriptExt}`]: generateReversoConfig(config),
+    '.gitignore': generateGitignore(),
+    '.env.example': generateEnvExample(config),
+    'README.md': generateReadme(config),
+    [`src/lib/reverso.${scriptExt}`]: generateClientModule(config),
+    [`src/components/Hero.${ext}`]: generateHeroComponent(config),
+    [`src/components/Features.${ext}`]: generateFeaturesComponent(config),
+    [`src/components/About.${ext}`]: generateAboutComponent(config),
+  };
+
+  if (config.typescript) {
+    files['tsconfig.json'] = generateTsConfig(config);
+  }
+
+  switch (config.framework) {
+    case 'nextjs':
+      Object.assign(files, generateNextJsFiles(config));
+      break;
+    case 'vite':
+      Object.assign(files, generateViteFiles(config));
+      break;
+    case 'astro':
+      Object.assign(files, generateAstroFiles(config));
+      break;
+  }
+
+  return files;
+}
+
+/** Environment variable each framework exposes to the browser/runtime. */
+function apiUrlEnvVar(framework: Framework): string {
+  switch (framework) {
+    case 'nextjs':
+      return 'NEXT_PUBLIC_REVERSO_URL';
+    case 'vite':
+      return 'VITE_REVERSO_URL';
+    case 'astro':
+      return 'PUBLIC_REVERSO_URL';
+  }
+}
+
 /**
  * Generate package.json content.
  */
 function generatePackageJson(config: ProjectConfig): string {
+  const versions = reversoVersions();
+
+  // The CLI and core are runtime dependencies: `reverso start` serves the CMS
+  // in production and `reverso.config.ts` imports `defineConfig` when loaded.
+  // Keeping them out of devDependencies means `npm ci --omit=dev` still works.
   const deps: Record<string, string> = {
-    '@reverso/cli': 'latest',
-    '@reverso/core': 'latest',
-    react: '^18.3.1',
-    'react-dom': '^18.3.1',
+    '@reverso/cli': versions.cli,
+    '@reverso/client': versions.client,
+    '@reverso/core': versions.core,
+    react: '^19.0.0',
+    'react-dom': '^19.0.0',
   };
 
   const devDeps: Record<string, string> = {};
 
   if (config.typescript) {
-    devDeps.typescript = '^5.4.0';
-    devDeps['@types/react'] = '^18.3.0';
-    devDeps['@types/react-dom'] = '^18.3.0';
+    devDeps.typescript = '^5.7.0';
+    devDeps['@types/node'] = '^22.0.0';
+    devDeps['@types/react'] = '^19.0.0';
+    devDeps['@types/react-dom'] = '^19.0.0';
   }
 
-  // Framework-specific dependencies
-  if (config.framework === 'nextjs') {
-    deps.next = '^14.2.0';
-  } else if (config.framework === 'vite') {
-    devDeps.vite = '^5.4.0';
-    devDeps['@vitejs/plugin-react'] = '^4.3.0';
-  } else if (config.framework === 'astro') {
-    deps.astro = '^4.12.0';
-    deps['@astrojs/react'] = '^3.6.0';
+  let scripts: Record<string, string>;
+  switch (config.framework) {
+    case 'nextjs':
+      deps.next = '^15.0.0';
+      scripts = { dev: 'next dev', build: 'next build', start: 'next start' };
+      break;
+    case 'vite':
+      devDeps.vite = '^6.0.0';
+      devDeps['@vitejs/plugin-react'] = '^4.3.0';
+      scripts = { dev: 'vite', build: 'vite build', start: 'vite preview' };
+      break;
+    case 'astro':
+      deps.astro = '^5.0.0';
+      deps['@astrojs/react'] = '^4.0.0';
+      scripts = { dev: 'astro dev', build: 'astro build', start: 'astro preview' };
+      break;
   }
 
   const packageJson = {
     name: config.projectName,
     version: '0.1.0',
     private: true,
+    type: 'module',
     scripts: {
-      dev: 'reverso dev',
-      build: config.framework === 'nextjs' ? 'next build' : config.framework === 'vite' ? 'vite build' : 'astro build',
-      start: config.framework === 'nextjs' ? 'next start' : config.framework === 'vite' ? 'vite preview' : 'astro preview',
-      scan: 'reverso scan',
-      migrate: 'reverso migrate',
+      ...scripts,
+      'reverso:dev': 'reverso dev',
+      'reverso:scan': 'reverso scan',
+      'reverso:build': 'reverso build',
+      'reverso:start': 'reverso start',
     },
-    dependencies: deps,
-    devDependencies: devDeps,
+    dependencies: sortKeys(deps),
+    devDependencies: sortKeys(devDeps),
   };
 
-  return JSON.stringify(packageJson, null, 2);
+  return `${JSON.stringify(packageJson, null, 2)}\n`;
+}
+
+function sortKeys(obj: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /**
@@ -313,35 +353,34 @@ function generatePackageJson(config: ProjectConfig): string {
  */
 function generateTsConfig(config: ProjectConfig): string {
   const compilerOptions: Record<string, unknown> = {
-    target: 'ES2020',
-    useDefineForClassFields: true,
-    lib: ['ES2020', 'DOM', 'DOM.Iterable'],
+    target: 'ES2022',
+    lib: ['ES2022', 'DOM', 'DOM.Iterable'],
     module: 'ESNext',
-    skipLibCheck: true,
     moduleResolution: 'bundler',
-    allowImportingTsExtensions: true,
+    jsx: config.framework === 'nextjs' ? 'preserve' : 'react-jsx',
+    strict: true,
+    skipLibCheck: true,
+    esModuleInterop: true,
     resolveJsonModule: true,
     isolatedModules: true,
     noEmit: true,
-    jsx: 'react-jsx',
-    strict: true,
-    noUnusedLocals: true,
-    noUnusedParameters: true,
-    noFallthroughCasesInSwitch: true,
+    paths: { '@/*': ['./src/*'] },
   };
 
+  const include = ['src'];
   if (config.framework === 'nextjs') {
+    compilerOptions.allowJs = true;
+    compilerOptions.incremental = true;
     compilerOptions.plugins = [{ name: 'next' }];
-    compilerOptions.paths = { '@/*': ['./src/*'] };
+    include.push('next-env.d.ts', '.next/types/**/*.ts');
+  }
+  if (config.framework === 'astro') {
+    // Astro ships its own base config; keep ours compatible with it.
+    compilerOptions.jsx = 'react-jsx';
+    compilerOptions.jsxImportSource = 'react';
   }
 
-  const tsConfig = {
-    compilerOptions,
-    include: ['src'],
-    exclude: ['node_modules'],
-  };
-
-  return JSON.stringify(tsConfig, null, 2);
+  return `${JSON.stringify({ compilerOptions, include, exclude: ['node_modules'] }, null, 2)}\n`;
 }
 
 /**
@@ -352,14 +391,16 @@ function generateReversoConfig(config: ProjectConfig): string {
   const provider = config.database === 'postgres' ? 'postgresql' : config.database;
   const dbUrl =
     config.database === 'sqlite'
-      ? "url: '.reverso/dev.db'"
+      ? "url: '.reverso/reverso.db'"
       : "url: process.env.DATABASE_URL || 'postgresql://localhost:5432/reverso'";
 
   const body = `defineConfig({
+  name: '${config.projectName}',
+
   // Source directory to scan for data-reverso markers
   srcDir: './src',
 
-  // Output directory for generated schema
+  // Output directory for generated schema and types
   outputDir: '.reverso',
 
   // Database configuration
@@ -368,26 +409,29 @@ function generateReversoConfig(config: ProjectConfig): string {
     ${dbUrl},
   },
 
+  // Files to scan for markers
+  scanner: {
+    // Markers are read from React components; .astro files themselves are
+    // not parsed, so keep them as React islands when using Astro.
+    include: ['**/*.tsx', '**/*.jsx'],
+    exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**'],
+  },
+
   // API server configuration
   api: {
     cors: true,
   },
 
-  // Development server settings
+  // Development server settings (admin + API)
   dev: {
     port: 3001,
-  },
-
-  // Admin panel configuration
-  admin: {
-    title: '${config.projectName}',
   },
 })`;
 
   if (config.typescript) {
     return `import { defineConfig } from '@reverso/core';\n\nexport default ${body};\n`;
   }
-  return `const { defineConfig } = require('@reverso/core');\n\nmodule.exports = ${body};\n`;
+  return `import { defineConfig } from '@reverso/core';\n\nexport default ${body};\n`;
 }
 
 /**
@@ -401,12 +445,16 @@ node_modules/
 dist/
 .next/
 .astro/
+next-env.d.ts
 
-# Reverso
-.reverso/dev.db
-.reverso/dev.db-shm
-.reverso/dev.db-wal
+# Reverso (generated schema is safe to commit; database, uploads and the
+# dev server handshake are not)
+.reverso/*.db
+.reverso/*.db-shm
+.reverso/*.db-wal
 .reverso/uploads/
+.reverso/dev-server.json
+.reverso/admin.json
 
 # Environment
 .env
@@ -427,44 +475,169 @@ npm-debug.log*
 `;
 }
 
+function generateEnvExample(config: ProjectConfig): string {
+  return `# URL of the Reverso API + admin started by \`npm run reverso:dev\`
+${apiUrlEnvVar(config.framework)}=http://localhost:3001
+`;
+}
+
+function generateReadme(config: ProjectConfig): string {
+  const pm = config.packageManager;
+  const run = pm === 'npm' ? 'npm run' : pm;
+  return `# ${config.projectName}
+
+A ${frameworkLabel(config.framework)} site whose content is managed by
+[Reverso CMS](https://github.com/hogrid/reverso).
+
+Every editable element in \`src/components\` carries a \`data-reverso\` marker.
+Reverso scans those markers, builds the admin panel from them, and the
+components read the published content back through \`@reverso/client\`.
+
+## Run it
+
+\`\`\`bash
+# 1. Admin panel + API (scans markers, watches for changes)
+${run} reverso:dev
+
+# 2. In another terminal: the site itself
+${run} dev
+\`\`\`
+
+Open http://localhost:3001/admin, create the first admin account, edit the
+content and save. The site (${devUrl(config.framework)}) renders what you saved;
+until then it shows the fallback text written in the components.
+
+## Add a field
+
+Add a marker to any component and save the file:
+
+\`\`\`tsx
+<span data-reverso="home.hero.badge" data-reverso-type="text">New</span>
+\`\`\`
+
+The field appears in the admin automatically. Read it with
+\`page.get('home.hero.badge', 'New')\`.
+
+## Production
+
+\`\`\`bash
+${run} reverso:build   # scans markers and prepares .reverso/reverso.db
+${run} reverso:start   # serves the API + admin (set REVERSO_COOKIE_SECRET)
+\`\`\`
+`;
+}
+
+function frameworkLabel(framework: Framework): string {
+  return framework === 'nextjs' ? 'Next.js' : framework === 'vite' ? 'Vite + React' : 'Astro';
+}
+
+function devUrl(framework: Framework): string {
+  return framework === 'nextjs'
+    ? 'http://localhost:3000'
+    : framework === 'vite'
+      ? 'http://localhost:5173'
+      : 'http://localhost:4321';
+}
+
+/**
+ * Shared Reverso client module.
+ */
+function generateClientModule(config: ProjectConfig): string {
+  const env = apiUrlEnvVar(config.framework);
+  const read =
+    config.framework === 'nextjs' ? `process.env.${env}` : `import.meta.env.${env}`;
+
+  return `import { createReversoClient } from '@reverso/client';
+
+/**
+ * Shared Reverso content client.
+ * Reads published content from the Reverso API started by \`reverso dev\`.
+ * When the API is unreachable every helper falls back to the default values
+ * passed at the call site, so the site keeps rendering.
+ */
+export const reverso = createReversoClient({
+  url: ${read} ?? 'http://localhost:3001',
+});
+`;
+}
+
+/** How a component obtains its page content, per framework. */
+function contentAccess(config: ProjectConfig, slug: string): {
+  imports: string;
+  signature: (name: string) => string;
+  prelude: string;
+  clientDirective: string;
+} {
+  if (config.framework === 'nextjs') {
+    // React Server Component: fetch on the server, no client JS.
+    return {
+      imports: "import { reverso } from '@/lib/reverso';",
+      signature: (name) => `export async function ${name}()`,
+      prelude: `  const page = await reverso.getPage('${slug}');`,
+      clientDirective: '',
+    };
+  }
+  // Vite / Astro islands: fetch in the browser after mount.
+  const hookType = config.typescript ? '<ReversoPage | null>' : '';
+  return {
+    imports: `import { useEffect, useState } from 'react';
+import { reverso } from '../lib/reverso';${config.typescript ? "\nimport type { ReversoPage } from '@reverso/client';" : ''}`,
+    signature: (name) => `export function ${name}()`,
+    prelude: `  const [page, setPage] = useState${hookType}(null);
+  useEffect(() => {
+    reverso.getPage('${slug}').then(setPage);
+  }, []);
+  const get = (path${config.typescript ? ': string' : ''}, fallback${config.typescript ? ': string' : ''}) =>
+    page ? page.get(path, fallback) : fallback;`,
+    clientDirective: '',
+  };
+}
+
+/** Expression that reads a value with a fallback, per framework. */
+function getExpr(config: ProjectConfig, path: string, fallback: string): string {
+  return config.framework === 'nextjs'
+    ? `page.get('${path}', ${fallback})`
+    : `get('${path}', ${fallback})`;
+}
+
 /**
  * Generate Hero component with Reverso markers.
  */
 function generateHeroComponent(config: ProjectConfig): string {
-  const props = config.typescript ? ': { className?: string }' : '';
+  const access = contentAccess(config, 'home');
 
-  return `/**
- * Hero component with Reverso CMS markers.
+  return `${access.imports}
+
+/**
+ * Hero section.
  *
- * The data-reverso attribute follows the pattern: page.section.field
- * Example: home.hero.title = page "home", section "hero", field "title"
+ * A marker path is \`page.section.field\`:
+ *   home.hero.title = page "home", section "hero", field "title"
+ * The JSX children are the fallback shown until content is published.
  */
+${access.signature('Hero')} {
+${access.prelude}
 
-export function Hero({ className }${props}) {
   return (
-    <section className={className}>
+    <section className="hero">
       <h1 data-reverso="home.hero.title" data-reverso-type="text">
-        Welcome to Your Site
+        {${getExpr(config, 'home.hero.title', "'Welcome to Your Site'")}}
       </h1>
 
       <p data-reverso="home.hero.subtitle" data-reverso-type="textarea">
-        This is an example component with Reverso CMS markers.
-        Edit this content in the admin panel.
+        {${getExpr(config, 'home.hero.subtitle', "'Edit this text in the Reverso admin panel.'")}}
       </p>
 
       <img
         data-reverso="home.hero.image"
         data-reverso-type="image"
-        src="/placeholder.jpg"
-        alt="Hero image"
+        data-reverso-label="Hero image"
+        src={${getExpr(config, 'home.hero.image', "'/placeholder.svg'")}}
+        alt="Hero"
       />
 
-      <a
-        data-reverso="home.hero.ctaText"
-        data-reverso-type="text"
-        href="#"
-      >
-        Get Started
+      <a data-reverso="home.hero.ctaText" data-reverso-type="text" href="#">
+        {${getExpr(config, 'home.hero.ctaText', "'Get Started'")}}
       </a>
     </section>
   );
@@ -476,53 +649,52 @@ export function Hero({ className }${props}) {
  * Generate Features component with repeater pattern.
  */
 function generateFeaturesComponent(config: ProjectConfig): string {
-  const props = config.typescript ? ': { className?: string }' : '';
-  const featureType = config.typescript ? ': { icon: string; title: string; description: string }' : '';
+  const access = contentAccess(config, 'home');
+  const itemsExpr =
+    config.framework === 'nextjs'
+      ? "page.items('home.features', FALLBACK_FEATURES)"
+      : "page ? page.items('home.features', FALLBACK_FEATURES) : FALLBACK_FEATURES";
 
-  return `/**
- * Features component demonstrating repeater pattern.
+  return `${access.imports}
+
+const FALLBACK_FEATURES = [
+  { icon: '🚀', title: 'Fast', description: 'Lightning fast performance' },
+  { icon: '🔒', title: 'Secure', description: 'Enterprise-grade security' },
+  { icon: '🎨', title: 'Beautiful', description: 'Modern, responsive design' },
+];
+
+/**
+ * Features section: a repeater.
  *
- * The $ symbol in the path indicates a repeater item:
- * home.features.$.title = each item in the "features" repeater has a "title"
+ * Markers inside the .map() use \`$\` as the 3rd path segment:
+ *   home.features.$.title = the "title" of each item in the "features" section
+ * The whole item list is read with page.items('home.features').
  */
-
-export function Features({ className }${props}) {
-  // Example features - content comes from CMS
-  const features${config.typescript ? ': Array<{ icon: string; title: string; description: string }>' : ''} = [
-    { icon: '🚀', title: 'Fast', description: 'Lightning fast performance' },
-    { icon: '🔒', title: 'Secure', description: 'Enterprise-grade security' },
-    { icon: '🎨', title: 'Beautiful', description: 'Modern, responsive design' },
-  ];
+${access.signature('Features')} {
+${access.prelude}
+  const features = ${itemsExpr};
 
   return (
-    <section className={className}>
-      <h2 data-reverso="home.features.heading" data-reverso-type="text">
-        Why Choose Us
+    <section className="features">
+      <h2 data-reverso="home.intro.heading" data-reverso-type="text">
+        {${getExpr(config, 'home.intro.heading', "'Why Choose Us'")}}
       </h2>
-      <p data-reverso="home.features.subheading" data-reverso-type="textarea">
-        Everything you need to build amazing websites.
-      </p>
 
       <div className="grid">
         {features.map((feature, index) => (
           <div key={index} className="feature-card">
-            <span
-              data-reverso="home.features.$.icon"
-              data-reverso-type="icon"
-            >
-              {feature.icon}
+            <span data-reverso="home.features.$.icon" data-reverso-type="text" data-reverso-label="Icon">
+              {String(feature.icon ?? '')}
             </span>
-            <h3
-              data-reverso="home.features.$.title"
-              data-reverso-type="text"
-            >
-              {feature.title}
+            <h3 data-reverso="home.features.$.title" data-reverso-type="text" data-reverso-label="Title">
+              {String(feature.title ?? '')}
             </h3>
             <p
               data-reverso="home.features.$.description"
               data-reverso-type="textarea"
+              data-reverso-label="Description"
             >
-              {feature.description}
+              {String(feature.description ?? '')}
             </p>
           </div>
         ))}
@@ -537,66 +709,44 @@ export function Features({ className }${props}) {
  * Generate About component with various field types.
  */
 function generateAboutComponent(config: ProjectConfig): string {
-  const props = config.typescript ? ': { className?: string }' : '';
+  const access = contentAccess(config, 'about');
 
-  return `/**
- * About component demonstrating various field types.
+  return `${access.imports}
+
+/**
+ * About section: several field types on a second page ("about").
  */
+${access.signature('About')} {
+${access.prelude}
 
-export function About({ className }${props}) {
   return (
-    <section className={className}>
+    <section className="about">
       <h2 data-reverso="about.intro.title" data-reverso-type="text">
-        About Us
+        {${getExpr(config, 'about.intro.title', "'About Us'")}}
       </h2>
 
-      <div
+      <p
         data-reverso="about.intro.content"
-        data-reverso-type="wysiwyg"
-        data-reverso-label="About Content"
+        data-reverso-type="textarea"
+        data-reverso-label="About text"
       >
-        <p>We are a passionate team dedicated to building great products.</p>
-        <p>Our mission is to make content management simple and intuitive.</p>
-      </div>
+        {${getExpr(config, 'about.intro.content', "'We are a team dedicated to building great products.'")}}
+      </p>
 
       <div className="stats">
-        <div>
-          <span
-            data-reverso="about.stats.years"
-            data-reverso-type="number"
-            data-reverso-label="Years in Business"
-          >
-            10
-          </span>
-          <span>Years</span>
-        </div>
-        <div>
-          <span
-            data-reverso="about.stats.clients"
-            data-reverso-type="number"
-            data-reverso-label="Happy Clients"
-          >
-            500
-          </span>
-          <span>Clients</span>
-        </div>
-        <div>
-          <span
-            data-reverso="about.stats.projects"
-            data-reverso-type="number"
-            data-reverso-label="Completed Projects"
-          >
-            1000
-          </span>
-          <span>Projects</span>
-        </div>
+        <span data-reverso="about.stats.years" data-reverso-type="number" data-reverso-label="Years in business">
+          {${getExpr(config, 'about.stats.years', "'10'")}}
+        </span>
+        <span data-reverso="about.stats.clients" data-reverso-type="number" data-reverso-label="Happy clients">
+          {${getExpr(config, 'about.stats.clients', "'500'")}}
+        </span>
       </div>
 
       <img
         data-reverso="about.team.photo"
         data-reverso-type="image"
-        data-reverso-label="Team Photo"
-        src="/team.jpg"
+        data-reverso-label="Team photo"
+        src={${getExpr(config, 'about.team.photo', "'/placeholder.svg'")}}
         alt="Our team"
       />
     </section>
@@ -605,34 +755,36 @@ export function About({ className }${props}) {
 `;
 }
 
+const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#e2e8f0"/><text x="320" y="190" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#64748b">Upload an image in the Reverso admin</text></svg>
+`;
+
 /**
  * Generate Next.js specific files.
  */
-function generateNextJsFiles(projectPath: string, config: ProjectConfig): void {
+function generateNextJsFiles(config: ProjectConfig): ProjectFiles {
   const ext = config.typescript ? 'tsx' : 'jsx';
+  const childrenType = config.typescript ? ': { children: React.ReactNode }' : '';
 
-  // Create app directory
-  mkdirSync(join(projectPath, 'src', 'app'), { recursive: true });
+  return {
+    [`src/app/layout.${ext}`]: `export const metadata = {
+  title: '${config.projectName}',
+  description: 'Content managed by Reverso CMS',
+};
 
-  // Layout
-  writeFileSync(
-    join(projectPath, 'src', 'app', `layout.${ext}`),
-    `export default function RootLayout({ children }${config.typescript ? ': { children: React.ReactNode }' : ''}) {
+export default function RootLayout({ children }${childrenType}) {
   return (
     <html lang="en">
       <body>{children}</body>
     </html>
   );
 }
-`
-  );
-
-  // Page
-  writeFileSync(
-    join(projectPath, 'src', 'app', `page.${ext}`),
-    `import { Hero } from '@/components/Hero';
+`,
+    [`src/app/page.${ext}`]: `import { Hero } from '@/components/Hero';
 import { Features } from '@/components/Features';
 import { About } from '@/components/About';
+
+// Content comes from the Reverso API at request time.
+export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
   return (
@@ -643,45 +795,34 @@ export default function HomePage() {
     </main>
   );
 }
-`
-  );
-
-  // next.config.js
-  writeFileSync(
-    join(projectPath, 'next.config.js'),
-    `/** @type {import('next').NextConfig} */
+`,
+    'next.config.mjs': `/** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable React strict mode
   reactStrictMode: true,
 };
 
-module.exports = nextConfig;
-`
-  );
+export default nextConfig;
+`,
+    'public/placeholder.svg': PLACEHOLDER_SVG,
+  };
 }
 
 /**
  * Generate Vite specific files.
  */
-function generateViteFiles(projectPath: string, config: ProjectConfig): void {
+function generateViteFiles(config: ProjectConfig): ProjectFiles {
   const ext = config.typescript ? 'tsx' : 'jsx';
+  const scriptExt = config.typescript ? 'ts' : 'js';
 
-  // vite.config
-  writeFileSync(
-    join(projectPath, `vite.config.${config.typescript ? 'ts' : 'js'}`),
-    `import { defineConfig } from 'vite';
+  return {
+    [`vite.config.${scriptExt}`]: `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
 });
-`
-  );
-
-  // index.html
-  writeFileSync(
-    join(projectPath, 'index.html'),
-    `<!DOCTYPE html>
+`,
+    'index.html': `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -693,13 +834,8 @@ export default defineConfig({
     <script type="module" src="/src/main.${ext}"></script>
   </body>
 </html>
-`
-  );
-
-  // main.tsx
-  writeFileSync(
-    join(projectPath, 'src', `main.${ext}`),
-    `import React from 'react';
+`,
+    [`src/main.${ext}`]: `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
@@ -714,33 +850,30 @@ ReactDOM.createRoot(document.getElementById('root')${config.typescript ? '!' : '
     </main>
   </React.StrictMode>
 );
-`
-  );
+`,
+    ...(config.typescript
+      ? {
+          'src/vite-env.d.ts': `/// <reference types="vite/client" />
+`,
+        }
+      : {}),
+    'public/placeholder.svg': PLACEHOLDER_SVG,
+  };
 }
 
 /**
  * Generate Astro specific files.
  */
-function generateAstroFiles(projectPath: string, config: ProjectConfig): void {
-  // Create pages directory
-  mkdirSync(join(projectPath, 'src', 'pages'), { recursive: true });
-
-  // astro.config.mjs
-  writeFileSync(
-    join(projectPath, 'astro.config.mjs'),
-    `import { defineConfig } from 'astro/config';
+function generateAstroFiles(config: ProjectConfig): ProjectFiles {
+  return {
+    'astro.config.mjs': `import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 
 export default defineConfig({
   integrations: [react()],
 });
-`
-  );
-
-  // Index page
-  writeFileSync(
-    join(projectPath, 'src', 'pages', 'index.astro'),
-    `---
+`,
+    'src/pages/index.astro': `---
 import { Hero } from '../components/Hero';
 import { Features } from '../components/Features';
 import { About } from '../components/About';
@@ -760,14 +893,15 @@ import { About } from '../components/About';
     </main>
   </body>
 </html>
-`
-  );
+`,
+    'public/placeholder.svg': PLACEHOLDER_SVG,
+  };
 }
 
 /**
  * Get the install command for the package manager.
  */
-function getInstallCommand(packageManager: ProjectConfig['packageManager']): string {
+export function getInstallCommand(packageManager: PackageManager): string {
   switch (packageManager) {
     case 'npm':
       return 'npm install';
@@ -784,24 +918,23 @@ function getInstallCommand(packageManager: ProjectConfig['packageManager']): str
  * Print success message with next steps.
  */
 function printSuccessMessage(config: ProjectConfig): void {
+  const run = config.packageManager === 'npm' ? 'npm run' : config.packageManager;
+  let step = 1;
   console.log();
   console.log(chalk.green.bold('✓ Project created successfully!'));
   console.log();
   console.log(chalk.bold('Next steps:'));
   console.log();
-  console.log(chalk.gray('  1. ') + chalk.white(`cd ${config.projectName}`));
+  console.log(chalk.gray(`  ${step++}. `) + chalk.white(`cd ${config.projectName}`));
   if (!config.install) {
-    console.log(chalk.gray('  2. ') + chalk.white(`${config.packageManager} install`));
-    console.log(chalk.gray('  3. ') + chalk.white(`${config.packageManager} run dev`));
-  } else {
-    console.log(chalk.gray('  2. ') + chalk.white(`${config.packageManager} run dev`));
+    console.log(chalk.gray(`  ${step++}. `) + chalk.white(getInstallCommand(config.packageManager)));
   }
+  console.log(chalk.gray(`  ${step++}. `) + chalk.white(`${run} reverso:dev`) + chalk.gray('   # admin + API on http://localhost:3001'));
+  console.log(chalk.gray(`  ${step++}. `) + chalk.white(`${run} dev`) + chalk.gray('           # your site, in another terminal'));
   console.log();
-  console.log(chalk.gray('This will:'));
-  console.log(chalk.gray('  • Scan your components for data-reverso markers'));
-  console.log(chalk.gray('  • Start the API server'));
-  console.log(chalk.gray('  • Open the admin panel'));
+  console.log(chalk.gray('Open http://localhost:3001/admin, create the first admin account and edit the content.'));
+  console.log(chalk.gray('Your site renders whatever you publish; the JSX text is the fallback.'));
   console.log();
-  console.log(chalk.bold('Documentation: ') + chalk.blue('https://reverso.dev/docs'));
+  console.log(chalk.bold('Documentation: ') + chalk.blue('https://github.com/hogrid/reverso#readme'));
   console.log();
 }

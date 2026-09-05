@@ -3,6 +3,8 @@
  * Reverso CLI entry point.
  */
 
+// Load .env from the project directory (REVERSO_COOKIE_SECRET, REVERSO_API_KEY, ...).
+import 'dotenv/config';
 import { program } from 'commander';
 import { buildCommand } from './commands/build.js';
 import { devCommand } from './commands/dev.js';

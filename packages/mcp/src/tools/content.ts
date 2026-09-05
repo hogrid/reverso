@@ -10,12 +10,22 @@ import {
   getContentByPath,
   getContentByPathPrefix,
   getFieldByPath,
+  parseContentValue,
   upsertContent,
   publishContent,
   unpublishContent,
   type Page,
 } from '@reverso/db';
 import { z } from 'zod';
+
+/** Flatten a content row into `{ path, value, published }` with the parsed value. */
+function toContentEntry(row: { path: string; content: Parameters<typeof parseContentValue>[0] & { published: boolean | null } }) {
+  return {
+    path: row.path,
+    value: parseContentValue(row.content),
+    published: row.content.published ?? false,
+  };
+}
 
 export const contentTools = {
   list_pages: {
@@ -29,8 +39,8 @@ export const contentTools = {
       if (input.includeContent) {
         const pagesWithContent = await Promise.all(
           pages.map(async (page: Page) => {
-            const content = await getContentByPathPrefix(db, page.slug);
-            return { ...page, content };
+            const rows = await getContentByPathPrefix(db, `${page.slug}.`);
+            return { ...page, content: rows.map(toContentEntry) };
           })
         );
         return pagesWithContent;
@@ -52,8 +62,8 @@ export const contentTools = {
         throw new Error(`Page not found: ${input.slug}`);
       }
 
-      const content = await getContentByPathPrefix(db, input.slug, input.locale);
-      return { ...page, content };
+      const rows = await getContentByPathPrefix(db, `${input.slug}.`, input.locale);
+      return { ...page, content: rows.map(toContentEntry) };
     },
   },
 
@@ -66,9 +76,10 @@ export const contentTools = {
     handler: async (db: DrizzleDatabase, input: { path: string; locale?: string }) => {
       const content = await getContentByPath(db, input.path, input.locale);
       if (!content) {
-        return { path: input.path, value: null, exists: false };
+        return { path: input.path, value: null, published: false, exists: false };
       }
-      return { ...content, exists: true };
+      // Values are stored JSON-encoded; hand the caller the real value.
+      return { ...content, value: parseContentValue(content), exists: true };
     },
   },
 
@@ -96,7 +107,7 @@ export const contentTools = {
         locale: input.locale ?? 'default',
         changedBy: input.changedBy ?? 'mcp-server',
       });
-      return { ...content, path: input.path };
+      return { ...content, value: parseContentValue(content), path: input.path };
     },
   },
 

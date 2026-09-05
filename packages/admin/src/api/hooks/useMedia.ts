@@ -7,6 +7,8 @@ export interface MediaItem {
   id: string;
   url: string;
   filename: string;
+  /** Name the file had when uploaded; what editors and visitors expect to see. */
+  originalName?: string | null;
   mimeType: string;
   size: number;
   width?: number;
@@ -35,7 +37,7 @@ export interface MediaFilters {
  * Fetch media library items with pagination
  */
 export function useMedia(filters: MediaFilters = {}) {
-  return useQuery({
+  return useQuery<MediaListResponse>({
     queryKey: ['media', filters],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -47,8 +49,21 @@ export function useMedia(filters: MediaFilters = {}) {
       params.set('offset', String((page - 1) * pageSize));
 
       const url = `${endpoints.media.list()}${params.toString() ? `?${params}` : ''}`;
-      const response = await apiClient.get<MediaListResponse>(url);
-      return response.data;
+      // The API answers { data: MediaItem[], meta: { total, limit, offset } };
+      // expose it in the paginated shape the pages and pickers render.
+      const response = (await apiClient.get<MediaItem[]>(url)) as {
+        data: MediaItem[];
+        meta?: { total?: number; limit?: number; offset?: number };
+      };
+      const items = response.data ?? [];
+      const total = response.meta?.total ?? items.length;
+      return {
+        items,
+        total,
+        page,
+        pageSize,
+        hasMore: (page - 1) * pageSize + items.length < total,
+      };
     },
   });
 }
@@ -97,13 +112,27 @@ export function useUploadMedia() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (files: File[]) => {
-      const formData = new FormData();
+    mutationFn: async (files: File[]): Promise<MediaItem[]> => {
+      // POST /media accepts one file per request; upload sequentially so
+      // multi-file drops (gallery) work and each failure is attributable.
+      const uploaded: MediaItem[] = [];
       for (const file of files) {
-        formData.append('files', file);
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const response = await apiClient.upload<MediaItem>(endpoints.media.upload(), formData);
+          if (response.data) uploaded.push(response.data);
+        } catch (cause) {
+          const detail =
+            cause && typeof cause === 'object' && typeof (cause as { message?: unknown }).message === 'string'
+              ? (cause as { message: string }).message
+              : cause instanceof Error
+                ? cause.message
+                : 'upload failed';
+          throw new Error(`${file.name}: ${detail}`);
+        }
       }
-      const response = await apiClient.upload<MediaItem[]>(endpoints.media.upload(), formData);
-      return response.data;
+      return uploaded;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['media'] });
@@ -165,15 +194,18 @@ export function useBulkDeleteMedia() {
  * Convert MediaItem to ImageValue for field storage
  */
 export function mediaToImageValue(media: MediaItem): ImageValue {
-  return {
+  // The API returns null for unknown alt/width/height; the value contract
+  // promises strings and numbers, so drop the nulls instead of storing them.
+  const value: ImageValue = {
     url: media.url,
-    alt: media.alt,
-    width: media.width,
-    height: media.height,
+    alt: media.alt ?? '',
     filename: media.filename,
     size: media.size,
     mimeType: media.mimeType,
   };
+  if (typeof media.width === 'number') value.width = media.width;
+  if (typeof media.height === 'number') value.height = media.height;
+  return value;
 }
 
 /**
@@ -182,7 +214,7 @@ export function mediaToImageValue(media: MediaItem): ImageValue {
 export function mediaToFileValue(media: MediaItem): FileValue {
   return {
     url: media.url,
-    filename: media.filename,
+    filename: media.originalName || media.filename,
     size: media.size,
     mimeType: media.mimeType,
   };

@@ -6,6 +6,7 @@
 import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { IMAGE_HEADER_BYTES, imageDimensions } from '../utils/image-dimensions.js';
 import {
   type MediaListOptions,
   createMedia,
@@ -13,6 +14,7 @@ import {
   generateId,
   getImages,
   getMediaById,
+  getMediaCount,
   getMediaList,
   parseMediaMetadata,
   updateMedia,
@@ -28,6 +30,7 @@ import {
   paginationSchema,
   sanitizeFilename,
 } from '../validation.js';
+import { open } from 'node:fs/promises';
 
 /**
  * Map of allowed MIME types to their expected file extensions.
@@ -75,6 +78,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.get<{
     Querystring: {
       type?: string;
+      search?: string;
       limit?: string;
       offset?: string;
     };
@@ -91,18 +95,24 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      const { type, limit, offset } = queryResult.data;
+      const { type, search, limit, offset } = queryResult.data;
       const db = request.db;
 
       const options: MediaListOptions = {};
-      if (type) options.mimeType = type;
+      // Accept `image/*` (browser accept syntax) as well as `image/`.
+      if (type) options.mimeType = type.replace(/\*$/, '');
+      if (search) options.search = search;
       if (limit) options.limit = limit;
       if (offset) options.offset = offset;
 
-      const media = await getMediaList(db, options);
+      const [media, total] = await Promise.all([
+        getMediaList(db, options),
+        getMediaCount(db, { mimeType: options.mimeType, search: options.search }),
+      ]);
 
       return {
         success: true,
+        meta: { total, limit: limit ?? null, offset: offset ?? 0 },
         data: media.map((m) => ({
           id: m.id,
           filename: m.filename,
@@ -341,9 +351,12 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       let width: number | undefined;
       let height: number | undefined;
 
-      if (data.mimetype.startsWith('image/')) {
-        // For now, skip image dimension detection
-        // In production, use sharp or similar
+      if (data.mimetype.startsWith('image/') && data.mimetype !== 'image/svg+xml') {
+        const size = await readImageDimensions(storagePath);
+        if (size) {
+          width = size.width;
+          height = size.height;
+        }
       }
 
       // Create media record
@@ -503,5 +516,22 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     }
   });
 };
+
+
+/** Best-effort pixel size from the first bytes of a stored image. */
+async function readImageDimensions(path: string) {
+  try {
+    const handle = await open(path, 'r');
+    try {
+      const buf = Buffer.alloc(IMAGE_HEADER_BYTES);
+      const { bytesRead } = await handle.read(buf, 0, IMAGE_HEADER_BYTES, 0);
+      return imageDimensions(buf.subarray(0, bytesRead));
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
+}
 
 export default mediaRoutes;

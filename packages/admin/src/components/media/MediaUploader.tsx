@@ -2,15 +2,28 @@ import { useUploadMedia } from '@/api/hooks/useMedia';
 import { LoadingState } from '@/components/common/LoadingState';
 import { cn } from '@/lib/utils';
 import { Upload } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { type RefObject, useCallback, useRef, useState } from 'react';
 
 export interface MediaUploaderProps {
   accept?: string;
   multiple?: boolean;
   onUploadComplete?: () => void;
   onUploadError?: (error: Error) => void;
+  /** Lets a parent (e.g. a toolbar "Upload" button) open the file picker. */
+  inputRef?: RefObject<HTMLInputElement | null>;
   compact?: boolean;
   disabled?: boolean;
+}
+
+/** Human readable message for anything the upload path can throw. */
+function uploadErrorMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (cause && typeof cause === 'object') {
+    const { message, error } = cause as { message?: unknown; error?: unknown };
+    if (typeof message === 'string' && message) return message;
+    if (typeof error === 'string' && error) return error;
+  }
+  return 'Upload failed. Please try again.';
 }
 
 export function MediaUploader({
@@ -18,21 +31,27 @@ export function MediaUploader({
   multiple = true,
   onUploadComplete,
   onUploadError,
+  inputRef,
   compact = false,
   disabled = false,
 }: MediaUploaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  // Last failure, shown inline so a rejected file (type, size) is never silent.
+  const [error, setError] = useState<string | null>(null);
   const uploadMedia = useUploadMedia();
 
   const handleFileSelect = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0 || disabled) return;
 
+      setError(null);
       try {
         await uploadMedia.mutateAsync(Array.from(files));
         onUploadComplete?.();
-      } catch (error) {
-        onUploadError?.(error instanceof Error ? error : new Error('Upload failed'));
+      } catch (cause) {
+        const message = uploadErrorMessage(cause);
+        setError(message);
+        onUploadError?.(cause instanceof Error ? cause : new Error(message));
       }
     },
     [uploadMedia, onUploadComplete, onUploadError, disabled]
@@ -58,17 +77,12 @@ export function MediaUploader({
     setIsDragOver(false);
   };
 
+  const localInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = inputRef ?? localInputRef;
+
   const handleClick = () => {
     if (disabled) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = multiple;
-    if (accept) input.accept = accept;
-    input.onchange = (e) => {
-      const target = e.target as HTMLInputElement;
-      handleFileSelect(target.files);
-    };
-    input.click();
+    fileInputRef.current?.click();
   };
 
   return (
@@ -87,6 +101,21 @@ export function MediaUploader({
         disabled && 'opacity-50 cursor-not-allowed'
       )}
     >
+      {/* Real file input (visually hidden) so the picker is accessible and testable. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple={multiple}
+        accept={accept}
+        disabled={disabled}
+        className="sr-only"
+        aria-label="Upload files"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          handleFileSelect(e.target.files);
+          e.target.value = '';
+        }}
+      />
       {uploadMedia.isPending ? (
         <LoadingState size="sm" message="Uploading files..." />
       ) : (
@@ -102,6 +131,11 @@ export function MediaUploader({
           </p>
           {accept && !compact && (
             <p className="text-xs text-muted-foreground mt-1">Accepted: {accept}</p>
+          )}
+          {error && (
+            <p role="alert" className="text-xs text-destructive mt-2 break-words">
+              {error}
+            </p>
           )}
         </>
       )}

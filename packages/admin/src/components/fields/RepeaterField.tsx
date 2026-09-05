@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { ContentValue } from '@reverso/core';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
 /**
@@ -26,14 +26,19 @@ function generateItemId(): string {
 }
 
 // Ensure items have unique IDs (for backward compatibility with existing data)
-function ensureItemIds(items: unknown[]): RepeaterItem[] {
-  return items.map((item, index) => {
+function ensureItemIds(items: unknown[], idCache?: WeakMap<object, string>): RepeaterItem[] {
+  return items.map((item) => {
     if (typeof item === 'object' && item !== null) {
       const obj = item as Record<string, unknown>;
       if (obj._id && typeof obj._id === 'string') {
         return obj as RepeaterItem;
       }
-      return { ...obj, _id: generateItemId() } as RepeaterItem;
+      let id = idCache?.get(obj);
+      if (!id) {
+        id = generateItemId();
+        idCache?.set(obj, id);
+      }
+      return { ...obj, _id: id } as RepeaterItem;
     }
     return { _id: generateItemId(), value: item } as RepeaterItem;
   });
@@ -47,7 +52,11 @@ export function RepeaterField({
   subFields,
   renderField: RenderField,
 }: FieldRendererProps) {
-  const items = ensureItemIds(Array.isArray(value) ? value : []);
+  // Items saved without `_id` (API, seeds, older versions) get a stable id per
+  // object identity, so keys do not change between renders and inputs keep
+  // focus/expanded state until the first edit persists the ids.
+  const legacyIds = useRef(new WeakMap<object, string>());
+  const items = ensureItemIds(Array.isArray(value) ? value : [], legacyIds.current);
   const itemFields = subFields ?? [];
 
   const updateItemField = (id: string, key: string, fieldValue: unknown) => {

@@ -9,6 +9,7 @@ import {
   getContentByPath,
   getContentByPathPrefix,
   getFieldByPath,
+  getPageBySlug,
   parseContentValue,
   publishContent,
   unpublishContent,
@@ -418,9 +419,20 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const { locale } = queryResult.data;
       const db = request.db;
 
+      const page = await getPageBySlug(db, slug);
+      if (!page) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Not found',
+          message: `Page "${slug}" not found`,
+        });
+      }
+
       const results = await getContentByPathPrefix(db, `${slug}.`, locale);
       const { content: contentMap, data } = buildPageContent(results, { publishedOnly: true });
 
+      // Let CDNs/proxies cache briefly; browsers/SDK revalidate every time.
+      reply.header('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30');
       return {
         success: true,
         data: {

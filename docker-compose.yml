@@ -1,7 +1,9 @@
 # Reverso CMS Docker Compose Configuration
-# Usage: docker-compose up -d
-
-version: '3.8'
+# Usage: docker compose up -d
+#
+# Required in .env: REVERSO_COOKIE_SECRET (openssl rand -hex 32)
+# Recommended:      REVERSO_API_KEY (lets `reverso scan --api-url` load the schema)
+#                   REVERSO_COOKIE_SECURE=true once the CMS is served over HTTPS
 
 services:
   reverso:
@@ -22,8 +24,9 @@ services:
       REVERSO_DB_PATH: /app/.reverso/reverso.db
       REVERSO_COOKIE_SECRET: ${REVERSO_COOKIE_SECRET:?Cookie secret is required}
       REVERSO_API_KEY: ${REVERSO_API_KEY:-}
-      REVERSO_CORS_ORIGIN: ${REVERSO_CORS_ORIGIN:-http://localhost:3000}
-      REVERSO_CSRF_ENABLED: ${REVERSO_CSRF_ENABLED:-true}
+      REVERSO_CORS_ORIGIN: ${REVERSO_CORS_ORIGIN:-}
+      REVERSO_TRUST_PROXY: ${REVERSO_TRUST_PROXY:-true}
+      REVERSO_COOKIE_SECURE: ${REVERSO_COOKIE_SECURE:-auto}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s

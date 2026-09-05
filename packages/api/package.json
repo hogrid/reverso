@@ -1,6 +1,6 @@
 {
   "name": "@reverso/api",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "REST and GraphQL API server for Reverso CMS using Fastify",
   "homepage": "https://reverso.dev/docs/packages/api",
   "bugs": {
@@ -34,7 +34,6 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
-    "@fastify/csrf-protection": "^7.1.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^10.2.1",

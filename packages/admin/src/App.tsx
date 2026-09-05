@@ -35,6 +35,9 @@ const FormSubmissionsPage = lazy(() =>
 const RedirectsPage = lazy(() =>
   import('@/pages/RedirectsPage').then((m) => ({ default: m.RedirectsPage }))
 );
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
@@ -128,6 +131,14 @@ const router = createBrowserRouter(
           ),
         },
         {
+          path: 'settings',
+          element: (
+            <SuspensePage>
+              <SettingsPage />
+            </SuspensePage>
+          ),
+        },
+        {
           path: '*',
           element: (
             <SuspensePage>
@@ -144,11 +155,20 @@ const router = createBrowserRouter(
 );
 
 // Create a client
+/** Errors thrown by the API client carry the HTTP status. */
+function isClientError(error: unknown): boolean {
+  const status = (error as { statusCode?: number } | null)?.statusCode;
+  return typeof status === 'number' && status >= 400 && status < 500;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60, // 1 minute
       refetchOnWindowFocus: false,
+      // Retry transient failures once; a 4xx (401/403/404) will not change
+      // on retry and only delays the error state shown to the user.
+      retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
     },
   },
 });

@@ -35,9 +35,10 @@ export default {
   api: {
     port: 3001,
     host: 'localhost',
-    cors: true,
-    // Custom CORS origins
-    // corsOrigins: ['http://localhost:3000'],
+    // Browsers calling the public API from another origin (Vite, Astro
+    // islands). Server-side reads (Next.js RSC) work without CORS.
+    // In production prefer the REVERSO_CORS_ORIGIN environment variable.
+    cors: { origin: ['http://localhost:3000'] },
   },
 
   // Admin panel configuration

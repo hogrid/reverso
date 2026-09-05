@@ -15,6 +15,7 @@ import {
   parseSourceFiles,
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { toFieldSchema } from '../utils/field-schema.js';
 import { slugParamSchema } from '../validation.js';
 
 const pagesRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -93,12 +94,7 @@ const pagesRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           const content = await getContentByFieldId(db, field.id);
 
           fieldsData.push({
-            path: field.path,
-            type: field.type,
-            label: field.label,
-            placeholder: field.placeholder,
-            required: field.required,
-            config: parseFieldConfig(field),
+            ...toFieldSchema(field),
             value: content ? parseContentValue(content) : null,
             published: content?.published ?? false,
           });

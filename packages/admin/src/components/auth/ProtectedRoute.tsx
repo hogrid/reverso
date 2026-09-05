@@ -2,6 +2,7 @@
  * Protected route component that requires authentication.
  */
 
+import { UNAUTHORIZED_EVENT } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { Loader2 } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
@@ -12,12 +13,20 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, sessionExpired } = useAuthStore();
   const location = useLocation();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // When any API call answers 401 (session expired or revoked), drop the
+  // local session so the user is sent to the login page instead of seeing
+  // every screen fail.
+  useEffect(() => {
+    window.addEventListener(UNAUTHORIZED_EVENT, sessionExpired);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, sessionExpired);
+  }, [sessionExpired]);
 
   if (isLoading) {
     return (

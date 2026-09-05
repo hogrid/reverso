@@ -22,7 +22,19 @@
  * ```
  */
 
-export const VERSION = '0.1.0';
+/** Package version, read from package.json so it always matches the release. */
+import { readFileSync } from 'node:fs';
+
+export const VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+    ) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 // Server exports
 export {
@@ -64,15 +76,18 @@ export type {
  * Create and start a fully configured API server.
  * Convenience function that combines createServer, registerDatabase, and registerRoutes.
  */
+import type { CorsOptions } from './server.js';
+
 export async function createApiServer(options: {
   port?: number;
   host?: string;
   databaseUrl: string;
   prefix?: string;
-  cors?: boolean;
+  cors?: boolean | CorsOptions;
   logger?: boolean;
   apiKey?: string;
   authEnabled?: boolean;
+  trustProxy?: boolean;
 }) {
   const { createServer, registerAuth } = await import('./server.js');
   const { databasePlugin } = await import('./plugins/index.js');
@@ -91,6 +106,7 @@ export async function createApiServer(options: {
     prefix: options.prefix,
     apiKey: options.apiKey,
     authEnabled: options.authEnabled,
+    trustProxy: options.trustProxy,
   });
 
   // Register database plugin FIRST so request.db is available

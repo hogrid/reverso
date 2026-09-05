@@ -79,26 +79,27 @@ Run `reverso dev` and your CMS is ready. That's it.
 
 ### Perfect replacement for WordPress + ACF PRO
 
-Reverso covers everything you need from WordPress + Advanced Custom Fields:
+Reverso covers the core of WordPress + Advanced Custom Fields today:
 
 - 35+ field types (text, image, repeater, flexible content, gallery...)
 - Block editor (like Gutenberg, powered by Tiptap)
-- Forms system (like Gravity Forms)
-- SEO & Permalinks (like Yoast)
-- Multi-language support
-- User roles & permissions
-- REST API (GraphQL planned)
-- Media library
-- Content scheduling
-- Revision history
+- Forms system with public submissions, spam honeypot, webhooks and CSV export
+- Redirects and sitemap (like Yoast's basics)
+- Media library with uploads
+- Admin accounts with sessions, API keys for scripts and CI
+- REST API, with public read endpoints for your frontend
+- Content history kept per field (bounded), publish/unpublish per field
 
 **Plus things WordPress can't do:**
 
 - AI integration via MCP Server
 - Full TypeScript support
-- Works with Next.js, Remix, Astro
-- 10x better performance
+- Works with Next.js, Vite and Astro
 - Auto-generated admin panel from your code
+
+Not there yet (see [ROADMAP.md](./ROADMAP.md)): GraphQL, multi-language UI,
+scheduled publishing, a revisions UI, roles beyond admin/editor/viewer, and
+PostgreSQL (SQLite is the only database provider implemented today).
 
 ---
 
@@ -155,12 +156,16 @@ npx reverso dev
 
 This single command will:
 1. Scan your code for `data-reverso` markers
-2. Start the API server (default port 3001)
-3. Auto-seed your admin account on first run
+2. Start the API server and admin panel (default port 3001)
+3. Create the database (or upgrade it) with the bundled migrations
 4. Sync the detected schema to the database
 5. Watch for file changes and re-sync automatically
 
-Open `http://localhost:3001/admin` and start editing!
+Open `http://localhost:3001/admin`. On the first run the login page opens in
+**create your account** mode: register the first admin (or let
+`reverso init` pre-seed it) and start editing. Every API call is
+authenticated; the dev server keeps a per-session API key in
+`.reverso/dev-server.json` so `reverso scan` can sync from another terminal.
 
 ### Read CMS content in your frontend
 
@@ -195,11 +200,21 @@ export async function Hero() {
 }
 ```
 
-Repeater items come back as arrays:
+`get()` always returns the kind of value you passed as fallback (an image
+becomes its URL, a number stays a number). Rich fields have typed accessors,
+and repeater items come back as arrays:
 
 ```tsx
-const posts = home.items('home.posts'); // [{ title, image, ... }, ...]
+const hero = home.image('home.hero.image');      // { url, alt, width, height } | null
+const files = home.file('home.downloads.brochure'); // { url, filename, size, mimeType } | null
+const shots = home.images('home.gallery');       // ReversoImage[]
+const where = home.map('home.contact.location'); // { lat, lng, zoom, address } | null
+const tags = home.list('home.meta.tags');        // string[]
+const posts = home.items('home.posts');          // [{ title, image, ... }, ...]
 ```
+
+Uploaded files come back as absolute URLs on the CMS origin, so `<img src>`
+works from any domain. Pass `mediaBaseUrl` to serve them from a CDN instead.
 
 See `examples/showcase` (every field type), `examples/blog`, and
 `examples/portfolio` for complete integrations.
@@ -220,7 +235,7 @@ verify the full integration in one place.
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Node.js | 20 or newer | `node -v` |
+| Node.js | 22.12 or newer to develop this repo (the docs site uses Astro 6); published packages run on 20 or newer | `node -v` |
 | pnpm | 9 or newer | `pnpm -v` (install: `npm i -g pnpm`) |
 | Git | any | `git --version` |
 
@@ -252,7 +267,7 @@ admin panel on **http://localhost:3001** (it auto-picks the next free port if
 ### 3. Open the admin and create content
 
 1. Open **http://localhost:3001/admin**
-2. First run: click **"Don't have an account? Create one"** and register the
+2. First run: the page opens in **create your account** mode. Register the
    first admin user (password must be at least 8 characters).
 3. You'll see the **Showcase** page with every detected field, grouped by
    section (text, rich text, choices, media, date/time, repeaters, relations,
@@ -638,8 +653,11 @@ reverso init --force
 # Create with example component
 reverso init --example
 
-# Non-interactive mode (accept all defaults)
+# Non-interactive mode (accept all defaults; prints the generated admin password once)
 reverso init --yes
+
+# Skip installing @reverso packages (monorepos, CI, or when you install yourself)
+reverso init --yes --skip-install
 ```
 
 ### Development
@@ -687,35 +705,46 @@ reverso scan --verbose
 
 # Custom include/exclude patterns
 reverso scan --include "**/*.tsx" --exclude "**/test/**"
+
+# Push the schema to a deployed server (CI, staging, production)
+reverso scan --api-url https://cms.example.com --api-key $REVERSO_API_KEY
 ```
 
-The scan command auto-syncs the schema to a running API server. You can run `reverso scan` while `reverso dev` is active and the admin panel will update in real-time.
+The scan command syncs the schema to a Reverso server. Next to a running
+`reverso dev` it finds the URL and key automatically
+(`.reverso/dev-server.json`); otherwise pass `--api-url`/`--api-key` or set
+`REVERSO_API_URL`/`REVERSO_API_KEY`. Sync failures are reported, never
+swallowed.
 
 ### Production
 
 ```bash
-# Build for production
+# Scan markers and prepare .reverso/reverso.db
 reverso build
 
-# Start production server
+# Serve the API + admin (requires REVERSO_COOKIE_SECRET; set REVERSO_API_KEY
+# to let `reverso scan --api-url` push schema updates from elsewhere)
 reverso start
 ```
+
+`reverso start` creates the database when it is missing, so a container can
+boot empty and receive its schema from `reverso scan --api-url`.
 
 ### Database
 
 ```bash
-# Run pending migrations
+# Apply pending migrations (also upgrades databases from older versions)
 reverso migrate
 
-# Create a new migration
-reverso migrate:create
-
-# Check migration status
+# Show applied and pending migrations
 reverso migrate:status
 
-# Reset database (destructive!)
+# Delete and recreate the database (destructive!)
 reverso migrate:reset
 ```
+
+Migrations are generated from the Drizzle schema (`pnpm db:generate` in
+`packages/db`) and shipped with `@reverso/db`; nothing hand-writes SQL.
 
 ---
 
@@ -772,13 +801,13 @@ create-reverso
 
 | Layer | Technology |
 |-------|------------|
-| **Runtime** | Node.js 20+ |
+| **Runtime** | Node.js 22+ (monorepo), 20+ for the published packages |
 | **Package Manager** | pnpm 9+ |
 | **Monorepo** | Turborepo |
 | **API** | Fastify |
-| **Database** | SQLite (dev) / PostgreSQL (prod) |
-| **ORM** | Drizzle |
-| **Auth** | Better Auth + bcrypt |
+| **Database** | SQLite via better-sqlite3 (PostgreSQL planned) |
+| **ORM** | Drizzle (generated migrations) |
+| **Auth** | httpOnly session cookies + bcrypt, API keys |
 | **Admin UI** | React 19 + Vite + shadcn/ui + Radix |
 | **State** | Zustand + React Query |
 | **WYSIWYG** | Tiptap |
@@ -786,7 +815,7 @@ create-reverso
 | **Drag & Drop** | @dnd-kit |
 | **CSS** | TailwindCSS 4 |
 | **Linting** | Biome |
-| **Testing** | Vitest + Playwright |
+| **Testing** | Vitest (unit + API integration on real SQLite) + Playwright (admin in Chromium against `reverso dev`) |
 | **Versioning** | Changesets |
 | **Git Hooks** | Husky |
 
@@ -817,23 +846,37 @@ create-reverso
 
 ## API Endpoints
 
-When the dev server is running, these endpoints are available:
+Everything under `/api/reverso` requires authentication except the `public/`
+routes, the redirect lookup, the sitemap and health checks. Authenticate with
+the admin session cookie (set by `/auth/login`), the same session token as
+`Authorization: Bearer <token>`, or the configured API key as
+`X-API-Key: <key>` (`REVERSO_API_KEY`).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/health` | Health check |
+| `GET` | `/health` | Health check (also `/api/reverso/health`) |
 | `GET` | `/admin` | Admin panel UI |
+| `POST` | `/auth/register` | Create the first admin (closed afterwards) |
+| `POST` | `/auth/login` / `/auth/logout` | Session login/logout |
+| `GET` | `/auth/me` / `/auth/setup-status` | Current user / whether setup is needed |
 | `GET` | `/api/reverso/schema` | Get current schema |
-| `POST` | `/api/reverso/schema/sync` | Sync schema to database |
-| `GET` | `/api/reverso/content/page/:slug` | Get all content for a page (authenticated) |
+| `POST` | `/api/reverso/schema/sync` | Sync schema to database (admin) |
+| `GET` | `/api/reverso/pages` / `/pages/:slug` | Pages and their fields |
+| `GET` | `/api/reverso/content/page/:slug` | All content for a page |
 | `PATCH` | `/api/reverso/content/page/:slug` | Bulk update page content |
-| `GET` | `/api/reverso/content/:path` | Get content by field path |
-| `PUT` | `/api/reverso/content/:path` | Update content by field path |
-| `GET` | `/api/reverso/public/content/page/:slug` | Public read of PUBLISHED page content (for frontends) |
+| `GET` / `PUT` | `/api/reverso/content/:path` | Read / update a field |
+| `GET` | `/api/reverso/public/content/page/:slug` | Public read of PUBLISHED page content |
 | `GET` | `/api/reverso/public/content/:path` | Public read of a PUBLISHED value |
-| `POST` | `/auth/register` | Register new user |
-| `POST` | `/auth/login` | Login |
-| `GET` | `/auth/setup-status` | Check if setup is needed |
+| `GET` / `POST` | `/api/reverso/media` | List (`?search=&type=&limit=&offset=`) / upload (multipart `file`) |
+| `GET` / `POST` | `/api/reverso/forms` | Forms, fields, submissions, CSV export (`/forms/:id/...`) |
+| `POST` | `/api/reverso/public/forms/:slug/submit` | Public submission to a published form |
+| `GET` / `POST` | `/api/reverso/redirects` | Redirects CRUD, `bulk-import`, `export` |
+| `GET` | `/api/reverso/redirect?path=/old` | Public redirect lookup for frontend middleware |
+| `GET` | `/api/reverso/sitemap.xml` | Sitemap of pages and published forms |
+| `GET` | `/api/reverso/stats` | Dashboard statistics |
+
+Rate limit: 600 requests per minute per IP (admin assets excluded), 10 public
+form submissions per minute per IP, login lockout after repeated failures, tracked per account (5 in an hour) and per source address (20 in an hour) independently.
 
 ---
 
@@ -857,55 +900,60 @@ Reverso works with any Node.js hosting platform:
 | Platform | Type | Notes |
 |----------|------|-------|
 | [Coolify](https://coolify.io) | Self-hosted PaaS | Recommended for full control |
-| [Vercel](https://vercel.com) | Serverless | Great for Next.js frontends |
 | [Railway](https://railway.app) | Cloud hosting | Simple deploy from Git |
-| [Docker](https://docker.com) | Container | Full isolation |
-| Self-hosted | Any server | Just run `reverso start` |
+| [Docker](https://docker.com) | Container | `docker compose up -d` with the included Dockerfile |
+| Self-hosted | Any server | `reverso build && reverso start` |
 
-**Database in production:** Switch from SQLite to PostgreSQL by updating `reverso.config.ts`:
+Your frontend (Vercel, Netlify, anywhere) reads content through
+`@reverso/client` from the public endpoints; only the CMS itself needs a
+Node.js host with a persistent disk for `.reverso/` (database + uploads).
 
-```ts
-export default defineConfig({
-  database: {
-    provider: 'postgresql',
-    url: process.env.DATABASE_URL,
-  },
-});
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `REVERSO_COOKIE_SECRET` | yes in production | Signs cookies (`openssl rand -hex 32`) |
+| `REVERSO_API_KEY` | for remote sync/CI/MCP | Admin-level key for `X-API-Key` / `reverso scan --api-key` |
+| `REVERSO_PORT`, `REVERSO_HOST` | no | Defaults `3001`, `0.0.0.0` |
+| `REVERSO_DB_PATH` | no | SQLite file (default `.reverso/reverso.db`) |
+| `REVERSO_CORS_ORIGIN` | when a browser calls the API | Origins allowed cross-site, comma-separated (or `*`). Server-side reads need nothing |
+| `REVERSO_TRUST_PROXY` | behind a proxy | `true` to honour `X-Forwarded-*` |
+| `REVERSO_COOKIE_SECURE` | no | `auto` (default, Secure only over HTTPS), `true` or `false` |
+| `REVERSO_API_URL` | for `reverso scan` against a remote CMS | Where the schema is pushed when no local `reverso dev` is running |
+| `REVERSO_SRC_DIR` | no | Overrides `srcDir` from `reverso.config.ts` |
+| `REVERSO_AUTH_ENABLED` | never in production | `false` disables authentication (local experiments only) |
+
+Uploaded files are served by the CMS at `/uploads/<file>`. `@reverso/client`
+rewrites those paths to absolute URLs on the CMS origin, so `<img src>` works
+from a frontend on another domain; pass `mediaBaseUrl` to point at a CDN.
+
+### Loading the schema into a deployed CMS
+
+The server has no access to your source code, so push the schema from the
+project that holds the markers (locally or in CI):
+
+```bash
+reverso scan --api-url https://cms.example.com --api-key "$REVERSO_API_KEY"
 ```
 
-See the [deployment guide](https://docs.reverso.dev/deployment) for detailed instructions.
+**Database:** SQLite is the database provider implemented today (WAL mode,
+single file, back it up with the uploads directory). PostgreSQL is on the
+roadmap; the `docker-compose.yml` Postgres profile is provided for that
+future and is not used by the server yet.
 
 ---
 
 ## Roadmap
 
-### v0.1.x (Current)
-- [x] Scanner and field detection (35+ types)
-- [x] Admin panel with auto-generated UI
-- [x] Block editor (Tiptap)
-- [x] Forms system
-- [x] REST API
-- [x] CLI tools (init, scan, dev, build, start, migrate)
-- [x] MCP Server for AI integration
-- [x] Auto-sync schema on scan and dev
-- [x] Auto-seed admin credentials
+The measured state of the project, the launch plan and the backlog live in
+[ROADMAP.md](./ROADMAP.md). In short:
 
-### v0.2.0
-- [ ] GraphQL API
-- [ ] VSCode extension
-- [ ] More examples and templates
-
-### v0.3.0
-- [ ] WordPress importer
-- [ ] React hooks (`@reverso/react`)
-- [ ] Scheduled publishing UI
-
-### v1.0.0
-- [ ] Plugin system
-- [ ] Marketplace
-- [ ] Multi-tenancy
-
-See the full [roadmap](https://github.com/hogrid/reverso/blob/main/ROADMAP.md).
+- **Working and tested today:** scanner (35+ field types), auto-generated
+  admin, block editor, forms, redirects, sitemap, media, REST API with public
+  read endpoints, `@reverso/client`, CLI (`init`, `dev`, `scan`, `build`,
+  `start`, `migrate`), MCP server, Docker image.
+- **Next:** PostgreSQL provider, scheduled publishing UI, revisions UI,
+  GraphQL, `@reverso/react` hooks, VS Code extension, WordPress importer.
 
 ---
 

@@ -53,8 +53,32 @@ export function generateSchema(
     console.warn('');
   }
 
+  // The same path may legitimately be marked in several places (a title
+  // rendered in two components); the first occurrence defines the field.
+  // Conflicting types for one path are a mistake worth flagging.
+  const firstByPath = new Map<string, DetectedField>();
+  const conflicts: { first: DetectedField; other: DetectedField }[] = [];
+  for (const f of validFields) {
+    const first = firstByPath.get(f.path);
+    if (!first) {
+      firstByPath.set(f.path, f);
+    } else if ((first.attributes.type ?? 'text') !== (f.attributes.type ?? 'text')) {
+      conflicts.push({ first, other: f });
+    }
+  }
+  if (conflicts.length > 0) {
+    console.warn(`\n⚠ ${conflicts.length} marker(s) declare a different type for an existing path:`);
+    for (const { first, other } of conflicts) {
+      console.warn(
+        `  "${other.path}" is "${other.attributes.type ?? 'text'}" in ${other.file}:${other.line} but "${first.attributes.type ?? 'text'}" in ${first.file}:${first.line} (keeping the first)`
+      );
+    }
+    console.warn('');
+  }
+  const uniqueFields = [...firstByPath.values()];
+
   // Group valid fields by page and section
-  const grouped = groupPathsBySection(validFields.map((f) => f.path));
+  const grouped = groupPathsBySection(uniqueFields.map((f) => f.path));
 
   // Build pages
   const pages: PageSchema[] = [];
@@ -65,7 +89,7 @@ export function generateSchema(
 
     for (const [sectionSlug, paths] of sections) {
       // Get fields for this section
-      const sectionFields = validFields.filter((f) => {
+      const sectionFields = uniqueFields.filter((f) => {
         const parsed = parsePath(f.path);
         return parsed.page === pageSlug && parsed.section === sectionSlug;
       });
@@ -119,7 +143,7 @@ export function generateSchema(
       sections: sortedSections,
       fieldCount: sortedSections.reduce((sum, s) => sum + s.fields.length, 0),
       sourceFiles: [
-        ...new Set(validFields.filter((f) => parsePath(f.path).page === pageSlug).map((f) => f.file)),
+        ...new Set(uniqueFields.filter((f) => parsePath(f.path).page === pageSlug).map((f) => f.file)),
       ],
     };
 
@@ -136,7 +160,7 @@ export function generateSchema(
     generatedAt: new Date().toISOString(),
     pages: sortedPages,
     pageCount: sortedPages.length,
-    totalFields: validFields.length,
+    totalFields: uniqueFields.length,
     meta: {
       srcDir: '',
       filesScanned: 0,

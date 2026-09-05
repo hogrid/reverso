@@ -85,16 +85,19 @@ reverso start --host 0.0.0.0
 
 ### reverso migrate
 
-Run database migrations:
+Apply the migrations bundled with `@reverso/db` (databases created by older
+versions are upgraded in place):
 
 ```bash
-reverso migrate
+reverso migrate                  # apply pending migrations
+reverso migrate:status           # list applied and pending migrations
+reverso migrate:reset --force    # delete and recreate the database (destructive!)
 
-# Options
-reverso migrate --seed          # Seed initial data
-reverso migrate --force         # Force reset (destructive!)
-reverso migrate --dry-run       # Preview changes
+# All accept --database <path>; the default comes from reverso.config.ts
 ```
+
+`reverso dev`, `reverso build` and `reverso start` run pending migrations
+automatically, so `reverso migrate` is only needed for scripted upgrades.
 
 ### reverso build
 
@@ -109,46 +112,25 @@ reverso build --output ./dist
 
 ### reverso init
 
-Initialize Reverso in an existing project:
+Initialize Reverso in an existing project (a `package.json` must exist):
 
 ```bash
-reverso init
-
-# Interactive prompts:
-# - Database type (SQLite/PostgreSQL)
-# - Content directory
-# - i18n configuration
+reverso init                 # asks for the admin account and installs @reverso/*
+reverso init --yes           # no prompts: generated admin password, printed once
+reverso init --skip-install  # write files only (monorepos, CI)
+reverso init --force         # overwrite an existing reverso.config.ts
+reverso init --example       # also add an example component with markers
 ```
 
-Creates:
-- `reverso.config.ts`
-- `.reverso/` directory
-- Database file (if SQLite)
+What it does:
 
-### reverso export
-
-Export content to JSON:
-
-```bash
-reverso export
-
-# Options
-reverso export --output content.json
-reverso export --locale en
-reverso export --page home
-```
-
-### reverso import
-
-Import content from JSON:
-
-```bash
-reverso import content.json
-
-# Options
-reverso import content.json --merge     # Merge with existing
-reverso import content.json --overwrite # Overwrite existing
-```
+- writes `reverso.config.ts` with `srcDir` set to the folder it detects
+  (`src/`, `app/`, `pages/`, `components/` or the project root)
+- creates `.reverso/` and adds it to `.gitignore` (creating the file if needed)
+- stores the first admin account in `.reverso/admin.json`; the next
+  `reverso dev` creates the user and deletes that file
+- installs `@reverso/cli`, `@reverso/core` and `@reverso/client` pinned to the
+  CLI's own version, unless `--skip-install` is given
 
 ## Configuration
 
@@ -199,7 +181,7 @@ import { cli, commands } from '@reverso/cli';
 // Run a command programmatically
 await commands.scan({ dir: './src', verbose: true });
 await commands.dev({ port: 4000 });
-await commands.migrate({ seed: true });
+await commands.migrate({});
 ```
 
 ## CI/CD Integration
@@ -227,16 +209,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Scan content
-        run: npx @reverso/cli scan
-
-      - name: Run migrations
-        run: npx @reverso/cli migrate
+      # Push the markers found in this repository to the deployed CMS
+      - name: Sync schema to the CMS
+        run: npx reverso scan --api-url "$REVERSO_API_URL" --api-key "$REVERSO_API_KEY"
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Build
-        run: npx @reverso/cli build
+          REVERSO_API_URL: ${{ secrets.REVERSO_API_URL }}
+          REVERSO_API_KEY: ${{ secrets.REVERSO_API_KEY }}
 ```
 
 ### Docker
@@ -251,14 +229,12 @@ RUN npm ci --production
 
 COPY . .
 
-# Run migrations
-RUN npx @reverso/cli migrate
+# Scan the markers and prepare .reverso/reverso.db
+RUN npx reverso build
 
-# Build admin
-RUN npx @reverso/cli build
-
-# Start production server
-CMD ["npx", "@reverso/cli", "start"]
+# Persist .reverso/ (database + uploads) with a volume in production
+ENV NODE_ENV=production
+CMD ["npx", "reverso", "start"]
 ```
 
 ## Troubleshooting
@@ -271,22 +247,20 @@ reverso dev --port 4001
 # Or kill the process using the port
 ```
 
-**Database connection failed:**
+**Database problems:**
 ```bash
-# Check database path exists
+# Check database path and migration state
 ls -la .reverso/
-
-# Or check PostgreSQL connection
-reverso migrate --dry-run
+reverso migrate:status
 ```
 
 **No markers found:**
 ```bash
-# Check the content directory
-reverso scan --dir ./src --verbose
+# Check the source directory and list every detected field
+reverso scan --src ./src --verbose
 
-# Verify file extensions
-reverso scan --extensions .tsx,.jsx,.ts,.js
+# Widen the include patterns
+reverso scan --include "**/*.tsx" "**/*.jsx" "**/*.astro"
 ```
 
 **Permission denied:**

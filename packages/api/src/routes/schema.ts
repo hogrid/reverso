@@ -18,6 +18,7 @@ import {
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { SchemaSyncBody } from '../types.js';
+import { toFieldSchema } from '../utils/field-schema.js';
 import { schemaSyncSchema } from '../validation.js';
 
 const schemaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -66,22 +67,7 @@ const schemaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
         for (const section of sections) {
           const fields = fieldsBySectionId.get(section.id) ?? [];
-          const schemaFields: FieldSchema[] = fields.map((field) => ({
-            path: field.path,
-            type: field.type as FieldSchema['type'],
-            label: field.label ?? undefined,
-            placeholder: field.placeholder ?? undefined,
-            required: field.required ?? undefined,
-            validation: field.validation ?? undefined,
-            options: field.options ?? undefined,
-            condition: field.condition ?? undefined,
-            file: field.sourceFile ?? '',
-            line: field.sourceLine ?? 0,
-            column: field.sourceColumn ?? 0,
-            defaultContent: field.defaultValue ?? undefined,
-            help: field.help ?? undefined,
-            ...parseFieldConfig(field),
-          }));
+          const schemaFields: FieldSchema[] = fields.map(toFieldSchema);
 
           schemaSections.push({
             slug: section.slug,
@@ -131,7 +117,9 @@ const schemaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
    * POST /schema/sync
    * Sync schema from scanner output to database.
    */
-  fastify.post<{ Body: SchemaSyncBody }>('/schema/sync', async (request, reply) => {
+  fastify.post<{ Body: SchemaSyncBody }>('/schema/sync', {
+    preHandler: fastify.requireAuth(['admin']),
+  }, async (request, reply) => {
     try {
       const bodyResult = schemaSyncSchema.safeParse(request.body);
       if (!bodyResult.success) {

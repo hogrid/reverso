@@ -1,78 +1,38 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { type APIRequestContext, expect, test as base } from '@playwright/test';
 
-/**
- * Test credentials for E2E tests.
- * In CI, these should be set via environment variables.
- */
-export const TEST_USER = {
-  email: process.env.TEST_USER_EMAIL || 'admin@example.com',
-  password: process.env.TEST_USER_PASSWORD || 'password123',
+/** First admin account, created by auth.setup.ts on the fresh database. */
+export const ADMIN = {
+  name: 'E2E Admin',
+  email: 'admin@e2e.test',
+  password: 'password123',
 };
 
+/** Path where auth.setup.ts stores the logged-in browser state. */
+export const STORAGE_STATE = 'e2e/.auth/admin.json';
+
+/** The page every showcase marker belongs to. */
+export const SHOWCASE_SLUG = 'showcase';
+
 /**
- * Extended test fixture with authentication helpers.
+ * Every test runs with external font/CDN requests blocked: they are not part
+ * of the product under test and, in sandboxed CI, they can hang navigation
+ * until the connection times out.
  */
-export const test = base.extend<{
-  authenticatedPage: Page;
-}>({
-  authenticatedPage: async ({ page }, use) => {
-    // Perform login
-    await page.goto('/login');
-    await page.getByLabel('Email').fill(TEST_USER.email);
-    await page.getByLabel('Password').fill(TEST_USER.password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-
-    // Wait for redirect to dashboard
-    await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-
-    await use(page);
+export const test = base.extend({
+  context: async ({ context }, use) => {
+    await context.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
+    await use(context);
   },
 });
-
 export { expect };
 
 /**
- * Helper to wait for network idle.
+ * Read published content straight from the public API, the way a frontend
+ * would, so tests assert on what actually ships and not only on the UI.
  */
-export async function waitForNetworkIdle(page: Page, timeout = 5000) {
-  await page.waitForLoadState('networkidle', { timeout });
+export async function publicPage(request: APIRequestContext, slug = SHOWCASE_SLUG) {
+  const res = await request.get(`/api/reverso/public/content/page/${slug}`);
+  expect(res.ok()).toBeTruthy();
+  const body = (await res.json()) as { data: { content: Record<string, unknown> } };
+  return body.data.content;
 }
-
-/**
- * Helper to take a screenshot with a descriptive name.
- */
-export async function takeScreenshot(page: Page, name: string) {
-  await page.screenshot({
-    path: `playwright-report/screenshots/${name}.png`,
-    fullPage: true,
-  });
-}
-
-/**
- * Helper to clear and type in an input.
- */
-export async function clearAndType(page: Page, selector: string, text: string) {
-  const input = page.locator(selector);
-  await input.clear();
-  await input.fill(text);
-}
-
-/**
- * Data-testid selectors for common elements.
- */
-export const selectors = {
-  sidebar: '[data-testid="sidebar"]',
-  sidebarLink: (name: string) => `[data-testid="sidebar-link-${name}"]`,
-  pageTitle: '[data-testid="page-title"]',
-  saveButton: '[data-testid="save-button"]',
-  deleteButton: '[data-testid="delete-button"]',
-  confirmButton: '[data-testid="confirm-button"]',
-  cancelButton: '[data-testid="cancel-button"]',
-  loadingSpinner: '[data-testid="loading"]',
-  errorMessage: '[data-testid="error-message"]',
-  successMessage: '[data-testid="success-message"]',
-  mediaUploader: '[data-testid="media-uploader"]',
-  mediaGrid: '[data-testid="media-grid"]',
-  mediaItem: '[data-testid="media-item"]',
-};

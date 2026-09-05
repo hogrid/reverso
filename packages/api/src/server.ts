@@ -10,13 +10,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import csrfProtection from '@fastify/csrf-protection';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import authPlugin from './plugins/auth.js';
+import authPlugin, { resolveAuthEnabled } from './plugins/auth.js';
+import { corsOriginFromEnv } from './utils/security.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -35,8 +35,17 @@ export interface ServerConfig {
   prefix?: string;
   /** API key for authentication */
   apiKey?: string;
-  /** Enable authentication (default: true in production) */
+  /**
+   * Enable authentication (default: true everywhere; `REVERSO_AUTH_ENABLED=false`
+   * or `authEnabled: false` turns it off for local experiments only).
+   */
   authEnabled?: boolean;
+  /**
+   * Trust `X-Forwarded-*` headers from a reverse proxy (default:
+   * `REVERSO_TRUST_PROXY=true`). Needed for correct client IPs behind nginx,
+   * Caddy, Coolify, Railway, etc.
+   */
+  trustProxy?: boolean;
 }
 
 export interface CorsOptions {
@@ -63,7 +72,12 @@ function getCookieSecret(): string {
   return 'reverso-dev-secret-do-not-use-in-production';
 }
 
-const defaultConfig: Required<ServerConfig> = {
+/**
+ * Defaults, resolved when a server is created (not at import time) so that
+ * environment variables loaded late (dotenv in the CLI, test setups) count.
+ */
+function defaultConfig(): Required<ServerConfig> {
+  return {
   port: 3001,
   host: '0.0.0.0',
   cors: true,
@@ -72,16 +86,25 @@ const defaultConfig: Required<ServerConfig> = {
   logger: true,
   prefix: '/api/reverso',
   apiKey: process.env.REVERSO_API_KEY || '',
-  authEnabled: process.env.NODE_ENV === 'production',
-};
+  authEnabled: resolveAuthEnabled(),
+  trustProxy: process.env.REVERSO_TRUST_PROXY === 'true',
+  };
+}
 
 /**
  * Create a Fastify server instance.
  */
 export async function createServer(config: ServerConfig = {}): Promise<FastifyInstance> {
-  const opts = { ...defaultConfig, ...config };
+  // Callers often forward optional settings they did not resolve themselves
+  // (`trustProxy: options.trustProxy`). An explicit `undefined` must not
+  // override the environment-derived defaults above.
+  const provided = Object.fromEntries(
+    Object.entries(config).filter(([, value]) => value !== undefined)
+  ) as ServerConfig;
+  const opts = { ...defaultConfig(), ...provided };
 
   const fastifyOptions: FastifyServerOptions = {
+    trustProxy: opts.trustProxy,
     logger: opts.logger
       ? {
           transport: {
@@ -99,11 +122,12 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
 
   // Register CORS
   if (opts.cors) {
-    // In production, require explicit origin configuration
+    // REVERSO_CORS_ORIGIN (single origin, comma-separated list or `*`) wins in
+    // every environment; without it, development allows any origin and
+    // production allows none cross-site (frontends normally read the public
+    // API server-side, and same-origin admin calls are unaffected).
     const isProduction = process.env.NODE_ENV === 'production';
-    const defaultOrigin = isProduction
-      ? process.env.REVERSO_CORS_ORIGIN || 'http://localhost:3000'
-      : true;
+    const defaultOrigin = corsOriginFromEnv() ?? (isProduction ? false : true);
 
     const corsOptions =
       typeof opts.cors === 'object'
@@ -135,7 +159,9 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
-        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+        // Only force https when cookies are explicitly Secure; otherwise a
+        // plain-http deployment would have its own assets upgraded and break.
+        upgradeInsecureRequests: process.env.REVERSO_COOKIE_SECURE === 'true' ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false, // Disable for media uploads
@@ -148,53 +174,38 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     parseOptions: {},
   });
 
-  // Register CSRF protection.
-  // Primary CSRF defense is already in place: the session cookie is
-  // httpOnly + SameSite=lax (see routes/auth.ts), so cross-site mutating
-  // requests never carry it. Token-based CSRF is an opt-in defense-in-depth
-  // layer, gated by REVERSO_CSRF_ENABLED, because it requires the admin
-  // client to send the x-csrf-token header on every mutation.
-  const csrfEnabled = process.env.REVERSO_CSRF_ENABLED === 'true';
-  if (csrfEnabled) {
-    await server.register(csrfProtection, {
-      sessionPlugin: '@fastify/cookie',
-      cookieOpts: {
-        signed: true,
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-      },
-      getToken: (request) => {
-        return (
-          request.headers['x-csrf-token']?.toString() ||
-          request.headers['csrf-token']?.toString()
-        );
-      },
-    });
+  // CSRF: the session cookie is httpOnly + SameSite=Lax and the auth plugin
+  // rejects cookie-authenticated mutations whose Origin is another site.
+  // No token layer is needed for the admin, so none is registered.
 
-    server.get('/api/csrf-token', async (request, reply) => {
-      const token = await reply.generateCsrf();
-      return { csrfToken: token };
-    });
-  }
-
-  // Register rate limiting
+  // Rate limiting protects the API and auth endpoints. The admin shell and
+  // its static assets are exempt: a single page load fetches dozens of
+  // chunks and would otherwise eat the budget of the API calls that follow.
   await server.register(rateLimit, {
-    max: 100,
+    max: 600,
     timeWindow: '1 minute',
-    keyGenerator: (request) => {
+    // request.ip already honours X-Forwarded-For when trustProxy is on;
+    // reading the header directly would let any client pick its own bucket.
+    keyGenerator: (request) => request.headers['x-api-key']?.toString() || request.ip,
+    allowList: (request) => {
+      const path = request.url.split('?')[0] ?? request.url;
       return (
-        request.headers['x-api-key']?.toString() ||
-        request.headers['x-forwarded-for']?.toString() ||
-        request.ip
+        /^\/(health|favicon\.svg)$/.test(path) ||
+        path.startsWith('/admin') ||
+        path.startsWith('/uploads/') ||
+        // Public reads are what frontends (often one SSR server = one IP)
+        // hammer; they are cheap and read-only, so they are not budgeted.
+        (request.method === 'GET' &&
+          (path.startsWith('/api/reverso/public/') ||
+            path === '/api/reverso/redirect' ||
+            path === '/api/reverso/sitemap.xml'))
       );
     },
-    allowList: ['/health'],
-    errorResponseBuilder: () => ({
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
       success: false,
       error: 'Too Many Requests',
-      message: 'Rate limit exceeded. Please try again later.',
+      message: `Rate limit exceeded. Try again in ${Math.ceil(context.ttl / 1000)}s.`,
     }),
   });
 
@@ -241,6 +252,14 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       const content = readFileSync(indexPath, 'utf-8');
       return reply.type('text/html').send(content);
     });
+
+    // The admin shell references /favicon.svg at the site root.
+    const faviconPath = join(adminDistPath, 'favicon.svg');
+    if (existsSync(faviconPath)) {
+      server.get('/favicon.svg', async (_request, reply) => {
+        return reply.type('image/svg+xml').send(readFileSync(faviconPath));
+      });
+    }
   }
 
   // Global error handler
@@ -273,11 +292,11 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
  * Should be called AFTER the database plugin to ensure request.db is available.
  */
 export async function registerAuth(server: FastifyInstance, config: ServerConfig = {}): Promise<void> {
-  const opts = { ...defaultConfig, ...server.config, ...config };
+  const opts = { ...defaultConfig(), ...server.config, ...config };
 
   await server.register(authPlugin, {
     apiKey: opts.apiKey,
-    enabled: opts.authEnabled,
+    enabled: resolveAuthEnabled(opts.authEnabled),
     publicPaths: [
       /^\/api\/reverso\/public\//,
       /^\/sitemap\.xml$/,
@@ -350,7 +369,7 @@ export async function startServer(
   config: ServerConfig = {}
 ): Promise<string> {
   // Use server's stored config as base, then override with passed config
-  const opts = { ...defaultConfig, ...server.config, ...config };
+  const opts = { ...defaultConfig(), ...server.config, ...config };
 
   try {
     const address = await server.listen({

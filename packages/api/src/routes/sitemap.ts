@@ -19,7 +19,7 @@ interface SitemapUrl {
 function buildSitemapXml(urls: SitemapUrl[]): string {
   const urlEntries = urls
     .map((url) => {
-      const parts = [`    <url>`, `      <loc>${escapeXml(url.loc)}</loc>`];
+      const parts = ['    <url>', `      <loc>${escapeXml(url.loc)}</loc>`];
 
       if (url.lastmod) {
         parts.push(`      <lastmod>${url.lastmod}</lastmod>`);
@@ -33,7 +33,7 @@ function buildSitemapXml(urls: SitemapUrl[]): string {
         parts.push(`      <priority>${url.priority.toFixed(1)}</priority>`);
       }
 
-      parts.push(`    </url>`);
+      parts.push('    </url>');
       return parts.join('\n');
     })
     .join('\n');

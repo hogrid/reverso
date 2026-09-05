@@ -5,7 +5,7 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { resolve } from 'node:path';
+import { resolveRuntimeConfig } from '../runtime-config.js';
 
 interface MigrateOptions {
   database?: string;
@@ -14,21 +14,12 @@ interface MigrateOptions {
 
 
 /**
- * Resolve the database path: CLI flag wins, then reverso.config database.url,
- * then the .reverso/dev.db default.
+ * Resolve the database path exactly like `dev`, `build` and `start` do
+ * (flag → REVERSO_DB_PATH → reverso.config database.url → default).
  */
 async function resolveDatabasePath(flag: string | undefined): Promise<string> {
-  if (flag) return resolve(flag);
-  try {
-    const { loadConfig } = await import('@reverso/core');
-    const { config } = await loadConfig({ cwd: process.cwd() });
-    if (config.database.provider === 'sqlite' && config.database.url) {
-      return resolve(config.database.url);
-    }
-  } catch {
-    // Fall through to default
-  }
-  return resolve('.reverso/dev.db');
+  const runtime = await resolveRuntimeConfig(process.cwd(), { database: flag });
+  return runtime.databasePath;
 }
 
 export function migrateCommand(program: Command): void {
@@ -56,54 +47,6 @@ export function migrateCommand(program: Command): void {
         console.log(chalk.gray(`  Database: ${dbPath}`));
       } catch (error) {
         spinner.fail(chalk.red('Migration failed'));
-        console.error(error instanceof Error ? error.message : String(error));
-        process.exit(1);
-      }
-    });
-
-  // Sub-command: migrate create
-  program
-    .command('migrate:create <name>')
-    .description('Create a new migration file')
-    .option('-d, --dir <path>', 'Migrations directory', '.reverso/migrations')
-    .action(async (name: string, options: { dir: string }) => {
-      const spinner = ora();
-
-      try {
-        const { writeFileSync, mkdirSync, existsSync } = await import('node:fs');
-        const { join } = await import('node:path');
-
-        const migrationsDir = resolve(options.dir);
-
-        // Create directory if needed
-        if (!existsSync(migrationsDir)) {
-          mkdirSync(migrationsDir, { recursive: true });
-        }
-
-        // Generate timestamp
-        const timestamp = new Date()
-          .toISOString()
-          .replace(/[-:T]/g, '')
-          .slice(0, 14);
-
-        const filename = `${timestamp}_${name.toLowerCase().replace(/\s+/g, '_')}.sql`;
-        const filepath = join(migrationsDir, filename);
-
-        const template = `-- Migration: ${name}
--- Created at: ${new Date().toISOString()}
-
--- Write your migration SQL here
--- Example:
--- ALTER TABLE pages ADD COLUMN new_column TEXT;
-
-`;
-
-        writeFileSync(filepath, template);
-
-        spinner.succeed(chalk.green(`Created migration: ${filename}`));
-        console.log(chalk.gray(`  Path: ${filepath}`));
-      } catch (error) {
-        spinner.fail(chalk.red('Failed to create migration'));
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(1);
       }
@@ -166,24 +109,27 @@ export function migrateCommand(program: Command): void {
     .option('-d, --database <path>', 'Database file path (default: reverso.config database.url)')
     .action(async (options: { database?: string }) => {
       try {
-        const { existsSync } = await import('node:fs');
         const dbPath = await resolveDatabasePath(options.database);
+        const { getMigrationStatus } = await import('@reverso/db');
+        const status = getMigrationStatus(dbPath);
 
-        if (!existsSync(dbPath)) {
-          console.log(chalk.yellow('Database does not exist yet.'));
-          console.log(chalk.gray(`  Expected: ${dbPath}`));
-          console.log(chalk.gray('  Run "reverso migrate" to create it.'));
-          return;
-        }
-
-        console.log(chalk.green('Database exists'));
+        console.log(chalk.bold('Database'));
         console.log(chalk.gray(`  Path: ${dbPath}`));
-
-        // Get file stats
-        const { statSync } = await import('node:fs');
-        const stats = statSync(dbPath);
-        console.log(chalk.gray(`  Size: ${(stats.size / 1024).toFixed(2)} KB`));
-        console.log(chalk.gray(`  Modified: ${stats.mtime.toISOString()}`));
+        if (status.legacy) {
+          console.log(
+            chalk.yellow('  Created before migrations existed; "reverso migrate" will upgrade it in place.')
+          );
+        }
+        console.log();
+        console.log(chalk.bold('Migrations'));
+        for (const tag of status.available) {
+          const applied = status.applied.includes(tag);
+          console.log(`  ${applied ? chalk.green('applied') : chalk.yellow('pending')}  ${tag}`);
+        }
+        if (status.pending.length > 0) {
+          console.log();
+          console.log(chalk.gray(`Run "reverso migrate" to apply ${status.pending.length} pending migration(s).`));
+        }
       } catch (error) {
         console.error(chalk.red('Failed to check status'));
         console.error(error instanceof Error ? error.message : String(error));

@@ -38,7 +38,7 @@ export interface CreateRedirectInput {
  * Fetch list of all redirects
  */
 export function useRedirects(options?: { enabled?: boolean; limit?: number; offset?: number }) {
-  return useQuery({
+  return useQuery<RedirectsListResponse>({
     queryKey: ['redirects', options],
     queryFn: async () => {
       let url = endpoints.redirects.list();
@@ -48,8 +48,16 @@ export function useRedirects(options?: { enabled?: boolean; limit?: number; offs
       if (options?.offset) params.set('offset', String(options.offset));
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await apiClient.get<RedirectsListResponse>(url);
-      return response.data;
+      // The list endpoint returns { data: Redirect[], meta: {...} }; keep both
+      // so the page can render the rows and the counters.
+      const response = (await apiClient.get<Redirect[]>(url)) as {
+        data: Redirect[];
+        meta?: RedirectsListResponse['meta'];
+      };
+      return {
+        data: response.data ?? [],
+        meta: response.meta ?? { total: 0, enabled: 0, disabled: 0, totalHits: 0 },
+      };
     },
   });
 }

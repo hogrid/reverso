@@ -9,7 +9,6 @@ import prompts from 'prompts';
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
-import { hostname } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
 /** Generate a strong random password for non-interactive (--yes) admin setup. */
@@ -27,19 +26,34 @@ const pkgPath = join(__dirname, '../../package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 const CLI_VERSION = pkg.version;
 
-const CONFIG_TEMPLATE = `import { defineConfig } from '@reverso/core';
+/** Folders, in order of preference, where React components usually live. */
+const CANDIDATE_SRC_DIRS = ['src', 'app', 'pages', 'components'];
+
+/**
+ * Pick the directory to scan: the first candidate that exists, falling back
+ * to `./` when components sit at the project root (Next.js `app/` + others).
+ */
+export function detectSrcDir(cwd: string): string {
+  for (const dir of CANDIDATE_SRC_DIRS) {
+    if (existsSync(resolve(cwd, dir))) return `./${dir}`;
+  }
+  return './';
+}
+
+const configTemplate = (srcDir: string) => `import { defineConfig } from '@reverso/core';
 
 export default defineConfig({
   // Source directory to scan for data-reverso markers
-  srcDir: './src',
+  srcDir: '${srcDir}',
 
   // Output directory for generated files
   outputDir: '.reverso',
 
-  // Database configuration
+  // Database used by \`reverso dev\`, \`reverso build\` and \`reverso start\`
+  // (override with REVERSO_DB_PATH in production if needed)
   database: {
     provider: 'sqlite',
-    url: '.reverso/dev.db',
+    url: '.reverso/reverso.db',
   },
 
   // API server configuration
@@ -108,7 +122,8 @@ export function initCommand(program: Command): void {
     .option('-f, --force', 'Overwrite existing configuration', false)
     .option('--example', 'Create an example component with markers', false)
     .option('-y, --yes', 'Skip prompts and use defaults', false)
-    .action(async (options: { force: boolean; example: boolean; yes: boolean }) => {
+    .option('--skip-install', 'Do not install @reverso packages (monorepos, CI)', false)
+    .action(async (options: { force: boolean; example: boolean; yes: boolean; skipInstall: boolean }) => {
       const spinner = ora();
 
       // Show branded banner
@@ -152,11 +167,12 @@ export function initCommand(program: Command): void {
       console.log(chalk.gray(`Detected package manager: ${packageManager}`));
       console.log();
 
-      // Create config file
+      // Create config file, pointing at the folder that actually holds components
+      const srcDir = detectSrcDir(cwd);
       spinner.start('Creating configuration file...');
       try {
-        writeFileSync(configPath, CONFIG_TEMPLATE);
-        spinner.succeed(`Created ${chalk.cyan('reverso.config.ts')}`);
+        writeFileSync(configPath, configTemplate(srcDir));
+        spinner.succeed(`Created ${chalk.cyan('reverso.config.ts')} (srcDir: ${srcDir})`);
       } catch {
         spinner.fail('Failed to create configuration file');
         return;
@@ -178,8 +194,7 @@ export function initCommand(program: Command): void {
       if (options.example) {
         spinner.start('Creating example component...');
         try {
-          const srcDir = resolve(cwd, 'src');
-          const componentsDir = join(srcDir, 'components');
+          const componentsDir = join(resolve(cwd, srcDir), 'components');
 
           if (!existsSync(componentsDir)) {
             mkdirSync(componentsDir, { recursive: true });
@@ -188,7 +203,7 @@ export function initCommand(program: Command): void {
           const examplePath = join(componentsDir, 'Hero.tsx');
           if (!existsSync(examplePath) || options.force) {
             writeFileSync(examplePath, EXAMPLE_COMPONENT);
-            spinner.succeed(`Created ${chalk.cyan('src/components/Hero.tsx')}`);
+            spinner.succeed(`Created ${chalk.cyan(join(srcDir, 'components/Hero.tsx'))}`);
           } else {
             spinner.info('Example component already exists, skipping');
           }
@@ -197,22 +212,24 @@ export function initCommand(program: Command): void {
         }
       }
 
-      // Add to .gitignore if it exists
+      // Keep .reverso/ out of git: it holds the database, uploads and, until
+      // the first `reverso dev`, the admin credentials in plain text.
       spinner.start('Updating .gitignore...');
       try {
         const gitignorePath = resolve(cwd, '.gitignore');
+        const additions = '\n# Reverso (database, uploads, admin credentials)\n.reverso/\n';
         if (existsSync(gitignorePath)) {
-          const { readFileSync, appendFileSync } = await import('node:fs');
+          const { appendFileSync } = await import('node:fs');
           const content = readFileSync(gitignorePath, 'utf-8');
           if (!content.includes('.reverso')) {
-            const additions = '\n# Reverso\n.reverso/\n';
             appendFileSync(gitignorePath, additions);
             spinner.succeed('Added .reverso/ to .gitignore');
           } else {
             spinner.info('.reverso/ already in .gitignore');
           }
         } else {
-          spinner.info('No .gitignore found, skipping');
+          writeFileSync(gitignorePath, `node_modules/${additions}`);
+          spinner.succeed('Created .gitignore with .reverso/');
         }
       } catch {
         spinner.info('Could not update .gitignore');
@@ -230,7 +247,9 @@ export function initCommand(program: Command): void {
       const adminAnswers = options.yes
         ? {
             name: 'Admin',
-            email: `admin@${hostname() || 'localhost'}`,
+            // Must pass the API's email validation (a real domain with a TLD);
+            // the machine hostname usually does not.
+            email: 'admin@example.com',
             password: generatedPassword,
           }
         : await prompts(
@@ -245,8 +264,9 @@ export function initCommand(program: Command): void {
                 type: 'text',
                 name: 'email',
                 message: 'Admin email',
-                initial: `admin@${hostname() || 'localhost'}`,
-                validate: (value: string) => (value.includes('@') ? true : 'Invalid email'),
+                initial: 'admin@example.com',
+                validate: (value: string) =>
+                  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) ? true : 'Enter a valid email (name@domain.tld)',
               },
               {
                 type: 'password',
@@ -294,7 +314,9 @@ export function initCommand(program: Command): void {
       console.log();
 
       // Install dependencies
-      const installDeps = options.yes || (await prompts({
+      const installDeps = options.skipInstall
+        ? false
+        : options.yes || (await prompts({
         type: 'confirm',
         name: 'value',
         message: 'Install Reverso dependencies?',
@@ -304,12 +326,13 @@ export function initCommand(program: Command): void {
       if (installDeps) {
         console.log();
         spinner.start('Installing dependencies...');
+        // Pin every package to this CLI's release so the project never mixes
+        // versions; @reverso/client is what the frontend reads content with.
+        const pin = (name: string) => `${name}@^${CLI_VERSION}`;
         const installCmd = getInstallCommand(packageManager, [
-          '@reverso/core',
-          '@reverso/cli',
-          '@reverso/db',
-          '@reverso/scanner',
-          '@reverso/api'
+          pin('@reverso/cli'),
+          pin('@reverso/core'),
+          pin('@reverso/client'),
         ]);
         spinner.text = `Running: ${chalk.gray(installCmd)}`;
 
@@ -350,8 +373,8 @@ export function initCommand(program: Command): void {
         `${chalk.cyan('Output:')} .reverso/`,
       ]);
 
-      // Ask about scanning
-      const runScan = options.yes || (await prompts({
+      // Ask about scanning (never in --yes mode: it must return for scripts/CI)
+      const runScan = options.yes ? false : (await prompts({
         type: 'confirm',
         name: 'value',
         message: 'Scan your project for data-reverso markers now?',
@@ -370,7 +393,7 @@ export function initCommand(program: Command): void {
         }
 
         // Ask about starting dev server
-        const startDev = options.yes || (await prompts({
+        const startDev = (await prompts({
           type: 'confirm',
           name: 'value',
           message: 'Start the development server?',

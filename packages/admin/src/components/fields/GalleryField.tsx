@@ -113,7 +113,7 @@ export function GalleryField({ field, value, onChange, disabled }: FieldRenderer
 
   const mediaToImages = useCallback(
     (media: MediaItem[]): GalleryImage[] =>
-      media.map((m) => ({ id: m.id, url: m.url, alt: m.alt, filename: m.filename })),
+      media.map((m) => ({ id: m.id, url: m.url, alt: m.alt ?? '', filename: m.originalName || m.filename })),
     []
   );
 

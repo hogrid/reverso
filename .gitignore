@@ -73,3 +73,6 @@ docs/
 
 # Generated Next.js types (regenerated on build)
 next-env.d.ts
+
+# Playwright
+packages/admin/e2e/.auth/

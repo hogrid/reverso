@@ -1,6 +1,6 @@
 {
   "name": "create-reverso",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI installer for Reverso CMS - The front-to-back CMS",
   "homepage": "https://reverso.dev/docs/packages/create-reverso",
   "bugs": {
@@ -13,7 +13,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "create-reverso": "./dist/bin.js"
+    "create-reverso": "./bin/create-reverso.js"
   },
   "exports": {
     ".": {
@@ -23,7 +23,7 @@
   },
   "files": [
     "dist",
-    "templates",
+    "bin",
     "README.md"
   ],
   "scripts": {
@@ -31,18 +31,20 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
     "@reverso/cli": "workspace:*",
-    "commander": "^14.0.3",
+    "@reverso/client": "workspace:*",
+    "@reverso/core": "workspace:*",
     "chalk": "^5.4.1",
+    "commander": "^14.0.3",
+    "fs-extra": "^11.3.5",
     "ora": "^9.4.0",
     "prompts": "^2.4.2",
-    "validate-npm-package-name": "^8.0.0",
-    "fs-extra": "^11.3.5"
+    "validate-npm-package-name": "^8.0.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

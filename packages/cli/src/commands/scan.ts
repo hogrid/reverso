@@ -5,54 +5,119 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import type { ProjectSchema, ScanOptions as CoreScanOptions } from '@reverso/core';
-import { createScanner, scan, type ScannerOptions } from '@reverso/scanner';
+import type { ProjectSchema } from '@reverso/core';
+import { createScanner, type ScannerOptions } from '@reverso/scanner';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { resolveRuntimeConfig } from '../runtime-config.js';
 
 /** Default API port for sync */
 const DEFAULT_API_PORT = 3001;
 
-/**
- * Try to sync schema to running API server.
- */
-async function trySyncToServer(schema: ProjectSchema, port: number = DEFAULT_API_PORT): Promise<boolean> {
+/** File where a running `reverso dev` records its URL and API key (see dev.ts). */
+const DEV_SERVER_FILE = '.reverso/dev-server.json';
+
+function readDevServerFile(cwd: string): { apiUrl?: string; apiKey?: string } {
+  const filePath = resolve(cwd, DEV_SERVER_FILE);
+  if (!existsSync(filePath)) return {};
   try {
-    const res = await fetch(`http://localhost:${port}/api/reverso/schema/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schema, deleteRemoved: true }),
-    });
-    const data = await res.json() as { success?: boolean };
-    return data.success === true;
+    const parsed = JSON.parse(readFileSync(filePath, 'utf-8')) as { apiUrl?: unknown; apiKey?: unknown };
+    return {
+      apiUrl: typeof parsed.apiUrl === 'string' ? parsed.apiUrl : undefined,
+      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : undefined,
+    };
   } catch {
-    return false;
+    return {};
   }
 }
 
+export interface SyncTarget {
+  /** Base URL of the API server (e.g. http://localhost:3001). */
+  apiUrl: string;
+  /** API key sent as X-API-Key. */
+  apiKey?: string;
+}
+
+export type SyncOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'unreachable' | 'unauthorized' | 'error'; detail?: string };
+
 /**
- * Resolved values read from reverso.config (port + srcDir).
- * Uses the real config loader (jiti/AST) instead of regex over the source,
- * so comments and strings can't produce false matches.
+ * Resolve where to sync and how to authenticate, in priority order:
+ * --api-url / --api-key flags, then REVERSO_API_URL / REVERSO_API_KEY, then
+ * the URL and key recorded by a running `reverso dev` (.reverso/dev-server.json),
+ * then localhost on the configured dev port.
  */
-async function readConfigValues(cwd: string): Promise<{ port: number; srcDir?: string }> {
+export function resolveSyncTarget(
+  cwd: string,
+  flags: { apiUrl?: string; apiKey?: string },
+  port: number
+): SyncTarget {
+  const devServer = readDevServerFile(cwd);
+  const apiUrl = (
+    flags.apiUrl ??
+    process.env.REVERSO_API_URL ??
+    devServer.apiUrl ??
+    `http://localhost:${port}`
+  ).replace(/\/+$/, '');
+  const apiKey = flags.apiKey ?? process.env.REVERSO_API_KEY ?? devServer.apiKey;
+  return { apiUrl, apiKey };
+}
+
+/**
+ * Push a schema to a running API server.
+ */
+export async function syncSchemaToServer(
+  schema: ProjectSchema,
+  target: SyncTarget
+): Promise<SyncOutcome> {
   try {
-    const { loadConfig } = await import('@reverso/core');
-    const { config } = await loadConfig({ cwd });
-    return {
-      port: config.dev?.port ?? DEFAULT_API_PORT,
-      srcDir: config.srcDir ?? config.scanner?.srcDir,
-    };
-  } catch {
-    return { port: DEFAULT_API_PORT };
+    const res = await fetch(`${target.apiUrl}/api/reverso/schema/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(target.apiKey ? { 'X-API-Key': target.apiKey } : {}),
+      },
+      body: JSON.stringify({ schema, deleteRemoved: true }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: 'unauthorized' };
+    }
+    const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
+    if (res.ok && data.success === true) return { ok: true };
+    return { ok: false, reason: 'error', detail: data.message ?? `HTTP ${res.status}` };
+  } catch (error) {
+    return { ok: false, reason: 'unreachable', detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function reportSync(outcome: SyncOutcome, target: SyncTarget): void {
+  if (outcome.ok) {
+    console.log(chalk.green(`  Schema synced to ${target.apiUrl}`));
+    return;
+  }
+  switch (outcome.reason) {
+    case 'unreachable':
+      console.log(chalk.gray(`  No Reverso server at ${target.apiUrl} (start one with "reverso dev" to sync).`));
+      break;
+    case 'unauthorized':
+      console.log(chalk.yellow(`  Server at ${target.apiUrl} rejected the sync: missing or invalid API key.`));
+      console.log(chalk.gray('  Pass --api-key, set REVERSO_API_KEY, or run "reverso dev" in this project.'));
+      break;
+    default:
+      console.log(chalk.yellow(`  Schema sync failed: ${outcome.detail ?? 'unknown error'}`));
   }
 }
 
 interface CliScanOptions {
   src?: string;
-  output: string;
+  output?: string;
   watch: boolean;
   verbose: boolean;
-  include: string[];
-  exclude: string[];
+  include?: string[];
+  exclude?: string[];
+  apiUrl?: string;
+  apiKey?: string;
 }
 
 export function scanCommand(program: Command): void {
@@ -60,36 +125,45 @@ export function scanCommand(program: Command): void {
     .command('scan')
     .description('Scan project for data-reverso markers and generate schema')
     .option('-s, --src <dir>', 'Source directory to scan')
-    .option('-o, --output <dir>', 'Output directory for schema', '.reverso')
+    .option('-o, --output <dir>', 'Output directory for schema (default: reverso.config outputDir)')
     .option('-w, --watch', 'Watch for changes', false)
     .option('-v, --verbose', 'Verbose output', false)
-    .option('--include <patterns...>', 'Glob patterns to include', ['**/*.tsx', '**/*.jsx'])
-    .option('--exclude <patterns...>', 'Glob patterns to exclude', ['**/node_modules/**', '**/dist/**'])
+    .option('--include <patterns...>', 'Glob patterns to include (default: reverso.config scanner.include)')
+    .option('--exclude <patterns...>', 'Glob patterns to exclude (default: reverso.config scanner.exclude)')
+    .option('--api-url <url>', 'Reverso server to sync the schema to (default: local reverso dev)')
+    .option('--api-key <key>', 'API key for the server (default: REVERSO_API_KEY or the running reverso dev)')
     .action(async (options: CliScanOptions) => {
       const spinner = ora();
 
-      // Resolve config values once: CLI flags override reverso.config.
-      const configValues = await readConfigValues(process.cwd());
-      const srcDir = options.src ?? configValues.srcDir ?? './src';
+      // Flags override env, env overrides reverso.config, config overrides defaults.
+      const runtime = await resolveRuntimeConfig(process.cwd(), {
+        src: options.src,
+        output: options.output,
+        include: options.include,
+        exclude: options.exclude,
+      });
+      for (const warning of runtime.warnings) {
+        console.log(chalk.yellow(`Warning: ${warning}`));
+      }
+      const srcDir = runtime.srcDir;
+      const syncTarget = resolveSyncTarget(process.cwd(), options, runtime.port);
 
       try {
         if (options.watch) {
           // Watch mode uses ScannerOptions
           const scannerOptions: ScannerOptions = {
             srcDir,
-            outputDir: options.output,
-            include: options.include,
-            exclude: options.exclude,
+            outputDir: runtime.outputDir,
+            include: runtime.include,
+            exclude: runtime.exclude,
           };
 
           console.log(chalk.blue('Starting scanner in watch mode...'));
           console.log(chalk.gray(`  Source: ${srcDir}`));
-          console.log(chalk.gray(`  Output: ${options.output}`));
+          console.log(chalk.gray(`  Output: ${runtime.outputDir}`));
           console.log();
 
           const scanner = createScanner(scannerOptions);
-
-          const watchApiPort = configValues.port;
 
           scanner.on(async (event) => {
             switch (event.type) {
@@ -103,7 +177,7 @@ export function scanCommand(program: Command): void {
                       `Found ${event.schema.totalFields} fields across ${event.schema.pages.length} pages`
                     )
                   );
-                  await trySyncToServer(event.schema, watchApiPort);
+                  reportSync(await syncSchemaToServer(event.schema, syncTarget), syncTarget);
                 }
                 break;
               case 'error':
@@ -127,17 +201,16 @@ export function scanCommand(program: Command): void {
             process.exit(0);
           });
         } else {
-          // One-time scan uses CoreScanOptions
-          const scanOptions: CoreScanOptions = {
-            srcDir,
-            include: options.include,
-            exclude: options.exclude,
-            verbose: options.verbose,
-          };
-
+          // One-time scan through the same scanner as watch mode so outputDir
+          // and the include/exclude patterns from reverso.config are honoured.
           spinner.start('Scanning for data-reverso markers...');
 
-          const result = await scan(scanOptions);
+          const result = await createScanner({
+            srcDir,
+            outputDir: runtime.outputDir,
+            include: runtime.include,
+            exclude: runtime.exclude,
+          }).scan();
 
           spinner.succeed(chalk.green('Scan complete!'));
 
@@ -165,12 +238,9 @@ export function scanCommand(program: Command): void {
             console.log(chalk.gray('Add markers to your components like:'));
             console.log(chalk.gray('  <h1 data-reverso="home.hero.title">Welcome</h1>'));
           } else {
-            // Auto-sync to running API server
-            const apiPort = configValues.port;
-            const synced = await trySyncToServer(result.schema, apiPort);
-            if (synced) {
-              console.log(chalk.green(`\n  Schema synced to database (port ${apiPort})`));
-            }
+            // Auto-sync to the configured Reverso server
+            console.log();
+            reportSync(await syncSchemaToServer(result.schema, syncTarget), syncTarget);
           }
         }
       } catch (error) {

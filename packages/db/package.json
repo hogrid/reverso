@@ -1,6 +1,6 @@
 {
   "name": "@reverso/db",
-  "version": "0.1.18",
+  "version": "0.3.0",
   "description": "Database schema and migrations for Reverso CMS using Drizzle ORM",
   "homepage": "https://reverso.dev/docs/packages/db",
   "bugs": {
@@ -24,6 +24,7 @@
   },
   "files": [
     "dist",
+    "migrations",
     "README.md"
   ],
   "scripts": {

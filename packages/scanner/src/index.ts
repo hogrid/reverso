@@ -32,7 +32,19 @@
  * ```
  */
 
-export const VERSION = '0.0.0';
+/** Package version, read from package.json so it always matches the release. */
+import { readFileSync } from 'node:fs';
+
+export const VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+    ) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 // Main scanner exports
 export {

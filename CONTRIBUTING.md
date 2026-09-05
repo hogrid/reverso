@@ -34,6 +34,10 @@ pnpm lint
 
 # Type checking
 pnpm typecheck
+
+# End-to-end (starts `reverso dev` on examples/showcase and drives the admin
+# in Chromium; run `pnpm build` first)
+pnpm test:e2e
 ```
 
 ## Commit Convention
@@ -57,7 +61,7 @@ docs: update installation guide
 
 ## Pull Request Process
 
-1. Ensure CI passes (lint, typecheck, tests, build)
+1. Ensure CI passes (lint, typecheck, tests, build, e2e)
 2. Add a changeset if your changes affect published packages: `pnpm changeset`
 3. Update documentation if needed
 4. Request review from a maintainer

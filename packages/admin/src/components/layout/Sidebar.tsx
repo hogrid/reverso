@@ -1,3 +1,11 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -8,8 +16,9 @@ import {
   Image,
   LayoutDashboard,
   Settings,
+  LogOut,
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 interface NavItem {
   title: string;
@@ -37,6 +46,8 @@ function getInitials(name: string | null, email: string): string {
 export function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate();
 
   const isActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
@@ -121,19 +132,41 @@ export function Sidebar() {
           </TooltipContent>
         </Tooltip>
 
-        {/* Avatar */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="w-10 h-10 rounded-full bg-[hsl(var(--sidebar-accent))] flex items-center justify-center cursor-default">
+        {/* Account menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Account menu"
+              data-testid="account-menu"
+              className="w-10 h-10 rounded-full bg-[hsl(var(--sidebar-accent))] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/20"
+            >
               <span className="text-xs font-medium text-[hsl(var(--subtle-foreground))]">
                 {user ? getInitials(user.name, user.email) : '?'}
               </span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-sans text-xs px-2 py-1">
-            {user?.name || user?.email || 'User'}
-          </TooltipContent>
-        </Tooltip>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="text-sm font-medium truncate">{user?.name || 'User'}</div>
+              <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => navigate('/settings')}>
+              <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={async () => {
+                await logout();
+                navigate('/login', { replace: true });
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

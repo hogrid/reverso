@@ -1,16 +1,17 @@
+import { mediaUrl } from '@reverso/client';
 import { reverso } from '@/lib/reverso';
 
 const FALLBACK_TEAM = [
   {
     name: 'Ada Lovelace',
     role: 'Lead Engineer',
-    avatar: '/placeholder.jpg',
+    avatar: '/placeholder.svg',
     bio: 'Builds the core of the platform and obsesses over correctness.',
   },
   {
     name: 'Alan Turing',
     role: 'Architect',
-    avatar: '/placeholder.jpg',
+    avatar: '/placeholder.svg',
     bio: 'Designs the systems that keep everything running smoothly.',
   },
 ];
@@ -38,7 +39,7 @@ export async function TeamSection() {
               data-reverso="showcase.team.$.avatar"
               data-reverso-type="image"
               data-reverso-label="Avatar"
-              src={String(member.avatar ?? '/placeholder.jpg')}
+              src={mediaUrl(member.avatar, '/placeholder.svg')}
               alt="Team member avatar"
               className="h-16 w-16 rounded-full object-cover"
             />

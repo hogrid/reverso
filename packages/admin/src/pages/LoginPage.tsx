@@ -7,7 +7,17 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 export function LoginPage() {
-  const { login, register, isLoading, isAuthenticated, error, clearError, checkSetupStatus } = useAuthStore();
+  const {
+    login,
+    register,
+    isSubmitting,
+    isAuthenticated,
+    error,
+    clearError,
+    checkAuth,
+    checkSetupStatus,
+    needsSetup,
+  } = useAuthStore();
   const canRegister = useCanRegister();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -17,13 +27,23 @@ export function LoginPage() {
 
   useEffect(() => {
     checkSetupStatus();
-  }, [checkSetupStatus]);
+    // A user who already has a session should not see the form.
+    checkAuth();
+  }, [checkSetupStatus, checkAuth]);
 
   useEffect(() => {
     if (!canRegister && isRegister) {
       setIsRegister(false);
     }
   }, [canRegister, isRegister]);
+
+  // Fresh install: there is nobody to sign in as yet, so open straight in
+  // "create your account" mode instead of making the user find the toggle.
+  useEffect(() => {
+    if (needsSetup === true) {
+      setIsRegister(true);
+    }
+  }, [needsSetup]);
 
   if (isAuthenticated) {
     const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -120,10 +140,10 @@ export function LoginPage() {
           <Button
             type="submit"
             className="w-full h-11 font-medium text-[13px] bg-[hsl(var(--foreground))] text-white hover:bg-[hsl(var(--foreground))]/90 animate-slide-up"
-            disabled={isLoading}
+            disabled={isSubmitting}
             style={{ animationDelay: isRegister ? '100ms' : '50ms' }}
           >
-            {isLoading ? (
+            {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 {isRegister ? 'Creating account...' : 'Signing in...'}

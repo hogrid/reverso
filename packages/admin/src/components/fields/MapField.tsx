@@ -3,18 +3,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import type { MapValue } from '@reverso/core';
 import { MapPin, Navigation, Search } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FieldRendererProps } from './FieldRenderer';
 
-interface MapValue {
-  lat: number;
-  lng: number;
-  address?: string;
-  zoom?: number;
-}
-
-const DEFAULT_CENTER = { lat: 40.7128, lng: -74.006 }; // New York City
+const DEFAULT_CENTER = { lat: 40.7128, lng: -74.006 }; // New York
 const DEFAULT_ZOOM = 13;
 
 /** Non-standard map attributes carried on the field marker. */
@@ -26,23 +20,52 @@ interface NominatimResult {
   display_name: string;
 }
 
+/**
+ * Accept the stored object, a legacy "lat,lng" string, or nothing.
+ */
+function parseMapValue(value: unknown, fallback: MapValue): MapValue {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const v = value as Partial<MapValue>;
+    if (typeof v.lat === 'number' && typeof v.lng === 'number') {
+      return { ...fallback, ...v };
+    }
+  }
+  if (typeof value === 'string') {
+    const [lat, lng] = value.split(',').map((p) => Number.parseFloat(p.trim()));
+    if (lat !== undefined && lng !== undefined && Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { ...fallback, lat, lng };
+    }
+  }
+  return fallback;
+}
+
 export function MapField({ field, value, onChange, disabled }: FieldRendererProps) {
   const mapConfig = field as MapFieldConfig;
-  const mapRef = useRef<HTMLDivElement>(null);
+  const fallback: MapValue = {
+    lat: mapConfig.center?.lat ?? DEFAULT_CENTER.lat,
+    lng: mapConfig.center?.lng ?? DEFAULT_CENTER.lng,
+    zoom: mapConfig.zoom ?? DEFAULT_ZOOM,
+  };
+  const mapValue = parseMapValue(value, fallback);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
 
-  // Parse current value
-  const mapValue: MapValue = (value as MapValue) || {
-    lat: mapConfig.center?.lat || DEFAULT_CENTER.lat,
-    lng: mapConfig.center?.lng || DEFAULT_CENTER.lng,
-    zoom: mapConfig.zoom || DEFAULT_ZOOM,
-  };
+  // Coordinates are edited as text so intermediate states ("-", "12.") can be
+  // typed; the parent only receives finite numbers.
+  const [latText, setLatText] = useState(String(mapValue.lat));
+  const [lngText, setLngText] = useState(String(mapValue.lng));
+  useEffect(() => {
+    setLatText((current) => (Number.parseFloat(current) === mapValue.lat ? current : String(mapValue.lat)));
+    setLngText((current) => (Number.parseFloat(current) === mapValue.lng ? current : String(mapValue.lng)));
+  }, [mapValue.lat, mapValue.lng]);
 
-  const handleCoordinateChange = useCallback(
-    (key: 'lat' | 'lng', val: string) => {
-      const num = Number.parseFloat(val);
-      if (!isNaN(num)) {
+  const commitCoordinate = useCallback(
+    (key: 'lat' | 'lng', text: string) => {
+      const num = Number.parseFloat(text);
+      const max = key === 'lat' ? 90 : 180;
+      if (Number.isFinite(num) && Math.abs(num) <= max) {
         onChange({ ...mapValue, [key]: num });
       }
     },
@@ -60,8 +83,9 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
     if (!searchQuery.trim() || disabled) return;
 
     setIsSearching(true);
+    setSearchNotice(null);
     try {
-      // Real geocoding via OpenStreetMap Nominatim (no API key required).
+      // Geocoding via OpenStreetMap Nominatim (no API key required).
       const url = new URL('https://nominatim.openstreetmap.org/search');
       url.searchParams.set('format', 'json');
       url.searchParams.set('limit', '1');
@@ -85,12 +109,13 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
           setSearchQuery('');
           return;
         }
+        setSearchNotice('No match for that address. Enter the coordinates below.');
+      } else {
+        setSearchNotice('Geocoding service unavailable. Enter the coordinates below.');
       }
-      // No match (or request failed): keep the typed text as the address so
-      // the editor can still fill coordinates manually.
       onChange({ ...mapValue, address: searchQuery });
     } catch {
-      // Network/geocoder unavailable — fall back to the raw address text.
+      setSearchNotice('Geocoding service unreachable. Enter the coordinates below.');
       onChange({ ...mapValue, address: searchQuery });
     } finally {
       setIsSearching(false);
@@ -110,10 +135,12 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
         });
       },
       (error) => {
-        console.error('Geolocation error:', error);
+        setSearchNotice(`Could not read your location (${error.message}).`);
       }
     );
   }, [disabled, onChange]);
+
+  const idFor = (suffix: string) => `${field.path}-${suffix}`;
 
   return (
     <div className="space-y-4">
@@ -123,14 +150,21 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search for a location..."
+            aria-label="Search for a location"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSearch();
+              }
+            }}
             className="pl-8"
             disabled={disabled}
           />
         </div>
         <Button
+          type="button"
           variant="outline"
           onClick={handleSearch}
           disabled={disabled || isSearching || !searchQuery.trim()}
@@ -138,6 +172,7 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
           {isSearching ? 'Searching...' : 'Search'}
         </Button>
         <Button
+          type="button"
           variant="outline"
           size="icon"
           onClick={handleGetCurrentLocation}
@@ -147,54 +182,56 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
           <Navigation className="h-4 w-4" />
         </Button>
       </div>
+      {searchNotice && <p className="text-xs text-muted-foreground">{searchNotice}</p>}
 
-      {/* Map preview */}
+      {/* Map preview: static OpenStreetMap link, no API key needed */}
       <Card>
         <CardContent className="p-0 relative overflow-hidden">
-          <div
-            ref={mapRef}
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${mapValue.lat}&mlon=${mapValue.lng}#map=${mapValue.zoom ?? DEFAULT_ZOOM}/${mapValue.lat}/${mapValue.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className={cn(
-              'h-[200px] bg-muted flex items-center justify-center',
-              disabled && 'opacity-50'
+              'h-[160px] flex items-center justify-center relative',
+              disabled && 'opacity-50 pointer-events-none'
             )}
+            title="Open in OpenStreetMap"
           >
-            {/* Placeholder map visualization */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-green-100 dark:from-blue-900/20 dark:to-green-900/20" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative">
-                <MapPin className="h-8 w-8 text-red-500" />
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-black/20 rounded-full blur-sm" />
-              </div>
-            </div>
-            <div className="absolute bottom-2 left-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-              Map preview (interactive map requires API key)
-            </div>
-          </div>
+            <MapPin className="relative h-8 w-8 text-red-500" />
+            <span className="absolute bottom-2 left-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+              Open in OpenStreetMap
+            </span>
+          </a>
         </CardContent>
       </Card>
 
       {/* Coordinates input */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="lat">Latitude</Label>
+          <Label htmlFor={idFor('lat')}>Latitude</Label>
           <Input
-            id="lat"
-            type="number"
-            step="0.0001"
-            value={mapValue.lat}
-            onChange={(e) => handleCoordinateChange('lat', e.target.value)}
+            id={idFor('lat')}
+            inputMode="decimal"
+            value={latText}
+            onChange={(e) => {
+              setLatText(e.target.value);
+              commitCoordinate('lat', e.target.value);
+            }}
             disabled={disabled}
             placeholder="-90 to 90"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lng">Longitude</Label>
+          <Label htmlFor={idFor('lng')}>Longitude</Label>
           <Input
-            id="lng"
-            type="number"
-            step="0.0001"
-            value={mapValue.lng}
-            onChange={(e) => handleCoordinateChange('lng', e.target.value)}
+            id={idFor('lng')}
+            inputMode="decimal"
+            value={lngText}
+            onChange={(e) => {
+              setLngText(e.target.value);
+              commitCoordinate('lng', e.target.value);
+            }}
             disabled={disabled}
             placeholder="-180 to 180"
           />
@@ -203,9 +240,9 @@ export function MapField({ field, value, onChange, disabled }: FieldRendererProp
 
       {/* Address input */}
       <div className="space-y-2">
-        <Label htmlFor="address">Address (optional)</Label>
+        <Label htmlFor={idFor('address')}>Address (optional)</Label>
         <Input
-          id="address"
+          id={idFor('address')}
           value={mapValue.address || ''}
           onChange={(e) => handleAddressChange(e.target.value)}
           disabled={disabled}

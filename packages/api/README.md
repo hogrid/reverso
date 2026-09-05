@@ -34,7 +34,7 @@ await server.listen();
 ## Features
 
 - **Fastify**: High-performance web framework
-- **Security**: Rate limiting, CORS, CSRF protection, Helmet
+- **Security**: Rate limiting, CORS, same-origin checks for cookie sessions, Helmet
 - **Authentication**: Session-based auth with brute force protection
 - **File Uploads**: Multipart handling with validation
 

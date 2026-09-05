@@ -3,6 +3,7 @@ import { Slider } from '@/components/ui/slider';
 import type { FieldRendererProps } from './FieldRenderer';
 
 export function NumberField({ field, value, onChange, disabled }: FieldRendererProps) {
+  const isEmpty = value === undefined || value === null || value === '';
   const numValue = typeof value === 'number' ? value : Number(value) || 0;
 
   // Range slider
@@ -29,8 +30,8 @@ export function NumberField({ field, value, onChange, disabled }: FieldRendererP
     <Input
       id={field.path}
       type="number"
-      value={numValue}
-      onChange={(e) => onChange(Number(e.target.value))}
+      value={isEmpty ? '' : numValue}
+      onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
       placeholder={field.placeholder}
       disabled={disabled}
       required={field.required}

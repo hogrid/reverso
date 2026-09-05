@@ -79,9 +79,11 @@ describe('API Routes', () => {
     await createDatabaseSchema(TEST_DB);
 
     // Create server
+    // These tests exercise route logic; authentication has its own suite.
     server = await createServer({
       logger: false,
       uploadsDir: TEST_UPLOADS,
+      authEnabled: false,
     });
 
     // Register database plugin FIRST
