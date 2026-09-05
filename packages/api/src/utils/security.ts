@@ -204,3 +204,43 @@ export function corsOriginFromEnv(): string | string[] | boolean | undefined {
   const list = raw.split(',').map((o) => o.trim()).filter(Boolean);
   return list.length === 1 ? list[0] : list;
 }
+
+/**
+ * The effective CORS origin: an explicit setting wins, then
+ * REVERSO_CORS_ORIGIN, then any origin in development and none in
+ * production.
+ *
+ * The CORS plugin and the auth plugin's cross-site check both resolve
+ * through this function, so a deployment can never end up allowing an
+ * origin for reads while rejecting its writes (or the reverse).
+ */
+export function resolveCorsOrigin(
+  configured?: string | string[] | boolean
+): string | string[] | boolean {
+  if (configured !== undefined) return configured;
+  const fromEnv = corsOriginFromEnv();
+  if (fromEnv !== undefined) return fromEnv;
+  return process.env.NODE_ENV !== 'production';
+}
+
+/**
+ * Origins allowed to send cookie-authenticated *writes*, on top of the
+ * server's own host: `true` for any, otherwise a list. Entries may be a full
+ * origin ("https://cms.example.com", with or without a trailing slash) or a
+ * bare host ("cms.example.com").
+ *
+ * Only a deliberate setting counts here. `resolveCorsOrigin` falls back to
+ * "any origin" in development so a frontend on another port can read the
+ * API, and reading is not writing: inheriting that default would silently
+ * turn every development server into a CSRF target.
+ */
+export function trustedOriginsFrom(
+  configured?: string | string[] | boolean
+): true | string[] {
+  const value = configured ?? corsOriginFromEnv();
+  if (value === undefined || value === false) return [];
+  if (value === true) return true;
+  return (Array.isArray(value) ? value : [value])
+    .map((entry) => entry.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}

@@ -20,14 +20,29 @@ const toolbarActions = [
 export function WysiwygField({ field, value, onChange, disabled }: FieldRendererProps) {
   const htmlValue = String(value ?? '');
   const [mode, setMode] = useState<'visual' | 'html'>('visual');
-  const editorRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   // HTML we last pushed to the parent; used to tell our own edits apart from
   // external changes (undo/redo, HTML tab, reload) so typing never resets the
   // caret by re-rendering the contenteditable's innerHTML.
   const lastEmitted = useRef<string | null>(null);
+  // Current value, readable from the mount callback without making that
+  // callback change identity (which would detach and re-attach the node).
+  const htmlValueRef = useRef(htmlValue);
+  htmlValueRef.current = htmlValue;
+
+  // Switching to the HTML tab unmounts this pane, and switching back mounts a
+  // brand-new, empty div. Painting it here rather than in the effect below is
+  // what keeps the editor from coming back blank: the effect skips values it
+  // believes are already on screen, which is true of the old node only.
+  const attachEditor = useCallback((el: HTMLDivElement | null) => {
+    editorRef.current = el;
+    if (!el) return;
+    const current = htmlValueRef.current;
+    el.innerHTML = sanitizeHtml(current);
+    lastEmitted.current = current;
+  }, []);
 
   useEffect(() => {
-    // Runs again when the Visual tab is remounted after a spell in HTML mode.
     if (mode !== 'visual') return;
     const el = editorRef.current;
     if (!el) return;
@@ -110,7 +125,7 @@ export function WysiwygField({ field, value, onChange, disabled }: FieldRenderer
           {/* The HTML is set imperatively (see effect above); React never
               re-renders the children, so the caret stays where the user is. */}
           <div
-            ref={editorRef}
+            ref={attachEditor}
             id={field.path}
             role="textbox"
             aria-multiline="true"

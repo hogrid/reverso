@@ -16,7 +16,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import authPlugin, { resolveAuthEnabled } from './plugins/auth.js';
-import { corsOriginFromEnv } from './utils/security.js';
+import { resolveCorsOrigin, trustedOriginsFrom } from './utils/security.js';
 
 export interface ServerConfig {
   /** Server port */
@@ -126,13 +126,12 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     // every environment; without it, development allows any origin and
     // production allows none cross-site (frontends normally read the public
     // API server-side, and same-origin admin calls are unaffected).
-    const isProduction = process.env.NODE_ENV === 'production';
-    const defaultOrigin = corsOriginFromEnv() ?? (isProduction ? false : true);
+    const defaultOrigin = resolveCorsOrigin();
 
     const corsOptions =
       typeof opts.cors === 'object'
         ? {
-            origin: opts.cors.origin ?? defaultOrigin,
+            origin: resolveCorsOrigin(opts.cors.origin),
             methods: opts.cors.methods ?? ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
             credentials: opts.cors.credentials ?? true,
             allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
@@ -184,9 +183,15 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   await server.register(rateLimit, {
     max: 600,
     timeWindow: '1 minute',
-    // request.ip already honours X-Forwarded-For when trustProxy is on;
-    // reading the header directly would let any client pick its own bucket.
-    keyGenerator: (request) => request.headers['x-api-key']?.toString() || request.ip,
+    // Only the configured API key gets a bucket of its own; an arbitrary
+    // header value must not let a caller mint a fresh bucket per request and
+    // walk past the limit. Everything else is bucketed by request.ip, which
+    // already honours X-Forwarded-For when trustProxy is on.
+    keyGenerator: (request) => {
+      const provided = request.headers['x-api-key']?.toString();
+      if (provided && opts.apiKey && provided === opts.apiKey) return 'api-key';
+      return request.ip;
+    },
     allowList: (request) => {
       const path = request.url.split('?')[0] ?? request.url;
       return (
@@ -297,6 +302,10 @@ export async function registerAuth(server: FastifyInstance, config: ServerConfig
   await server.register(authPlugin, {
     apiKey: opts.apiKey,
     enabled: resolveAuthEnabled(opts.authEnabled),
+    // Same origins CORS allows, so reads and writes never disagree.
+    trustedOrigins: trustedOriginsFrom(
+      typeof opts.cors === 'object' ? opts.cors.origin : undefined
+    ),
     publicPaths: [
       /^\/api\/reverso\/public\//,
       /^\/sitemap\.xml$/,

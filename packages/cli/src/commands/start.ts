@@ -45,9 +45,22 @@ export function startCommand(program: Command): void {
         console.log();
         console.log(chalk.gray(`Database (${runtime.databaseSource}): ${runtime.databasePath}`));
         if (!existsSync(runtime.databasePath)) {
-          console.log(chalk.yellow('Database not found; creating an empty one.'));
+          // A first boot on a fresh volume looks exactly like a mistyped
+          // REVERSO_DB_PATH or a volume that failed to mount, so say plainly
+          // which path is being created: the content the operator expects is
+          // not in it. Claiming the admin account on an empty database is
+          // restricted separately (see REVERSO_ALLOW_BOOTSTRAP).
+          console.log(chalk.yellow(`Database not found at ${runtime.databasePath}; creating an empty one.`));
+          console.log(
+            chalk.gray('If this server should already have content, stop it and check the path above.')
+          );
           console.log(
             chalk.gray('Run `reverso build` (or `reverso scan --api-url <this server>`) to load the schema.')
+          );
+          console.log(
+            chalk.gray(
+              'The first admin can only be created from this machine. Behind a proxy, set REVERSO_ALLOW_BOOTSTRAP=true while you create it.'
+            )
           );
         }
         console.log();

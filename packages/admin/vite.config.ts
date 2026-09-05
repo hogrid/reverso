@@ -21,13 +21,17 @@ export default defineConfig({
     proxy: {
       // Standalone admin dev (`pnpm dev` in packages/admin) proxies to the
       // Reverso API started by `reverso dev` (default port 3001).
+      //
+      // `changeOrigin` is deliberately off: rewriting Host to the target
+      // makes the browser's Origin (localhost:5173) disagree with the Host
+      // the API sees, and the API rejects cookie-authenticated writes whose
+      // Origin points somewhere else. Passing the original Host through keeps
+      // the two in step, and localhost targets do not need the rewrite.
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
       },
       '/auth': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
       },
     },
   },

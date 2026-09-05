@@ -133,6 +133,24 @@ export class Scanner {
       // Parse all files
       const parseResult = await this.parser.parseAll();
 
+      // A scan that could not read the sources (missing srcDir, unreadable
+      // files) has no fields to report, but "no fields" and "the source is
+      // gone" mean opposite things downstream: the callers write schema.json
+      // and push the schema with deleteRemoved, which would erase every field
+      // and its content. Report the failure instead of producing an empty
+      // schema that looks successful.
+      const ioErrors = parseResult.errors.filter((error) => error.type === 'io');
+      if (ioErrors.length > 0) {
+        const failure = new Error(ioErrors.map((error) => error.message).join('; '));
+        this.emit({ type: 'error', error: failure });
+        return {
+          schema: this.currentSchema ?? generateSchema([], {}),
+          files: parseResult.fileResults,
+          errors: parseResult.errors,
+          success: false,
+        };
+      }
+
       // Generate schema
       let schema = generateSchema(parseResult.fields, {
         includeSourceInfo: true,

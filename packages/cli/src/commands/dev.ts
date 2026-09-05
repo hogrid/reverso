@@ -300,16 +300,39 @@ export function devCommand(program: Command): void {
         });
 
         // Initial scan
-        await scanner.scan();
-        spinner.succeed('Initial scan complete');
+        const initialScan = await scanner.scan();
+        if (initialScan.success) {
+          spinner.succeed('Initial scan complete');
+        } else {
+          spinner.fail('Initial scan failed');
+          for (const error of initialScan.errors) {
+            console.log(chalk.yellow(`  ${error.message}`));
+          }
+          console.log(
+            chalk.gray('  The server still starts; existing content is left untouched until a scan succeeds.')
+          );
+        }
 
         // Get initial schema for sync after server starts
         const initialSchema = scanner.getSchema();
 
         // Start watch mode in background — sync schema to DB on every change
         scanner.on(async (event) => {
+          if (event.type === 'error') {
+            console.log(chalk.yellow(`[scanner] ${event.error?.message ?? 'Scan failed'}`));
+            return;
+          }
           if (event.type === 'complete' && event.schema) {
             console.log(chalk.gray(`[scanner] Schema updated: ${event.schema.totalFields} fields`));
+            if (event.schema.totalFields === 0) {
+              // Pushing this with deleteRemoved would drop every field and
+              // the content attached to it; an empty result is nearly always
+              // a wrong srcDir, not a deliberate wipe.
+              console.log(
+                chalk.yellow('[scanner] No markers found; skipping sync so existing content is kept.')
+              );
+              return;
+            }
             try {
               const res = await fetch(`http://${host}:${port}/api/reverso/schema/sync`, {
                 method: 'POST',

@@ -17,6 +17,7 @@ import {
   isLockedOut,
   recordFailedLoginAttempt,
   clearLoginAttempts,
+  cleanupOldLoginAttempts,
   type DrizzleDatabase,
 } from '@reverso/db';
 import { z } from 'zod';
@@ -24,6 +25,35 @@ import { cookieSecure } from '../utils/security.js';
 
 /** Failed logins from one address (any account) within the window before it is locked. */
 const IP_MAX_FAILED_LOGINS = 20;
+
+/** How often expired login-attempt rows are pruned. */
+const LOGIN_ATTEMPTS_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * May this request create the very first admin?
+ *
+ * The first account is created without presenting any credential, so on a
+ * server whose database is still empty — a fresh volume, a mistyped
+ * REVERSO_DB_PATH — whoever asks first would own the CMS. Bootstrapping is
+ * therefore limited to the machine running the server (where `reverso init`
+ * and `reverso dev` seed it), unless the operator opens it deliberately.
+ *
+ * "The machine running the server" is decided from the TCP peer, never from
+ * a header. `request.ip` follows `X-Forwarded-For` once `trustProxy` is on,
+ * and that header is written by whoever is calling: trusting it would hand
+ * the admin account to anyone who claims to be 127.0.0.1. Behind a proxy the
+ * peer is the proxy itself — loopback for an nginx on the same host, which
+ * would call every visitor local — so there the only safe answer is the
+ * explicit opt-in.
+ */
+export function bootstrapAllowed(request: FastifyRequest): boolean {
+  if ((process.env.REVERSO_ALLOW_BOOTSTRAP ?? '').toLowerCase() === 'true') return true;
+  if (request.server.config?.trustProxy) return false;
+  const peer = request.socket?.remoteAddress;
+  return peer !== undefined && LOOPBACK_ADDRESSES.has(peer);
+}
 
 const SALT_ROUNDS = 12;
 const SESSION_DURATION_DAYS = 30;
@@ -48,6 +78,17 @@ const registerSchema = z.object({
 });
 
 export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
+  // Failed logins are recorded per address and per account, including for
+  // addresses that never come back. Prune expired rows so the table cannot
+  // grow without bound.
+  const cleanupTimer = setInterval(() => {
+    void cleanupOldLoginAttempts(fastify.db).catch((error: unknown) => {
+      fastify.log.warn({ err: error }, 'Could not prune old login attempts');
+    });
+  }, LOGIN_ATTEMPTS_CLEANUP_INTERVAL_MS);
+  cleanupTimer.unref();
+  fastify.addHook('onClose', async () => clearInterval(cleanupTimer));
+
   /**
    * POST /auth/login - Login with email and password.
    */
@@ -77,10 +118,14 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     const { email, password } = parseResult.data;
 
     // Two independent lockout buckets (persistent in database):
-    //  - per account: one IP cannot try unlimited passwords on one user;
+    //  - per account *and source*: one address cannot try unlimited passwords
+    //    on one user. Keying it by address as well is what keeps the lockout
+    //    from becoming a denial of service: a stranger who guesses wrong five
+    //    times locks only their own path to that account, never the real
+    //    owner signing in from somewhere else;
     //  - per IP, with a higher ceiling for offices behind one NAT: one source
     //    cannot spray a few guesses across arbitrarily many accounts.
-    const accountKey = `login:account:${email.toLowerCase()}`;
+    const accountKey = `login:account:${email.toLowerCase()}:${ip}`;
     const ipKey = `login:ip:${ip}`;
     const [accountLock, ipLock] = await Promise.all([
       isLockedOut(db, accountKey),
@@ -92,9 +137,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
       return reply.status(429).send({
         success: false,
         error: 'Too many failed attempts',
-        message: accountLock.locked
-          ? `Account temporarily locked. Try again in ${minutes} minutes.`
-          : `Too many failed logins from this address. Try again in ${minutes} minutes.`,
+        message: `Too many failed logins from this address. Try again in ${minutes} minutes.`,
         retryAfter: lock.remainingSeconds,
       });
     }
@@ -138,7 +181,8 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     }
 
     // Clear failed attempts on successful login
-    // A correct password clears the account bucket; the IP bucket simply ages out.
+    // A correct password clears this address's bucket for the account; the
+    // broader per-IP bucket simply ages out.
     await clearLoginAttempts(db, accountKey);
 
     // Create session
@@ -267,7 +311,8 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     return reply.send({
       success: true,
       needsSetup,
-      canRegister: needsSetup,
+      // Setup can be needed while this particular caller may not perform it.
+      canRegister: needsSetup && bootstrapAllowed(request),
     });
   });
 
@@ -297,6 +342,15 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
         success: false,
         error: 'Registration closed',
         message: 'An admin account already exists. Please sign in instead.',
+      });
+    }
+
+    if (!bootstrapAllowed(request)) {
+      return reply.status(403).send({
+        success: false,
+        error: 'Registration closed',
+        message:
+          'The first admin can only be created from the machine running Reverso. Run `reverso init` there, or set REVERSO_ALLOW_BOOTSTRAP=true to open registration.',
       });
     }
 

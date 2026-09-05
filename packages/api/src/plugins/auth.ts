@@ -13,6 +13,7 @@
  */
 
 import { getSessionWithUser } from '@reverso/db';
+import { trustedOriginsFrom } from '../utils/security.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -23,6 +24,12 @@ export interface AuthPluginOptions {
   publicPaths?: RegExp[];
   /** Enable auth (default: true; `REVERSO_AUTH_ENABLED=false` disables) */
   enabled?: boolean;
+  /**
+   * Origins allowed to send cookie-authenticated mutations, besides the
+   * server's own host. `true` allows any. Defaults to the CORS setting so
+   * both layers trust the same list (see `trustedOriginsFrom`).
+   */
+  trustedOrigins?: true | string[];
 }
 
 export type AuthRole = 'admin' | 'editor' | 'viewer';
@@ -79,22 +86,43 @@ function tokenLooksValid(token: string | undefined): token is string {
   );
 }
 
+/** Does `origin` match an allow-list entry (full origin or bare host)? */
+function matchesTrustedOrigin(entry: string, origin: URL): boolean {
+  return entry === origin.origin || entry === origin.host;
+}
+
 /**
  * For cookie-authenticated mutations, reject requests whose Origin header
  * points to another site. Browsers always send Origin on cross-site
  * POST/PUT/PATCH/DELETE, so this closes CSRF even where SameSite is not
  * honoured; non-browser clients use the API key and are unaffected.
+ *
+ * "Another site" means: not this server's own host and not an origin the
+ * deployment already trusts through CORS. The own-host comparison uses
+ * `request.host`, which follows `X-Forwarded-Host` when `trustProxy` is on,
+ * so a reverse proxy that rewrites `Host` (nginx's default, the admin's Vite
+ * dev proxy) does not turn every save into a 403.
  */
-function isCrossSiteMutation(request: FastifyRequest): boolean {
+export function isCrossSiteMutation(
+  request: FastifyRequest,
+  trustedOrigins: true | string[]
+): boolean {
   if (!MUTATING_METHODS.has(request.method)) return false;
   const origin = request.headers.origin;
+  // No Origin at all: browsers always send one on a cross-site mutation.
   if (!origin) return false;
+  if (trustedOrigins === true) return false;
+
+  let parsed: URL;
   try {
-    const originHost = new URL(origin).host;
-    return originHost !== request.headers.host;
+    parsed = new URL(origin);
   } catch {
+    // Opaque ("null", from a sandboxed iframe) or malformed: never trusted.
     return true;
   }
+
+  if (parsed.host === request.host) return false;
+  return !trustedOrigins.some((entry) => matchesTrustedOrigin(entry, parsed));
 }
 
 async function authPlugin(
@@ -104,6 +132,7 @@ async function authPlugin(
   const apiKey = options.apiKey || process.env.REVERSO_API_KEY || '';
   const enabled = resolveAuthEnabled(options.enabled);
   const publicPaths = [...DEFAULT_PUBLIC_PATHS, ...(options.publicPaths || [])];
+  const trustedOrigins = options.trustedOrigins ?? trustedOriginsFrom();
 
   if (!enabled) {
     fastify.log.warn(
@@ -151,19 +180,28 @@ async function authPlugin(
     }
 
     // 1. Session cookie (admin panel)
+    // A cookie rejected as cross-site does not end the request: a client may
+    // still authenticate with an API key or a Bearer token below, which no
+    // browser sends automatically and which CSRF therefore cannot forge.
+    let crossSiteCookie = false;
     const cookieToken = request.cookies?.[SESSION_COOKIE];
     if (tokenLooksValid(cookieToken)) {
       const user = await resolveSessionUser(request, cookieToken);
       if (user) {
-        if (isCrossSiteMutation(request)) {
-          return reply.status(403).send({
-            success: false,
-            error: 'Forbidden',
-            message: 'Cross-site request rejected',
-          });
+        if (isCrossSiteMutation(request, trustedOrigins)) {
+          crossSiteCookie = true;
+          request.log.warn(
+            {
+              origin: request.headers.origin,
+              host: request.host,
+              url: request.url,
+            },
+            'Cookie-authenticated mutation rejected as cross-site. If this is your own admin behind a proxy, set REVERSO_CORS_ORIGIN to its public origin (and forward X-Forwarded-Host).'
+          );
+        } else {
+          request.user = user;
+          return;
         }
-        request.user = user;
-        return;
       }
     }
 
@@ -190,6 +228,14 @@ async function authPlugin(
     if (tokenLooksValid(xApiKey) && apiKey && xApiKey === apiKey) {
       request.user = { id: 'api-key-user', role: 'admin', authMethod: 'api_key' };
       return;
+    }
+
+    if (crossSiteCookie) {
+      return reply.status(403).send({
+        success: false,
+        error: 'Forbidden',
+        message: 'Cross-site request rejected',
+      });
     }
 
     return unauthorized(

@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, initDatabase, resetDatabaseInstance } from '../connection.js';
 import { createDatabaseSchema, getMigrationStatus, isLegacyDatabase, runMigrations } from '../migrate.js';
 import { createForm, getForms } from '../queries/forms.js';
+import { createFormSubmission, getFormSubmissions } from '../queries/form-submissions.js';
 import { createRedirect, getRedirectStats, getRedirects } from '../queries/redirects.js';
 import { allTables } from '../schema/index.js';
 import { LEGACY_DDL, LEGACY_INDEXES } from './fixtures/legacy-ddl.js';
@@ -179,6 +180,24 @@ describe('migrations', () => {
       // Unsent must stay NULL (a rename would have produced "sent at 1970").
       expect(unsent?.webhook_sent_at).toBeNull();
       expect(sent?.webhook_sent_at).toBe(sent?.created_at);
+    });
+
+    it('accepts new form submissions after adoption', async () => {
+      // The legacy DDL has form_submissions.updated_at NOT NULL with no
+      // default; the current schema does not write that column, so leaving it
+      // in place made every submission fail with a constraint error.
+      createLegacyDb();
+      await runMigrations({ dbPath: LEGACY_DB });
+
+      const { db } = initDatabase({ url: LEGACY_DB });
+      const submission = await createFormSubmission(db, {
+        formId: 'f1',
+        data: { email: 'someone@example.com' },
+      });
+      expect(submission.id).toBeTruthy();
+
+      const stored = await getFormSubmissions(db, { formId: 'f1' });
+      expect(stored.map((row) => row.id)).toContain(submission.id);
     });
 
     it('runs the adoption only once', async () => {

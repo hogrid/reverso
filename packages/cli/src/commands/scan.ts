@@ -177,6 +177,17 @@ export function scanCommand(program: Command): void {
                       `Found ${event.schema.totalFields} fields across ${event.schema.pages.length} pages`
                     )
                   );
+                  if (event.schema.totalFields === 0) {
+                    // Syncing this would delete every field on the server and
+                    // the content attached to it. A scan that suddenly finds
+                    // nothing is almost always a wrong srcDir or a moved
+                    // folder, so say so instead.
+                    console.log(
+                      chalk.yellow('  No markers found; skipping sync so existing content is kept.')
+                    );
+                    console.log(chalk.gray(`  Check that "${srcDir}" is the folder with your markers.`));
+                    break;
+                  }
                   reportSync(await syncSchemaToServer(event.schema, syncTarget), syncTarget);
                 }
                 break;
@@ -212,13 +223,21 @@ export function scanCommand(program: Command): void {
             exclude: runtime.exclude,
           }).scan();
 
+          if (!result.success) {
+            spinner.fail(chalk.red('Scan failed'));
+            for (const error of result.errors) {
+              console.error(chalk.red(`  ${error.message}`));
+            }
+            process.exit(1);
+          }
+
           spinner.succeed(chalk.green('Scan complete!'));
 
           console.log();
           console.log(chalk.bold('Results:'));
           console.log(chalk.gray(`  Pages: ${result.schema.pages.length}`));
           console.log(chalk.gray(`  Total fields: ${result.schema.totalFields}`));
-          console.log(chalk.gray(`  Output: ${options.output}/schema.json`));
+          console.log(chalk.gray(`  Output: ${runtime.outputDir}/schema.json`));
 
           if (options.verbose && result.schema.pages.length > 0) {
             console.log();

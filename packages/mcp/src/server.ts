@@ -9,7 +9,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createDatabase, type DrizzleDatabase } from '@reverso/db';
+import { createDatabase, createDatabaseSchema, type DrizzleDatabase } from '@reverso/db';
 import type { McpServerConfig } from './types.js';
 import { contentTools } from './tools/content.js';
 import { schemaTools } from './tools/schema.js';
@@ -244,6 +244,14 @@ export class ReversoMcpServer {
   private async getDatabase(): Promise<DrizzleDatabase> {
     if (!this.db) {
       const url = this.resolveDatabasePath();
+      // Every other entry point migrates before it queries. Without this the
+      // MCP server is the one process that reads a database written by an
+      // older Reverso, and the first tool call fails on a renamed column
+      // ("no such column: webhook_sent_at"). Applying pending migrations is
+      // idempotent and skips databases that are already current.
+      if (url !== ':memory:') {
+        await createDatabaseSchema(url);
+      }
       this.db = await createDatabase({ url });
     }
     return this.db;
