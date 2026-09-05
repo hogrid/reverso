@@ -2,7 +2,7 @@
 # Multi-stage build for optimal image size
 
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install native build toolchain so better-sqlite3 (and any other native
 # addons) can compile from source on alpine/musl, where prebuilt binaries
@@ -43,7 +43,7 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 # Stage 2: Production
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@9 --activate

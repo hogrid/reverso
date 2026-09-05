@@ -235,7 +235,7 @@ verify the full integration in one place.
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Node.js | 20 or newer | `node -v` |
+| Node.js | 22.12 or newer to develop this repo (the docs site uses Astro 6); published packages run on 20 or newer | `node -v` |
 | pnpm | 9 or newer | `pnpm -v` (install: `npm i -g pnpm`) |
 | Git | any | `git --version` |
 
@@ -801,7 +801,7 @@ create-reverso
 
 | Layer | Technology |
 |-------|------------|
-| **Runtime** | Node.js 20+ |
+| **Runtime** | Node.js 22+ (monorepo), 20+ for the published packages |
 | **Package Manager** | pnpm 9+ |
 | **Monorepo** | Turborepo |
 | **API** | Fastify |

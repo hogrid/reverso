@@ -11,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 20
+  # Astro (apps/docs) requires Node 22.12+; the published packages still run on 20+.
+  NODE_VERSION: 22
 
 jobs:
   lint:
