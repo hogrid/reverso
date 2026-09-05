@@ -42,8 +42,18 @@ function mediaFilter(options: MediaListOptions) {
     conditions.push(like(media.mimeType, `${options.mimeType}%`));
   }
   if (options.search) {
-    const pattern = `%${options.search.replace(/[%_]/g, (c) => `\\${c}`)}%`;
-    conditions.push(or(like(media.originalName, pattern), like(media.alt, pattern)));
+    // `%` and `_` are LIKE wildcards, so a search for "hero_image" must not
+    // match "heroXimage". SQLite only treats the backslash as an escape when
+    // the statement says so, hence the explicit ESCAPE clause; `like()` alone
+    // would emit the pattern with the backslashes taken literally and match
+    // nothing.
+    const pattern = `%${options.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    conditions.push(
+      or(
+        sql`${media.originalName} LIKE ${pattern} ESCAPE '\\'`,
+        sql`${media.alt} LIKE ${pattern} ESCAPE '\\'`
+      )
+    );
   }
   return conditions.length > 0 ? and(...conditions) : undefined;
 }

@@ -43,6 +43,31 @@ async function uploadViaModal(
 }
 
 test.describe('field types round trip', () => {
+  test('rich text survives a trip through the HTML tab', async ({ page }) => {
+    // Switching tabs unmounts the visual editor. It used to come back empty,
+    // and the next keystroke then replaced the whole stored field on save.
+    await openTab(page, 'Rich');
+    const editor = page.locator('[contenteditable="true"]').first();
+    await editor.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type('Stored before the tab switch');
+    await save(page);
+
+    // Reload so the editor is showing a value it loaded, not one it just
+    // emitted: that is the state in which the pane came back blank.
+    await openTab(page, 'Rich');
+    await expect(page.locator('[contenteditable="true"]').first()).toContainText(
+      'Stored before the tab switch'
+    );
+
+    await page.getByRole('tab', { name: 'HTML' }).first().click();
+    await page.getByRole('tab', { name: 'Visual' }).first().click();
+
+    await expect(page.locator('[contenteditable="true"]').first()).toContainText(
+      'Stored before the tab switch'
+    );
+  });
+
   test('rich text keeps the typed order and the code snippet is stored as an object', async ({
     page,
     request,

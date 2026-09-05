@@ -81,9 +81,59 @@ function tableExists(sqlite: Database.Database, name: string): boolean {
   return row !== undefined;
 }
 
+interface TableColumn {
+  name: string;
+  notNull: boolean;
+  hasDefault: boolean;
+}
+
+function tableColumns(sqlite: Database.Database, table: string): TableColumn[] {
+  const rows = sqlite.prepare(`PRAGMA table_info("${table}")`).all() as {
+    name: string;
+    notnull: number;
+    dflt_value: unknown;
+  }[];
+  return rows.map((r) => ({
+    name: r.name,
+    notNull: r.notnull === 1,
+    hasDefault: r.dflt_value !== null && r.dflt_value !== undefined,
+  }));
+}
+
 function columnNames(sqlite: Database.Database, table: string): Set<string> {
-  const rows = sqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
-  return new Set(rows.map((r) => r.name));
+  return new Set(tableColumns(sqlite, table).map((c) => c.name));
+}
+
+/**
+ * Columns the legacy DDL had and the current schema does not.
+ *
+ * One left behind as NOT NULL with no default breaks every INSERT, because
+ * the application no longer writes it: `form_submissions.updated_at` made
+ * each form submission fail on an adopted database. Those are dropped;
+ * anything nullable or defaulted is harmless and stays, so a column somebody
+ * added on purpose is never silently destroyed.
+ */
+function dropBlockingLegacyColumns(
+  sqlite: Database.Database,
+  table: { name: string; columns: Record<string, SnapshotColumn> },
+  verbose: boolean
+): void {
+  if (!tableExists(sqlite, table.name)) return;
+  const known = new Set(Object.values(table.columns).map((c) => c.name));
+  for (const column of tableColumns(sqlite, table.name)) {
+    if (known.has(column.name)) continue;
+    if (!column.notNull || column.hasDefault) continue;
+    try {
+      sqlite.exec(`ALTER TABLE "${table.name}" DROP COLUMN "${column.name}"`);
+      if (verbose) console.log(`  dropped legacy column ${table.name}.${column.name}`);
+    } catch (error) {
+      console.warn(
+        `Reverso could not drop the obsolete NOT NULL column ${table.name}.${column.name}: ` +
+          `${error instanceof Error ? error.message : String(error)}. ` +
+          'Writes to this table will fail until it is removed manually.'
+      );
+    }
+  }
 }
 
 /**
@@ -194,8 +244,10 @@ function adoptLegacyDatabase(
       }
     }
 
-    // 3. Missing columns on existing tables.
+    // 3. Missing columns on existing tables, and obsolete ones that would
+    //    block writes.
     for (const table of Object.values(snapshot.tables)) {
+      dropBlockingLegacyColumns(sqlite, table, verbose);
       const existing = columnNames(sqlite, table.name);
       for (const column of Object.values(table.columns)) {
         if (existing.has(column.name)) continue;

@@ -17,6 +17,10 @@ export interface TestServerOptions {
   name: string;
   authEnabled?: boolean;
   apiKey?: string;
+  /** Honour X-Forwarded-* (as behind a reverse proxy). */
+  trustProxy?: boolean;
+  /** Explicit CORS origin, which is also the cross-site write allow-list. */
+  corsOrigin?: string | string[] | boolean;
 }
 
 export interface TestServer {
@@ -45,6 +49,8 @@ export async function createTestServer(options: TestServerOptions): Promise<Test
     uploadsDir,
     authEnabled: options.authEnabled ?? false,
     apiKey: options.apiKey,
+    trustProxy: options.trustProxy,
+    ...(options.corsOrigin === undefined ? {} : { cors: { origin: options.corsOrigin } }),
   });
   await server.register(databasePlugin, { url: dbPath });
   await registerAuth(server);

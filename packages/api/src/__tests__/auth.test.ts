@@ -208,6 +208,102 @@ describe('authentication', () => {
       expect(sameSite.statusCode).toBe(200);
     });
 
+    it('accepts a mutation from behind a proxy that rewrites Host', async () => {
+      // nginx's default (and the admin's dev proxy) replace Host with the
+      // upstream address while the browser still sends its own Origin.
+      // Comparing Origin against the raw Host turned every save into a 403.
+      const proxied = await createTestServer({
+        name: 'auth-proxy',
+        authEnabled: true,
+        apiKey: API_KEY,
+        trustProxy: true,
+      });
+      try {
+        const register = await proxied.server.inject({
+          method: 'POST',
+          url: '/auth/register',
+          payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
+        });
+        const cookie = sessionCookie(register);
+        await proxied.server.inject({
+          method: 'POST',
+          url: '/api/reverso/schema/sync',
+          headers: { 'x-api-key': API_KEY },
+          payload: { schema: HOME_SCHEMA },
+        });
+
+        const res = await proxied.server.inject({
+          method: 'PATCH',
+          url: '/api/reverso/content/page/home',
+          headers: {
+            cookie,
+            origin: 'https://cms.example.com',
+            host: 'localhost:3001',
+            'x-forwarded-host': 'cms.example.com',
+          },
+          payload: { data: { 'home.hero.title': 'through the proxy' } },
+        });
+        expect(res.statusCode).toBe(200);
+      } finally {
+        await proxied.close();
+      }
+    });
+
+    it('accepts a mutation from an origin the CORS setting allows', async () => {
+      const allowed = await createTestServer({
+        name: 'auth-cors',
+        authEnabled: true,
+        apiKey: API_KEY,
+        corsOrigin: 'https://cms.example.com/',
+      });
+      try {
+        const register = await allowed.server.inject({
+          method: 'POST',
+          url: '/auth/register',
+          payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
+        });
+        const cookie = sessionCookie(register);
+        await allowed.server.inject({
+          method: 'POST',
+          url: '/api/reverso/schema/sync',
+          headers: { 'x-api-key': API_KEY },
+          payload: { schema: HOME_SCHEMA },
+        });
+
+        const res = await allowed.server.inject({
+          method: 'PATCH',
+          url: '/api/reverso/content/page/home',
+          headers: { cookie, origin: 'https://cms.example.com', host: 'localhost:3001' },
+          payload: { data: { 'home.hero.title': 'allowed' } },
+        });
+        expect(res.statusCode).toBe(200);
+
+        const other = await allowed.server.inject({
+          method: 'PATCH',
+          url: '/api/reverso/content/page/home',
+          headers: { cookie, origin: 'https://evil.example', host: 'localhost:3001' },
+          payload: { data: { 'home.hero.title': 'nope' } },
+        });
+        expect(other.statusCode).toBe(403);
+      } finally {
+        await allowed.close();
+      }
+    });
+
+    it('lets the API key through even when a stale cookie looks cross-site', async () => {
+      const { cookie } = await registerAdmin();
+
+      const res = await t.server.inject({
+        method: 'POST',
+        url: '/api/reverso/schema/sync',
+        headers: { cookie, 'x-api-key': API_KEY, origin: 'https://evil.example', host: 'localhost:3001' },
+        payload: { schema: HOME_SCHEMA },
+      });
+
+      // No browser attaches an API key by itself, so CSRF cannot forge this.
+      expect(res.statusCode).toBe(200);
+    });
+
     it('invalidates the session on logout', async () => {
       const { cookie } = await registerAdmin();
       const logout = await t.server.inject({
@@ -285,6 +381,81 @@ describe('authentication', () => {
         payload: { email: 'admin@example.com', password: 'password123' },
       });
       expect(admin.statusCode).toBe(200);
+    });
+
+    it('a lockout from one address does not lock the owner out everywhere', async () => {
+      // The account bucket is keyed by address as well, so five wrong
+      // guesses from a stranger must not become a denial of service against
+      // the real owner signing in from somewhere else.
+      await registerAdmin();
+      for (let i = 0; i < 6; i++) {
+        await t.server.inject({
+          method: 'POST',
+          url: '/auth/login',
+          remoteAddress: '203.0.113.5',
+          payload: { email: 'admin@example.com', password: 'wrong-password' },
+        });
+      }
+      const attacker = await t.server.inject({
+        method: 'POST',
+        url: '/auth/login',
+        remoteAddress: '203.0.113.5',
+        payload: { email: 'admin@example.com', password: 'password123' },
+      });
+      expect(attacker.statusCode).toBe(429);
+
+      const owner = await t.server.inject({
+        method: 'POST',
+        url: '/auth/login',
+        remoteAddress: '198.51.100.7',
+        payload: { email: 'admin@example.com', password: 'password123' },
+      });
+      expect(owner.statusCode).toBe(200);
+    });
+  });
+
+  describe('first-admin bootstrap', () => {
+    it('refuses to create the first admin from a remote address', async () => {
+      const res = await t.server.inject({
+        method: 'POST',
+        url: '/auth/register',
+        remoteAddress: '203.0.113.5',
+        payload: { email: 'stranger@example.com', password: 'password123', name: 'Stranger' },
+      });
+      expect(res.statusCode).toBe(403);
+
+      const status = await t.server.inject({
+        method: 'GET',
+        url: '/auth/setup-status',
+        remoteAddress: '203.0.113.5',
+      });
+      expect(json(status).needsSetup).toBe(true);
+      expect(json(status).canRegister).toBe(false);
+    });
+
+    it('allows it from the machine running the server', async () => {
+      const res = await t.server.inject({
+        method: 'POST',
+        url: '/auth/register',
+        remoteAddress: '127.0.0.1',
+        payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('allows a remote address when the operator opts in', async () => {
+      process.env.REVERSO_ALLOW_BOOTSTRAP = 'true';
+      try {
+        const res = await t.server.inject({
+          method: 'POST',
+          url: '/auth/register',
+          remoteAddress: '203.0.113.5',
+          payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
+        });
+        expect(res.statusCode).toBe(201);
+      } finally {
+        delete process.env.REVERSO_ALLOW_BOOTSTRAP;
+      }
     });
   });
 
