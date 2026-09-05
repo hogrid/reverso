@@ -39,10 +39,20 @@ const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
  * REVERSO_DB_PATH — whoever asks first would own the CMS. Bootstrapping is
  * therefore limited to the machine running the server (where `reverso init`
  * and `reverso dev` seed it), unless the operator opens it deliberately.
+ *
+ * "The machine running the server" is decided from the TCP peer, never from
+ * a header. `request.ip` follows `X-Forwarded-For` once `trustProxy` is on,
+ * and that header is written by whoever is calling: trusting it would hand
+ * the admin account to anyone who claims to be 127.0.0.1. Behind a proxy the
+ * peer is the proxy itself — loopback for an nginx on the same host, which
+ * would call every visitor local — so there the only safe answer is the
+ * explicit opt-in.
  */
 export function bootstrapAllowed(request: FastifyRequest): boolean {
   if ((process.env.REVERSO_ALLOW_BOOTSTRAP ?? '').toLowerCase() === 'true') return true;
-  return LOOPBACK_ADDRESSES.has(request.ip);
+  if (request.server.config?.trustProxy) return false;
+  const peer = request.socket?.remoteAddress;
+  return peer !== undefined && LOOPBACK_ADDRESSES.has(peer);
 }
 
 const SALT_ROUNDS = 12;

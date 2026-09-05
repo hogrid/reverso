@@ -219,11 +219,15 @@ describe('authentication', () => {
         trustProxy: true,
       });
       try {
+        // Behind a proxy the peer address says nothing about who is calling,
+        // so the first admin needs the deliberate opt-in.
+        process.env.REVERSO_ALLOW_BOOTSTRAP = 'true';
         const register = await proxied.server.inject({
           method: 'POST',
           url: '/auth/register',
           payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
         });
+        delete process.env.REVERSO_ALLOW_BOOTSTRAP;
         const cookie = sessionCookie(register);
         await proxied.server.inject({
           method: 'POST',
@@ -245,6 +249,7 @@ describe('authentication', () => {
         });
         expect(res.statusCode).toBe(200);
       } finally {
+        delete process.env.REVERSO_ALLOW_BOOTSTRAP;
         await proxied.close();
       }
     });
@@ -441,6 +446,29 @@ describe('authentication', () => {
         payload: { email: 'admin@example.com', password: 'password123', name: 'Admin' },
       });
       expect(res.statusCode).toBe(201);
+    });
+
+    it('cannot be talked into it with a forged X-Forwarded-For', async () => {
+      // With trustProxy on, request.ip comes from the header the caller
+      // wrote, so locality must never be read from it.
+      const behindProxy = await createTestServer({
+        name: 'auth-bootstrap-proxy',
+        authEnabled: true,
+        apiKey: API_KEY,
+        trustProxy: true,
+      });
+      try {
+        const res = await behindProxy.server.inject({
+          method: 'POST',
+          url: '/auth/register',
+          remoteAddress: '203.0.113.5',
+          headers: { 'x-forwarded-for': '127.0.0.1' },
+          payload: { email: 'stranger@example.com', password: 'password123', name: 'Stranger' },
+        });
+        expect(res.statusCode).toBe(403);
+      } finally {
+        await behindProxy.close();
+      }
     });
 
     it('allows a remote address when the operator opts in', async () => {

@@ -59,7 +59,7 @@ export function startCommand(program: Command): void {
           );
           console.log(
             chalk.gray(
-              'The first admin can only be created from this machine; set REVERSO_ALLOW_BOOTSTRAP=true to register remotely.'
+              'The first admin can only be created from this machine. Behind a proxy, set REVERSO_ALLOW_BOOTSTRAP=true while you create it.'
             )
           );
         }
