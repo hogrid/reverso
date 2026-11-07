@@ -8,7 +8,8 @@ import { createAccount, createDatabase, createUser } from '@reverso/db';
 import bcrypt from 'bcrypt';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createServer } from '../server.js';
-import { assertPublicHost, isUrlSafeForSSRF } from '../utils/security.js';
+import { createServer as createHttpServer } from 'node:http';
+import { assertPublicHost, isPrivateAddress, isUrlSafeForSSRF, postToPublicUrl } from '../utils/security.js';
 import { createTestServer, json, multipartFile, sessionCookie, type TestServer } from './helpers.js';
 
 const API_KEY = 'test-api-key-0123456789abcdef';
@@ -168,6 +169,21 @@ describe('SVG uploads', () => {
     expect(served.headers['content-security-policy']).toContain('sandbox');
     expect(served.headers['content-security-policy']).toContain("script-src 'none'");
   });
+
+  it('keeps PDFs viewable (no sandbox on passive types)', async () => {
+    const pdf = Buffer.from('%PDF-1.4\n%%EOF\n');
+    const upload = multipartFile('doc.pdf', 'application/pdf', pdf);
+    const res = await t.server.inject({
+      method: 'POST',
+      url: '/api/reverso/media',
+      headers: upload.headers,
+      payload: upload.payload,
+    });
+    expect(res.statusCode).toBe(200);
+    const served = await t.server.inject({ method: 'GET', url: json(res).data.url });
+    expect(served.headers['content-security-policy']).not.toContain('sandbox');
+    expect(served.headers['x-content-type-options']).toBe('nosniff');
+  });
 });
 
 describe('security headers and errors', () => {
@@ -185,6 +201,17 @@ describe('security headers and errors', () => {
     expect(csp).toMatch(/img-src [^;]*https:/);
     expect(csp).toMatch(/connect-src [^;]*https:\/\/nominatim\.openstreetmap\.org/);
     expect(csp).not.toMatch(/script-src [^;]*'unsafe-inline'/);
+  });
+
+  it('refuses an empty cookie secret in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const saved = process.env.REVERSO_COOKIE_SECRET;
+    delete process.env.REVERSO_COOKIE_SECRET;
+    try {
+      await expect(createServer({ logger: false, cookieSecret: '' })).rejects.toThrow(/REVERSO_COOKIE_SECRET/);
+    } finally {
+      if (saved !== undefined) process.env.REVERSO_COOKIE_SECRET = saved;
+    }
   });
 
   it('never returns internal error messages in production', async () => {
@@ -215,6 +242,70 @@ describe('SSRF protection', () => {
       expect(isUrlSafeForSSRF(url).safe, url).toBe(false);
     }
     expect(isUrlSafeForSSRF('https://hooks.example.com/x').safe).toBe(true);
+  });
+
+  it('classifies every IPv6 form that can carry a private IPv4 address', () => {
+    for (const ip of [
+      '::',
+      '::1',
+      '0:0:0:0:0:0:0:1',
+      '::7f00:1', // IPv4-compatible 127.0.0.1
+      '::ffff:7f00:1',
+      '::ffff:0:7f00:1', // SIIT-translated
+      '64:ff9b::a00:1', // NAT64 of 10.0.0.1
+      '64:ff9b:1::1', // local-use NAT64
+      '2002:7f00:1::1', // 6to4 of 127.0.0.1
+      '2001:0:4136:e378:8000:63bf:3fff:fdd2', // Teredo
+      '2001:db8::1', // documentation
+      'fc00::1',
+      'fe80::1',
+      'ff02::1',
+    ]) {
+      expect(isPrivateAddress(ip), ip).toBe(true);
+    }
+    for (const ip of ['2606:4700:4700::1111', '2a00:1450:4001:80b::200e', '64:ff9b::808:808', '2002:808:808::1']) {
+      expect(isPrivateAddress(ip), ip).toBe(false);
+    }
+  });
+
+  it('connects only to the address it validated (no DNS rebinding between check and request)', async () => {
+    // A name that resolves to a private address must be refused at connect
+    // time, even if an earlier check had seen a public one.
+    // First answer (seen by an earlier check) was public; the answer at
+    // connect time has been rebound to loopback.
+    const rebinding = (_host: string, _opts: unknown, cb: (err: Error | null, addr: string, fam: number) => void) =>
+      cb(null, '127.0.0.1', 4);
+    await assertPublicHost('http://rebind.example.com/x', async () => [{ address: '93.184.216.34', family: 4 }]);
+    await expect(
+      postToPublicUrl('http://rebind.example.com/x', '{}', {}, { lookup: rebinding, timeoutMs: 2000 })
+    ).rejects.toThrow(/private/i);
+  });
+
+  it('delivers to a public address resolved at connect time', async () => {
+    const received: string[] = [];
+    const server = createHttpServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => {
+        body += c;
+      });
+      req.on('end', () => {
+        received.push(body);
+        res.end('ok');
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as { port: number }).port;
+    // Pretend the public name maps to the local test server, but only via an
+    // explicit allow for the test: the lookup returns a "public" address and
+    // the socket is redirected to the test server by the allowAddress hook.
+    const status = await postToPublicUrl(`http://hooks.example.com:${port}/x`, '{"a":1}', {}, {
+      lookup: (_h, _o, cb) => cb(null, '127.0.0.1', 4),
+      allowAddress: () => true,
+      timeoutMs: 2000,
+    });
+    await new Promise<void>((r) => server.close(() => r()));
+    expect(status).toBe(200);
+    expect(received).toEqual(['{"a":1}']);
   });
 
   it('rejects hostnames that resolve to a private address', async () => {

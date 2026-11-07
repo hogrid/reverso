@@ -98,7 +98,7 @@ function defaultConfig(overrides: ServerConfig = {}): Required<ServerConfig> {
   host: '0.0.0.0',
   cors: true,
   // An explicit secret makes the environment irrelevant (and must not throw).
-  cookieSecret: overrides.cookieSecret ?? getCookieSecret(),
+  cookieSecret: overrides.cookieSecret || getCookieSecret(),
   uploadsDir: '.reverso/uploads',
   logger: true,
   prefix: '/api/reverso',
@@ -254,9 +254,17 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     decorateReply: false,
     // Uploaded files are served from the admin's own origin. An SVG can carry
     // <script>; sandbox every upload so nothing in it ever runs as the admin.
-    setHeaders: (res) => {
-      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; sandbox");
+    setHeaders: (res, filePath) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Types a browser can execute as a document (an SVG with <script>)
+      // are sandboxed; PDFs, video and audio stay viewable in the browser.
+      const active = /\.(svg|svgz|html?|xhtml|xml)$/i.test(filePath);
+      res.setHeader(
+        'Content-Security-Policy',
+        active
+          ? "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; sandbox"
+          : "default-src 'none'; img-src 'self' data:; media-src 'self'; object-src 'self'; plugin-types application/pdf"
+      );
     },
   });
 

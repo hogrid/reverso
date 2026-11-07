@@ -21,6 +21,8 @@ export async function getUserByEmail(
     .select()
     .from(users)
     .where(sql`lower(${users.email}) = ${email.trim().toLowerCase()}`)
+    // Deterministic if legacy rows differ only by case: the oldest account wins.
+    .orderBy(users.createdAt)
     .limit(1);
 
   return result[0] ?? null;
