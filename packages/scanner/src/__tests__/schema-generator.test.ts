@@ -45,6 +45,19 @@ describe('generateSchema', () => {
     warn.mockRestore();
   });
 
+  it('counts the repeater container in totalFields like the pages and the admin do', () => {
+    const fields: DetectedField[] = [
+      { path: 'home.hero.title', attributes: {}, file: '/src/a.tsx', line: 1, column: 1, element: 'h1' },
+      { path: 'home.team.$.name', attributes: {}, file: '/src/a.tsx', line: 2, column: 1, element: 'p' },
+      { path: 'home.team.$.role', attributes: {}, file: '/src/a.tsx', line: 3, column: 1, element: 'p' },
+    ];
+    const schema = generateSchema(fields);
+    const perPage = schema.pages.reduce((sum, p) => sum + p.fieldCount, 0);
+    // title + team.$ (container) + name + role
+    expect(perPage).toBe(4);
+    expect(schema.totalFields).toBe(perPage);
+  });
+
   it('groups fields by page and section', () => {
     const fields: DetectedField[] = [
       {
