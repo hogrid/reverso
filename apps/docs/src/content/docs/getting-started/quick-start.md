@@ -63,4 +63,4 @@ in the admin without restarting anything.
 
 - Learn about [markers](/concepts/markers/)
 - Explore [field types](/concepts/field-types/)
-- Read the [CLI reference](/cli/)
+- Read the [CLI reference](/packages/cli/)

@@ -384,22 +384,37 @@ export function postToPublicUrl(
     });
   };
   const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+  const timeoutMs = options.timeoutMs ?? 10_000;
   return new Promise((resolvePost, rejectPost) => {
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      fn();
+    };
     const req = send(
       url,
       {
         method: 'POST',
         headers: { ...headers, 'Content-Length': Buffer.byteLength(body).toString() },
         lookup: pinnedLookup as never,
-        timeout: options.timeoutMs ?? 10_000,
       },
       (res) => {
         res.resume();
-        res.on('end', () => resolvePost(res.statusCode ?? 0));
+        res.on('end', () => finish(() => resolvePost(res.statusCode ?? 0)));
+        res.on('error', (error) => finish(() => rejectPost(error)));
       }
     );
-    req.on('timeout', () => req.destroy(new Error('Webhook request timed out')));
-    req.on('error', rejectPost);
+    // One deadline for the whole exchange (DNS, connect, upload, response):
+    // the socket `timeout` option only measures idle time, which a server
+    // trickling one byte at a time would never trip.
+    const deadline = setTimeout(() => {
+      const error = new Error('Webhook request timed out');
+      req.destroy(error);
+      finish(() => rejectPost(error));
+    }, timeoutMs);
+    req.on('error', (error) => finish(() => rejectPost(error)));
     req.end(body);
   });
 }

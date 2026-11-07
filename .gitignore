@@ -11,6 +11,7 @@ build/
 
 # Testing
 coverage/
+.test/
 .vitest/
 playwright-report/
 test-results/
@@ -68,8 +69,9 @@ CLAUDE.*
 .claude/
 .memory-bank/
 
-# Internal docs (not public)
-docs/
+# Internal docs (not public). Anchored to the root: an unanchored `docs/`
+# also ignored apps/docs and apps/docs/src/content/docs (the public site).
+/docs/
 
 # Generated Next.js types (regenerated on build)
 next-env.d.ts

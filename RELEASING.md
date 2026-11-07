@@ -4,25 +4,39 @@ This document describes the release process for Reverso packages.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+ to develop and release this repo (published packages run on Node 20+)
 - pnpm 9+
 - npm account with publish access to `@reverso` scope
 - Git configured with commit signing (optional)
 
-## Package Publishing Order
+## Automated release (recommended)
+
+`.github/workflows/release.yml` runs on every push to `main` (GitHub Actions
+must be enabled for the repository):
+
+1. With pending changesets it opens or updates a `chore: version packages` PR.
+2. Merging that PR publishes every bumped package to npm.
+
+It needs an `NPM_TOKEN` repository secret with publish rights on the
+`@reverso` scope and on `create-reverso`; without it the workflow skips
+publishing with a notice. `changeset publish` publishes in dependency order
+automatically.
+
+## Package Publishing Order (manual fallback)
 
 Due to package dependencies, packages should be published in this order:
 
 1. `@reverso/core` (no internal dependencies)
 2. `@reverso/scanner` (depends on core)
 3. `@reverso/db` (depends on core)
-4. `@reverso/blocks` (no internal dependencies)
-5. `@reverso/forms` (no internal dependencies)
-6. `@reverso/admin` (depends on blocks, forms)
-7. `@reverso/api` (depends on core, db, admin)
-8. `@reverso/mcp` (depends on db)
-9. `@reverso/cli` (depends on core, scanner, api)
-10. `create-reverso` (depends on cli)
+4. `@reverso/client` (no internal dependencies)
+5. `@reverso/blocks` (no internal dependencies)
+6. `@reverso/forms` (no internal dependencies)
+7. `@reverso/admin` (depends on blocks, forms)
+8. `@reverso/api` (depends on core, db, admin)
+9. `@reverso/mcp` (talks to the API over HTTP)
+10. `@reverso/cli` (depends on core, scanner, api)
+11. `create-reverso` (depends on cli, client)
 
 ## Release Workflow
 

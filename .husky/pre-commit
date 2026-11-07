@@ -1,1 +1,2 @@
-pnpm lint
+# Fast: only the staged files, no turbo build of dependencies.
+pnpm exec biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true
