@@ -166,6 +166,7 @@ export function generateSchema(
       filesScanned: 0,
       filesWithMarkers: 0,
       scanDuration: duration,
+      skippedMarkers: invalidFields.length,
     },
   };
 }
@@ -304,6 +305,7 @@ export function updateSchemaMeta(
 ): ProjectSchema {
   return {
     ...schema,
-    meta,
+    // Keep what the generator knows about the scan (skipped markers).
+    meta: { ...schema.meta, ...meta },
   };
 }

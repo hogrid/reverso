@@ -13,6 +13,7 @@ import ora from 'ora';
 import { join } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolveRuntimeConfig } from '../runtime-config.js';
+import { resolvePrune } from './scan.js';
 
 interface BuildOptions {
   src?: string;
@@ -82,7 +83,19 @@ export function buildCommand(program: Command): void {
         await createDatabaseSchema(runtime.databasePath);
         resetDatabaseInstance();
         const { db } = initDatabase({ url: runtime.databasePath });
-        await syncSchema(db, result.schema);
+        // `build` scans the whole source tree, so what is missing is normally
+        // gone for good and is pruned from the production database. Not when
+        // the scan is incomplete (invalid markers skipped, nothing found):
+        // then everything is kept and the reason is printed.
+        const decision = resolvePrune({ requested: true, watch: false, schema: result.schema });
+        if (decision.reason) {
+          console.log(chalk.yellow(`  Keeping fields missing from this scan: ${decision.reason}.`));
+        }
+        const sync = await syncSchema(db, result.schema, { deleteRemoved: decision.prune });
+        const kept = sync.orphaned.pages.length + sync.orphaned.sections.length + sync.orphaned.fields.length;
+        if (kept > 0) {
+          console.log(chalk.yellow(`  ${kept} item(s) kept in the database that are not in your code.`));
+        }
         closeDatabase();
         spinner.succeed(`Database ready (${runtime.databaseSource}): ${runtime.databasePath}`);
 

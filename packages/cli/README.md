@@ -22,7 +22,11 @@ Scan your codebase for `data-reverso` markers and generate schema.
 
 ```bash
 reverso scan --watch
+reverso scan --prune   # also delete fields no longer in your code (never automatic)
 ```
+
+Fields that disappear from your code are kept on the server, with their
+content, and reported; only `--prune` removes them.
 
 ### `reverso dev`
 

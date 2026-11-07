@@ -26,11 +26,25 @@ export interface SyncResult {
     updated: number;
     deleted: number;
   };
+  /**
+   * Pages, sections (as `page.section`) and fields (full path) present in
+   * the database but absent from the schema. With `deleteRemoved` they were
+   * deleted and this is empty; without it they were kept, and this is what a
+   * prune would remove.
+   */
+  orphaned: {
+    pages: string[];
+    sections: string[];
+    fields: string[];
+  };
   duration: number;
 }
 
 export interface SyncOptions {
-  /** Delete pages/sections/fields that are no longer in the schema */
+  /**
+   * Delete pages/sections/fields that are no longer in the schema, with
+   * their content (cascade). Default false: callers opt in explicitly.
+   */
   deleteRemoved?: boolean;
   /** Verbose logging */
   verbose?: boolean;
@@ -45,12 +59,13 @@ export async function syncSchema(
   options: SyncOptions = {}
 ): Promise<SyncResult> {
   const startTime = Date.now();
-  const { deleteRemoved = true, verbose = false } = options;
+  const { deleteRemoved = false, verbose = false } = options;
 
   const result: SyncResult = {
     pages: { created: 0, updated: 0, deleted: 0 },
     sections: { created: 0, updated: 0, deleted: 0 },
     fields: { created: 0, updated: 0, deleted: 0 },
+    orphaned: { pages: [], sections: [], fields: [] },
     duration: 0,
   };
 
@@ -99,30 +114,41 @@ export async function syncSchema(
       }
     }
 
-    // Delete removed items if requested
-    if (deleteRemoved) {
-      // Delete removed fields
-      const allPages = await getPages(tx);
-      for (const page of allPages) {
-        if (!syncedPageSlugs.has(page.slug)) {
+    // Anything in the database that the schema no longer mentions is either
+    // deleted (explicit prune) or reported, never silently kept nor silently
+    // dropped.
+    const allPages = await getPages(tx);
+    for (const page of allPages) {
+      if (!syncedPageSlugs.has(page.slug)) {
+        if (deleteRemoved) {
           await deletePage(tx, page.id);
           result.pages.deleted++;
+        } else {
+          result.orphaned.pages.push(page.slug);
+        }
+        continue;
+      }
+
+      const sections = await getSectionsByPageId(tx, page.id);
+      for (const section of sections) {
+        if (!syncedSectionIds.has(section.id)) {
+          if (deleteRemoved) {
+            await deleteSection(tx, section.id);
+            result.sections.deleted++;
+          } else {
+            result.orphaned.sections.push(`${page.slug}.${section.slug}`);
+          }
           continue;
         }
 
-        const sections = await getSectionsByPageId(tx, page.id);
-        for (const section of sections) {
-          if (!syncedSectionIds.has(section.id)) {
-            await deleteSection(tx, section.id);
-            result.sections.deleted++;
-            continue;
-          }
-
-          const fields = await getFieldsBySectionId(tx, section.id);
-          for (const field of fields) {
-            if (!syncedFieldPaths.has(field.path)) {
+        const fields = await getFieldsBySectionId(tx, section.id);
+        for (const field of fields) {
+          if (!syncedFieldPaths.has(field.path)) {
+            if (deleteRemoved) {
               await deleteField(tx, field.id);
               result.fields.deleted++;
+            } else {
+              result.orphaned.fields.push(field.path);
             }
           }
         }

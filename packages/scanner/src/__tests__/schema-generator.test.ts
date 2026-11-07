@@ -32,6 +32,19 @@ describe('generateSchema', () => {
     expect(schema.pages[0]?.sections[0]?.fields).toHaveLength(2);
   });
 
+  it('counts the markers it skipped in meta.skippedMarkers', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fields: DetectedField[] = [
+      { path: 'home.hero.title', attributes: {}, file: '/src/Hero.tsx', line: 1, column: 1, element: 'h1' },
+      { path: 'home.hero', attributes: {}, file: '/src/Hero.tsx', line: 2, column: 1, element: 'p' },
+      { path: 'home.hero.sub\n  data-reverso-type=', attributes: {}, file: '/src/Hero.tsx', line: 3, column: 1, element: 'p' },
+    ];
+    const schema = generateSchema(fields);
+    expect(schema.totalFields).toBe(1);
+    expect(schema.meta.skippedMarkers).toBe(2);
+    warn.mockRestore();
+  });
+
   it('groups fields by page and section', () => {
     const fields: DetectedField[] = [
       {

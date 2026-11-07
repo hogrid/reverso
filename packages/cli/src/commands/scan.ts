@@ -11,9 +11,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resolveRuntimeConfig } from '../runtime-config.js';
 
-/** Default API port for sync */
-const DEFAULT_API_PORT = 3001;
-
 /** File where a running `reverso dev` records its URL and API key (see dev.ts). */
 const DEV_SERVER_FILE = '.reverso/dev-server.json';
 
@@ -38,8 +35,14 @@ export interface SyncTarget {
   apiKey?: string;
 }
 
+export interface Orphaned {
+  pages: string[];
+  sections: string[];
+  fields: string[];
+}
+
 export type SyncOutcome =
-  | { ok: true }
+  | { ok: true; orphaned?: Orphaned }
   | { ok: false; reason: 'unreachable' | 'unauthorized' | 'error'; detail?: string };
 
 /**
@@ -67,9 +70,55 @@ export function resolveSyncTarget(
 /**
  * Push a schema to a running API server.
  */
+export interface SyncOptions {
+  /**
+   * Delete pages, sections and fields that are no longer in the schema, with
+   * their content. Off by default: a scan that misses a marker (half-typed
+   * attribute, file with a syntax error, another branch checked out) must
+   * never erase what editors wrote.
+   */
+  prune?: boolean;
+}
+
+export interface PruneDecision {
+  prune: boolean;
+  /** Why pruning was declined although it was requested. */
+  reason?: string;
+}
+
+/**
+ * Decide whether a sync may delete what is missing from the schema. Pruning
+ * is only safe when the scan is complete: never from the watcher (every
+ * transient keystroke produces a schema), never when markers were skipped as
+ * invalid (a half-typed attribute hides a real field) and never for an empty
+ * result (almost always a wrong srcDir).
+ */
+export function resolvePrune(input: {
+  requested: boolean;
+  watch: boolean;
+  schema: ProjectSchema;
+}): PruneDecision {
+  if (!input.requested) return { prune: false };
+  if (input.watch) {
+    return { prune: false, reason: 'pruning is disabled in watch mode; run "reverso scan --prune" once instead' };
+  }
+  const skipped = input.schema.meta.skippedMarkers ?? 0;
+  if (skipped > 0) {
+    return {
+      prune: false,
+      reason: `${skipped} marker(s) were skipped as invalid, so the scan is incomplete; fix them and run again`,
+    };
+  }
+  if (input.schema.totalFields === 0) {
+    return { prune: false, reason: 'the scan found no markers; check srcDir before deleting everything' };
+  }
+  return { prune: true };
+}
+
 export async function syncSchemaToServer(
   schema: ProjectSchema,
-  target: SyncTarget
+  target: SyncTarget,
+  options: SyncOptions = {}
 ): Promise<SyncOutcome> {
   try {
     const res = await fetch(`${target.apiUrl}/api/reverso/schema/sync`, {
@@ -78,22 +127,43 @@ export async function syncSchemaToServer(
         'Content-Type': 'application/json',
         ...(target.apiKey ? { 'X-API-Key': target.apiKey } : {}),
       },
-      body: JSON.stringify({ schema, deleteRemoved: true }),
+      body: JSON.stringify({ schema, deleteRemoved: options.prune === true }),
     });
     if (res.status === 401 || res.status === 403) {
       return { ok: false, reason: 'unauthorized' };
     }
-    const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
-    if (res.ok && data.success === true) return { ok: true };
+    const data = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
+      data?: { orphaned?: Orphaned };
+    };
+    if (res.ok && data.success === true) {
+      return data.data?.orphaned ? { ok: true, orphaned: data.data.orphaned } : { ok: true };
+    }
     return { ok: false, reason: 'error', detail: data.message ?? `HTTP ${res.status}` };
   } catch (error) {
     return { ok: false, reason: 'unreachable', detail: error instanceof Error ? error.message : String(error) };
   }
 }
 
+/** Human summary of what a prune would delete, or null when nothing is orphaned. */
+export function describeOrphaned(orphaned: Orphaned | undefined): string | null {
+  if (!orphaned) return null;
+  const parts: string[] = [];
+  if (orphaned.pages.length) parts.push(`${orphaned.pages.length} page(s): ${orphaned.pages.join(', ')}`);
+  if (orphaned.sections.length) parts.push(`${orphaned.sections.length} section(s): ${orphaned.sections.join(', ')}`);
+  if (orphaned.fields.length) parts.push(`${orphaned.fields.length} field(s): ${orphaned.fields.join(', ')}`);
+  return parts.length ? parts.join('; ') : null;
+}
+
 function reportSync(outcome: SyncOutcome, target: SyncTarget): void {
   if (outcome.ok) {
     console.log(chalk.green(`  Schema synced to ${target.apiUrl}`));
+    const kept = describeOrphaned(outcome.orphaned);
+    if (kept) {
+      console.log(chalk.yellow(`  Kept on the server but no longer in your code: ${kept}`));
+      console.log(chalk.gray('  Their content is untouched. Run "reverso scan --prune" to delete them.'));
+    }
     return;
   }
   switch (outcome.reason) {
@@ -118,6 +188,7 @@ interface CliScanOptions {
   exclude?: string[];
   apiUrl?: string;
   apiKey?: string;
+  prune: boolean;
 }
 
 export function scanCommand(program: Command): void {
@@ -132,6 +203,11 @@ export function scanCommand(program: Command): void {
     .option('--exclude <patterns...>', 'Glob patterns to exclude (default: reverso.config scanner.exclude)')
     .option('--api-url <url>', 'Reverso server to sync the schema to (default: local reverso dev)')
     .option('--api-key <key>', 'API key for the server (default: REVERSO_API_KEY or the running reverso dev)')
+    .option(
+      '--prune',
+      'Delete fields that are no longer in your code, together with their content (never done automatically)',
+      false
+    )
     .action(async (options: CliScanOptions) => {
       const spinner = ora();
 
@@ -188,7 +264,12 @@ export function scanCommand(program: Command): void {
                     console.log(chalk.gray(`  Check that "${srcDir}" is the folder with your markers.`));
                     break;
                   }
-                  reportSync(await syncSchemaToServer(event.schema, syncTarget), syncTarget);
+                  const decision = resolvePrune({ requested: options.prune, watch: true, schema: event.schema });
+                  if (decision.reason) console.log(chalk.yellow(`  Not pruning: ${decision.reason}.`));
+                  reportSync(
+                    await syncSchemaToServer(event.schema, syncTarget, { prune: decision.prune }),
+                    syncTarget
+                  );
                 }
                 break;
               case 'error':
@@ -259,7 +340,12 @@ export function scanCommand(program: Command): void {
           } else {
             // Auto-sync to the configured Reverso server
             console.log();
-            reportSync(await syncSchemaToServer(result.schema, syncTarget), syncTarget);
+            const decision = resolvePrune({ requested: options.prune, watch: false, schema: result.schema });
+            if (decision.reason) console.log(chalk.yellow(`  Not pruning: ${decision.reason}.`));
+            reportSync(
+              await syncSchemaToServer(result.schema, syncTarget, { prune: decision.prune }),
+              syncTarget
+            );
           }
         }
       } catch (error) {

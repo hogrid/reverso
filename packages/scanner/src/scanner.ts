@@ -77,6 +77,8 @@ export class Scanner {
   private options: Required<ScannerOptions>;
   private currentSchema: ProjectSchema | null = null;
   private eventHandlers: Set<ScanEventHandler> = new Set();
+  /** Scans run strictly one after another (see `scan`). */
+  private scanQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: ScannerOptions = {}) {
     this.options = {
@@ -125,8 +127,19 @@ export class Scanner {
 
   /**
    * Run a full scan of the source directory.
+   *
+   * Overlapping calls (a burst of file events, a `git checkout`) are queued
+   * and run one at a time, so the parser is never replaced mid-flight, the
+   * output files are never written concurrently and the last `complete`
+   * event is always the newest schema.
    */
-  async scan(): Promise<ScanResult> {
+  scan(): Promise<ScanResult> {
+    const run = this.scanQueue.then(() => this.runScan());
+    this.scanQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async runScan(): Promise<ScanResult> {
     this.emit({ type: 'start' });
 
     try {

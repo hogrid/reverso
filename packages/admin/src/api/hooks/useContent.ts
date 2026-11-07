@@ -72,9 +72,10 @@ export function useUpdateContent() {
       }
       return response.data;
     },
-    onSuccess: (_, { pageSlug }) => {
-      queryClient.invalidateQueries({ queryKey: ['content', pageSlug] });
-    },
+    // Awaited so the mutation only resolves once the refetched content is in
+    // the cache: the editor clears its dirty values right after, and must not
+    // fall back to the pre-save server value for a frame.
+    onSuccess: (_, { pageSlug }) => queryClient.invalidateQueries({ queryKey: ['content', pageSlug] }),
   });
 }
 
@@ -103,8 +104,9 @@ export function useBatchUpdateContent() {
       );
       return response.data;
     },
-    onSuccess: (_, { pageSlug }) => {
-      queryClient.invalidateQueries({ queryKey: ['content', pageSlug] });
-    },
+    // Awaited so the mutation only resolves once the refetched content is in
+    // the cache: the editor clears its dirty values right after, and must not
+    // fall back to the pre-save server value for a frame.
+    onSuccess: (_, { pageSlug }) => queryClient.invalidateQueries({ queryKey: ['content', pageSlug] }),
   });
 }

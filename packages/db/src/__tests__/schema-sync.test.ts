@@ -307,3 +307,95 @@ describe('Schema Sync', () => {
     });
   });
 });
+
+describe('Schema Sync orphan reporting', () => {
+  beforeEach(async () => {
+    resetDatabaseInstance();
+    if (existsSync(TEST_DB)) rmSync(TEST_DB, { force: true });
+    await createDatabaseSchema(TEST_DB);
+    initDatabase({ url: TEST_DB });
+  });
+  afterEach(() => {
+    closeDatabase();
+    if (existsSync(TEST_DB)) rmSync(TEST_DB, { force: true });
+  });
+
+  it('keeps everything by default (deleting is opt-in)', async () => {
+    const { getDatabase } = await import('../connection.js');
+    const db = getDatabase();
+    const one: ProjectSchema = {
+      version: '1.0.0',
+      generatedAt: new Date().toISOString(),
+      pages: [{ slug: 'home', name: 'Home', sourceFiles: [], fieldCount: 0, sections: [] }],
+      pageCount: 1,
+      totalFields: 0,
+      meta: { srcDir: 'src', filesScanned: 1, filesWithMarkers: 0, scanDuration: 1 },
+    };
+    await syncSchema(db, one, { deleteRemoved: true });
+    const result = await syncSchema(db, { ...one, pages: [], pageCount: 0 });
+    expect(result.pages.deleted).toBe(0);
+    expect(result.orphaned.pages).toEqual(['home']);
+    expect((await getPages(db)).map((p) => p.slug)).toEqual(['home']);
+  });
+
+  it('reports what a prune would delete when deleteRemoved is false', async () => {
+    const { getDatabase } = await import('../connection.js');
+    const db = getDatabase();
+    const full: ProjectSchema = {
+      version: '1.0.0',
+      generatedAt: new Date().toISOString(),
+      pages: [
+        {
+          slug: 'home',
+          name: 'Home',
+          sourceFiles: [],
+          fieldCount: 2,
+          sections: [
+            {
+              slug: 'hero',
+              name: 'Hero',
+              isRepeater: false,
+              order: 0,
+              fields: [
+                { path: 'home.hero.title', type: 'text', label: 'Title', file: 'a.tsx', line: 1, column: 1 },
+                { path: 'home.hero.sub', type: 'text', label: 'Sub', file: 'a.tsx', line: 2, column: 1 },
+              ],
+            },
+          ],
+        },
+        {
+          slug: 'about',
+          name: 'About',
+          sourceFiles: [],
+          fieldCount: 1,
+          sections: [
+            {
+              slug: 'intro',
+              name: 'Intro',
+              isRepeater: false,
+              order: 0,
+              fields: [{ path: 'about.intro.text', type: 'text', label: 'Text', file: 'b.tsx', line: 1, column: 1 }],
+            },
+          ],
+        },
+      ],
+      pageCount: 2,
+      totalFields: 3,
+      meta: { srcDir: 'src', filesScanned: 2, filesWithMarkers: 2, scanDuration: 1 },
+    };
+    await syncSchema(db, full, { deleteRemoved: true });
+
+    const partial: ProjectSchema = {
+      ...full,
+      pages: [{ ...full.pages[0]!, fieldCount: 1, sections: [{ ...full.pages[0]!.sections[0]!, fields: [full.pages[0]!.sections[0]!.fields[0]!] }] }],
+      pageCount: 1,
+      totalFields: 1,
+    };
+    const result = await syncSchema(db, partial, { deleteRemoved: false });
+
+    expect(result.pages.deleted).toBe(0);
+    expect(result.fields.deleted).toBe(0);
+    expect(result.orphaned).toEqual({ pages: ['about'], sections: [], fields: ['home.hero.sub'] });
+    expect((await getPages(db)).map((p) => p.slug).sort()).toEqual(['about', 'home']);
+  });
+});

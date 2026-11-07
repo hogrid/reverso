@@ -1,13 +1,27 @@
 import { useEditorStore } from '@/stores/editor';
-import { useCallback, useEffect, useRef } from 'react';
+import type { ContentValue } from '@reverso/core';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+/**
+ * Identifies the save request that currently owns the global `isSaving`
+ * flag. The store is shared by every editor, and `useEditorPage` resets the
+ * flag when a page opens, so a request started on page A that settles after
+ * page B began its own save must not release B's flag.
+ */
+let latestSaveToken = 0;
 
 interface UseAutosaveOptions {
   /** Debounce delay in milliseconds (default: 2000) */
   debounceMs?: number;
   /** Whether autosave is enabled (default: true) */
   enabled?: boolean;
-  /** Callback to perform the save operation */
-  onSave: () => Promise<void>;
+  /**
+   * Persist the given dirty fields (full path -> value). The hook snapshots
+   * the dirty fields before calling this and, once it resolves, clears only
+   * the paths whose value is still the one that was saved; anything edited
+   * while the request was in flight stays dirty for the next save.
+   */
+  onSave: (data: Record<string, ContentValue>) => Promise<void>;
   /** Callback when save fails */
   onError?: (error: unknown) => void;
 }
@@ -38,11 +52,21 @@ export function useAutosave({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
-  const { hasDirtyFields, isSaving, setIsSaving, lastSaved, setLastSaved, autosaveEnabled } =
-    useEditorStore();
+  // The dirty-fields map a failed save was attempted against. Every edit
+  // replaces the map, so while the store still holds this exact reference
+  // nothing changed and autosave stays disarmed: a failing API must not be
+  // hammered every `debounceMs` forever. A new edit (or a manual save)
+  // re-arms it.
+  const [failedOn, setFailedOn] = useState<Map<string, ContentValue> | null>(null);
 
-  const isDirty = hasDirtyFields();
+  const dirtyFields = useEditorStore((state) => state.dirtyFields);
+  const isSaving = useEditorStore((state) => state.isSaving);
+  const lastSaved = useEditorStore((state) => state.lastSaved);
+  const autosaveEnabled = useEditorStore((state) => state.autosaveEnabled);
+
+  const isDirty = dirtyFields.size > 0;
   const isEnabled = enabled && autosaveEnabled;
+  const isDisarmedByFailure = failedOn !== null && failedOn === dirtyFields;
 
   const cancel = useCallback(() => {
     if (timeoutRef.current) {
@@ -52,30 +76,46 @@ export function useAutosave({
   }, []);
 
   const save = useCallback(async () => {
-    if (isSaving) return;
+    const store = useEditorStore.getState();
+    if (store.isSaving) return;
+
+    const snapshot = store.getDirtyFieldsData();
+    if (Object.keys(snapshot).length === 0) return;
+    const page = store.currentPage;
 
     cancel();
-    setIsSaving(true);
+    setFailedOn(null);
+    const token = ++latestSaveToken;
+    // Identity of the dirty map this request is saving. Edits typed while it
+    // is in flight replace the map, so a failure must not disarm them.
+    const attempted = store.dirtyFields;
+    store.setIsSaving(true);
 
     try {
-      await onSave();
-      if (isMountedRef.current) {
-        setLastSaved(new Date());
+      await onSave(snapshot);
+      // The editor may have moved to another page while the request was in
+      // flight; that page's state must not be touched by this save.
+      if (useEditorStore.getState().currentPage === page) {
+        useEditorStore.getState().clearSavedFields(snapshot);
       }
     } catch (error) {
       if (isMountedRef.current) {
+        setFailedOn(attempted);
         onError?.(error);
       }
     } finally {
-      if (isMountedRef.current) {
-        setIsSaving(false);
+      // Release the flag even when this editor already unmounted (a stuck
+      // flag disables Save on every editor opened afterwards), but only if no
+      // newer save has taken it over in the meantime.
+      if (latestSaveToken === token) {
+        useEditorStore.getState().setIsSaving(false);
       }
     }
-  }, [onSave, onError, isSaving, cancel, setIsSaving, setLastSaved]);
+  }, [onSave, onError, cancel]);
 
   // Debounced autosave effect
   useEffect(() => {
-    if (!isEnabled || !isDirty || isSaving) {
+    if (!isEnabled || !isDirty || isSaving || isDisarmedByFailure) {
       return;
     }
 
@@ -86,7 +126,7 @@ export function useAutosave({
     return () => {
       cancel();
     };
-  }, [isEnabled, isDirty, isSaving, debounceMs, save, cancel]);
+  }, [isEnabled, isDirty, isSaving, isDisarmedByFailure, debounceMs, save, cancel]);
 
   // Cleanup on unmount
   useEffect(() => {

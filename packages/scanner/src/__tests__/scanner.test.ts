@@ -61,4 +61,27 @@ describe('Scanner', () => {
     // And nothing is written over the schema on disk either.
     expect(existsSync(join(outputDir, 'schema.json'))).toBe(false);
   });
+
+  it('runs overlapping scans one at a time, in order', async () => {
+    const { srcDir, outputDir } = project();
+    const events: ScanEvent[] = [];
+    const scanner = createScanner({ srcDir, outputDir });
+    scanner.on((event) => events.push(event));
+
+    // Two file events arriving back to back must not interleave: a stale
+    // scan finishing last would be the one the CLI syncs.
+    await Promise.all([scanner.scan(), scanner.scan()]);
+
+    const lifecycle = events.map((e) => e.type).filter((t) => t === 'start' || t === 'complete');
+    expect(lifecycle).toEqual(['start', 'complete', 'start', 'complete']);
+  });
+
+  it('lists scanned files in a stable sorted order', async () => {
+    const { srcDir, outputDir } = project();
+    writeFileSync(join(srcDir, 'Zeta.tsx'), 'export const Z = () => (<p data-reverso="home.z.a">z</p>);');
+    writeFileSync(join(srcDir, 'Alpha.tsx'), 'export const A = () => (<p data-reverso="home.a.a">a</p>);');
+    const result = await createScanner({ srcDir, outputDir }).scan();
+    const files = result.files.map((f) => f.file);
+    expect(files).toEqual([...files].sort());
+  });
 });

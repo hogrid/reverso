@@ -104,8 +104,9 @@ export class AstParser {
       files.push(...matches);
     }
 
-    // Deduplicate
-    return [...new Set(files)];
+    // Deduplicate and sort: when two files mark the same path the first one
+    // wins, so the order must not depend on the filesystem.
+    return [...new Set(files)].sort();
   }
 
   /**

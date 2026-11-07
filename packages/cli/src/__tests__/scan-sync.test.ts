@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ProjectSchema } from '@reverso/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveSyncTarget, syncSchemaToServer } from '../commands/scan.js';
+import { resolvePrune, resolveSyncTarget, syncSchemaToServer } from '../commands/scan.js';
 
 const SCHEMA: ProjectSchema = {
   version: '1.0.0',
@@ -114,7 +114,24 @@ describe('syncSchemaToServer', () => {
     const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: url, apiKey: 'key-0123456789abcdef' });
     expect(outcome).toEqual({ ok: true });
     expect(lastRequest?.headers['x-api-key']).toBe('key-0123456789abcdef');
-    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: true, schema: { version: '1.0.0' } });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ schema: { version: '1.0.0' } });
+  });
+
+  it('never asks the server to delete fields unless prune is requested', async () => {
+    await syncSchemaToServer(SCHEMA, { apiUrl: url });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: false });
+
+    await syncSchemaToServer(SCHEMA, { apiUrl: url }, { prune: true });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: true });
+  });
+
+  it('surfaces the fields the server kept because the scan no longer has them', async () => {
+    respondWith = {
+      status: 200,
+      body: { success: true, data: { orphaned: { pages: [], sections: [], fields: ['home.hero.old'] } } },
+    };
+    const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: url });
+    expect(outcome).toEqual({ ok: true, orphaned: { pages: [], sections: [], fields: ['home.hero.old'] } });
   });
 
   it('omits the header without a key', async () => {
@@ -142,5 +159,36 @@ describe('syncSchemaToServer', () => {
     const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: 'http://127.0.0.1:1' });
     expect(outcome.ok).toBe(false);
     expect(outcome.ok === false && outcome.reason).toBe('unreachable');
+  });
+});
+
+describe('resolvePrune', () => {
+  const withMeta = (overrides: Partial<ProjectSchema['meta']>, totalFields = 1): ProjectSchema => ({
+    ...SCHEMA,
+    totalFields,
+    meta: { ...SCHEMA.meta, ...overrides },
+  });
+
+  it('prunes only when asked and the scan is complete', () => {
+    expect(resolvePrune({ requested: false, watch: false, schema: withMeta({}) }).prune).toBe(false);
+    expect(resolvePrune({ requested: true, watch: false, schema: withMeta({}) })).toEqual({ prune: true });
+  });
+
+  it('refuses to prune when markers were skipped as invalid', () => {
+    const outcome = resolvePrune({ requested: true, watch: false, schema: withMeta({ skippedMarkers: 2 }) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/2 marker/);
+  });
+
+  it('refuses to prune an empty scan', () => {
+    const outcome = resolvePrune({ requested: true, watch: false, schema: withMeta({}, 0) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/no markers/i);
+  });
+
+  it('never prunes in watch mode', () => {
+    const outcome = resolvePrune({ requested: true, watch: true, schema: withMeta({}) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/watch/);
   });
 });

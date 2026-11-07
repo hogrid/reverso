@@ -39,15 +39,19 @@ export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 /**
  * Slug validation regex.
- * Allows lowercase letters, numbers, and hyphens.
+ *
+ * Mirrors what the scanner's normalizer emits for a page segment
+ * (`[a-z0-9_-]`): spaces and symbols become `_`, so a page called "About us"
+ * is `about_us` and must be addressable here.
  */
-export const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const SLUG_REGEX = /^[a-z0-9_-]+$/;
 
 /**
  * Path validation regex.
- * Allows alphanumeric, dots, underscores, and $ for repeaters.
+ * Dot-separated segments of letters, digits, `_`, `-` and `$` (repeaters),
+ * again matching the scanner's normalizer.
  */
-export const PATH_REGEX = /^[a-zA-Z0-9_$.]+(?:\.[a-zA-Z0-9_$.]+)*$/;
+export const PATH_REGEX = /^[a-zA-Z0-9_$-]+(?:\.[a-zA-Z0-9_$-]+)*$/;
 
 /**
  * Locale validation regex.
@@ -89,7 +93,16 @@ export function isAllowedMimeType(mimeType: string): boolean {
 export const contentUpdateSchema = z.object({
   value: z.unknown(),
   locale: z.string().regex(LOCALE_REGEX, 'Invalid locale format').optional().default('default'),
-  publish: z.boolean().optional(),
+  // Reverso has no draft workflow yet: every write goes live, exactly like
+  // the editor's bulk save. Pass `publish: false` to store a draft.
+  publish: z.boolean().optional().default(true),
+});
+
+/**
+ * Page content PATCH body: full field path → value.
+ */
+export const pageContentPatchSchema = z.object({
+  data: z.record(z.string().regex(PATH_REGEX, 'Invalid path format'), z.unknown()),
 });
 
 /**
@@ -130,9 +143,13 @@ export const schemaSyncSchema = z.object({
       filesScanned: z.number().int().min(0),
       filesWithMarkers: z.number().int().min(0),
       scanDuration: z.number().min(0),
+      skippedMarkers: z.number().int().min(0).optional(),
     }),
   }),
-  deleteRemoved: z.boolean().optional().default(true),
+  // Deleting a field cascades to its content and history, so it is never the
+  // default: a partial scan (half-typed marker, broken file, other branch)
+  // must not erase what editors wrote. `reverso scan --prune` opts in.
+  deleteRemoved: z.boolean().optional().default(false),
 });
 
 /**

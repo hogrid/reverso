@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { corsOption, resolveRuntimeConfig } from '../runtime-config.js';
+import { describeOrphaned, type Orphaned } from './scan.js';
 
 interface DevOptions {
   port?: string;
@@ -325,9 +326,8 @@ export function devCommand(program: Command): void {
           if (event.type === 'complete' && event.schema) {
             console.log(chalk.gray(`[scanner] Schema updated: ${event.schema.totalFields} fields`));
             if (event.schema.totalFields === 0) {
-              // Pushing this with deleteRemoved would drop every field and
-              // the content attached to it; an empty result is nearly always
-              // a wrong srcDir, not a deliberate wipe.
+              // An empty result is nearly always a wrong srcDir; nothing to
+              // sync, and nothing is ever deleted from the watcher anyway.
               console.log(
                 chalk.yellow('[scanner] No markers found; skipping sync so existing content is kept.')
               );
@@ -337,17 +337,31 @@ export function devCommand(program: Command): void {
               const res = await fetch(`http://${host}:${port}/api/reverso/schema/sync`, {
                 method: 'POST',
                 headers: syncHeaders,
-                body: JSON.stringify({ schema: event.schema, deleteRemoved: true }),
+                // Never prune from the watcher: a half-typed marker must not delete content.
+                body: JSON.stringify({ schema: event.schema, deleteRemoved: false }),
               });
               if (!res.ok) {
                 console.log(chalk.yellow(`[scanner] Schema sync failed (HTTP ${res.status})`));
+              } else {
+                const body = (await res.json().catch(() => ({}))) as { data?: { orphaned?: Orphaned } };
+                const kept = describeOrphaned(body.data?.orphaned);
+                if (kept) {
+                  console.log(chalk.gray(`[scanner] Kept (not in code any more): ${kept}. "reverso scan --prune" deletes them.`));
+                }
               }
             } catch {
               // Server might not be ready yet, ignore
             }
           }
         });
-        scanner.startWatch();
+        // startWatch repeats the initial scan and then watches; a failure
+        // here must be reported, not left as an unhandled rejection that
+        // kills the process right after "ready".
+        scanner.startWatch().catch((error: unknown) => {
+          console.log(
+            chalk.yellow(`[scanner] Watch mode failed to start: ${error instanceof Error ? error.message : String(error)}`)
+          );
+        });
 
         // Start API server
         spinner.start('Starting API server...');
@@ -424,11 +438,16 @@ export function devCommand(program: Command): void {
             const syncRes = await fetch(`http://${host}:${port}/api/reverso/schema/sync`, {
               method: 'POST',
               headers: syncHeaders,
-              body: JSON.stringify({ schema: initialSchema, deleteRemoved: true }),
+              body: JSON.stringify({ schema: initialSchema, deleteRemoved: false }),
             });
-            const syncData = await syncRes.json() as { success?: boolean };
+            const syncData = (await syncRes.json()) as { success?: boolean; data?: { orphaned?: Orphaned } };
             if (syncData.success) {
               console.log(chalk.green(`  Schema synced: ${initialSchema.totalFields} fields across ${initialSchema.pageCount} page(s)`));
+              const kept = describeOrphaned(syncData.data?.orphaned);
+              if (kept) {
+                console.log(chalk.yellow(`  Kept on the server but no longer in your code: ${kept}`));
+                console.log(chalk.gray('  Their content is untouched. Run "reverso scan --prune" to delete them.'));
+              }
             } else {
               console.log(chalk.yellow(`  Schema sync failed (HTTP ${syncRes.status})`));
             }

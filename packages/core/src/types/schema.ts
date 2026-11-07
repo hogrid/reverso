@@ -85,6 +85,12 @@ export interface ProjectSchema {
     filesWithMarkers: number;
     /** Scan duration in milliseconds */
     scanDuration: number;
+    /**
+     * Markers skipped because their path was invalid (half-typed attribute,
+     * wrong grammar). When this is non-zero the schema is incomplete and must
+     * not be used to prune the database.
+     */
+    skippedMarkers?: number;
   };
 }
 
