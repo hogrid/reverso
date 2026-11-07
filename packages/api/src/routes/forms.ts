@@ -1044,47 +1044,52 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
           if (!urlCheck.safe) {
             fastify.log.warn({ url: form.webhookUrl, reason: urlCheck.reason }, 'Blocked unsafe webhook URL');
           } else {
-            try {
-              const timestamp = Date.now();
-              const webhookPayload = JSON.stringify({
-                formId: form.id,
-                formSlug: form.slug,
-                submissionId: submission.id,
-                data,
-                submittedAt: submission.createdAt,
-                timestamp,
-              });
+            // Delivered in the background: a slow or unreachable endpoint must
+            // not hold the visitor's submission response for up to 10s.
+            const webhookUrl = form.webhookUrl;
+            void (async () => {
+              try {
+                const timestamp = Date.now();
+                const webhookPayload = JSON.stringify({
+                  formId: form.id,
+                  formSlug: form.slug,
+                  submissionId: submission.id,
+                  data,
+                  submittedAt: submission.createdAt,
+                  timestamp,
+                });
 
-              // Build headers with optional HMAC signature
-              const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'X-Webhook-Timestamp': String(timestamp),
-              };
+                // Build headers with optional HMAC signature
+                const headers: Record<string, string> = {
+                  'Content-Type': 'application/json',
+                  'X-Webhook-Timestamp': String(timestamp),
+                };
 
-              if (form.webhookSecret) {
-                // Use HMAC-SHA256 signature instead of plain secret
-                headers['X-Webhook-Signature'] = generateWebhookSignature(webhookPayload, form.webhookSecret);
+                if (form.webhookSecret) {
+                  // Use HMAC-SHA256 signature instead of plain secret
+                  headers['X-Webhook-Signature'] = generateWebhookSignature(webhookPayload, form.webhookSecret);
+                }
+
+                // The address is resolved and validated in the same step that
+                // opens the socket (no DNS rebinding window), redirects are not
+                // followed, and the whole request is bounded by the timeout.
+                const status = await postToPublicUrl(webhookUrl, webhookPayload, headers, {
+                  timeoutMs: 10_000,
+                });
+
+                await recordWebhookSent(db, submission.id, {
+                  status,
+                  ok: status >= 200 && status < 300,
+                });
+              } catch (webhookError) {
+                fastify.log.error(webhookError, 'Failed to send webhook');
+                // Leave a trace the admin can see on the submission.
+                await recordWebhookSent(db, submission.id, {
+                  ok: false,
+                  error: webhookError instanceof Error ? webhookError.message : String(webhookError),
+                }).catch(() => undefined);
               }
-
-              // The address is resolved and validated in the same step that
-              // opens the socket (no DNS rebinding window), redirects are not
-              // followed, and the whole request is bounded by the timeout.
-              const status = await postToPublicUrl(form.webhookUrl, webhookPayload, headers, {
-                timeoutMs: 10_000,
-              });
-
-              await recordWebhookSent(db, submission.id, {
-                status,
-                ok: status >= 200 && status < 300,
-              });
-            } catch (webhookError) {
-              fastify.log.error(webhookError, 'Failed to send webhook');
-              // Leave a trace the admin can see on the submission.
-              await recordWebhookSent(db, submission.id, {
-                ok: false,
-                error: webhookError instanceof Error ? webhookError.message : String(webhookError),
-              }).catch(() => undefined);
-            }
+            })();
           }
         }
 

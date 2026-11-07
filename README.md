@@ -596,12 +596,13 @@ export default function About() {
         alt="Team"
       />
 
-      {/* Repeater: Team members */}
-      <div data-reverso="about.team.members" data-reverso-type="repeater">
-        <img data-reverso="about.team.members.$.avatar" data-reverso-type="image" />
-        <h3 data-reverso="about.team.members.$.name" data-reverso-type="text">Name</h3>
-        <span data-reverso="about.team.members.$.role" data-reverso-type="text">Role</span>
-        <p data-reverso="about.team.members.$.bio" data-reverso-type="textarea">Bio</p>
+      {/* Repeater: the whole "team" section is the list; `$` is the 3rd segment
+          and the container needs no marker of its own */}
+      <div>
+        <img data-reverso="about.team.$.avatar" data-reverso-type="image" />
+        <h3 data-reverso="about.team.$.name" data-reverso-type="text">Name</h3>
+        <span data-reverso="about.team.$.role" data-reverso-type="text">Role</span>
+        <p data-reverso="about.team.$.bio" data-reverso-type="textarea">Bio</p>
       </div>
     </main>
   );
@@ -624,20 +625,23 @@ export default defineConfig({
   // Output directory for generated files
   outputDir: '.reverso',
 
-  // API server port
-  port: 3001,
+  // Database (SQLite is the provider implemented today)
+  database: {
+    provider: 'sqlite',
+    url: '.reverso/reverso.db',
+  },
 
-  // File patterns to include in scan
-  include: ['**/*.tsx', '**/*.jsx'],
+  scanner: {
+    // File patterns to include in scan (relative to srcDir)
+    include: ['**/*.tsx', '**/*.jsx'],
+    // File patterns to exclude from scan
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/*.test.*', '**/*.stories.*'],
+  },
 
-  // File patterns to exclude from scan
-  exclude: [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/.next/**',
-    '**/*.test.*',
-    '**/*.stories.*',
-  ],
+  // `reverso dev` port
+  dev: {
+    port: 3001,
+  },
 });
 ```
 

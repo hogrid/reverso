@@ -308,6 +308,27 @@ describe('SSRF protection', () => {
     expect(received).toEqual(['{"a":1}']);
   });
 
+  it('enforces an overall deadline even when the server keeps trickling bytes', async () => {
+    const server = createHttpServer((_req, res) => {
+      res.writeHead(200);
+      const drip = setInterval(() => res.write('.'), 50);
+      res.on('close', () => clearInterval(drip));
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as { port: number }).port;
+    const started = Date.now();
+    await expect(
+      postToPublicUrl(`http://hooks.example.com:${port}/x`, '{}', {}, {
+        lookup: (_h, _o, cb) => cb(null, '127.0.0.1', 4),
+        allowAddress: () => true,
+        timeoutMs: 400,
+      })
+    ).rejects.toThrow(/timed out/);
+    expect(Date.now() - started).toBeLessThan(2000);
+    server.closeAllConnections();
+    await new Promise<void>((r) => server.close(() => r()));
+  });
+
   it('rejects hostnames that resolve to a private address', async () => {
     const privateLookup = async () => [{ address: '10.0.0.5', family: 4 }];
     await expect(assertPublicHost('http://internal.example.com/x', privateLookup)).rejects.toThrow(/private/i);
