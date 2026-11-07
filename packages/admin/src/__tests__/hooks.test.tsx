@@ -36,6 +36,7 @@ function renderHook<P, R>(hook: (props: P) => R, initialProps: NoInfer<P>) {
   const root: Root = createRoot(container);
   const result = { current: undefined as R };
 
+  // biome-ignore lint/correctness/noComponentHookFactories: test harness; one component per rendered hook is the point
   function Harness({ props }: { props: P }) {
     result.current = hook(props);
     return null;
