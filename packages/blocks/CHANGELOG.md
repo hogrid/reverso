@@ -1,5 +1,13 @@
 # @reverso/blocks
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [d96eda3]
+- Updated dependencies [ff5d8ee]
+  - @reverso/core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
