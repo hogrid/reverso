@@ -1,9 +1,21 @@
 # Reverso CMS Docker Compose Configuration
 # Usage: docker compose up -d
 #
-# Required in .env: REVERSO_COOKIE_SECRET (openssl rand -hex 32)
-# Recommended:      REVERSO_API_KEY (lets `reverso scan --api-url` load the schema)
-#                   REVERSO_COOKIE_SECURE=true once the CMS is served over HTTPS
+# Variables are read from `.env` next to this file (see .env.example).
+# Required:    REVERSO_COOKIE_SECRET (openssl rand -hex 32)
+# Recommended: REVERSO_API_KEY (lets `reverso scan --api-url` load the schema)
+#              REVERSO_COOKIE_SECURE=true once the CMS is served over HTTPS
+#
+# First admin: the account is claimed by whoever registers first on an empty
+# database, so Reverso only allows it from the machine running the server. In
+# a container every request looks remote. Set REVERSO_ALLOW_BOOTSTRAP=true in
+# .env, `docker compose up -d`, register at /admin/login, then remove the
+# variable and `docker compose up -d` again.
+#
+# Reverse proxy: set REVERSO_TRUST_PROXY=true only when nginx/Caddy/Traefik is
+# in front of the container AND it overwrites client-sent X-Forwarded-* headers;
+# with the port published directly (the default below) leave it false, or any
+# client can spoof its IP and walk past rate limits and login lockout.
 
 services:
   reverso:
@@ -17,6 +29,9 @@ services:
     volumes:
       # Persist database and uploads
       - reverso-data:/app/.reverso
+    env_file:
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       REVERSO_PORT: 3001
@@ -25,10 +40,12 @@ services:
       REVERSO_COOKIE_SECRET: ${REVERSO_COOKIE_SECRET:?Cookie secret is required}
       REVERSO_API_KEY: ${REVERSO_API_KEY:-}
       REVERSO_CORS_ORIGIN: ${REVERSO_CORS_ORIGIN:-}
-      REVERSO_TRUST_PROXY: ${REVERSO_TRUST_PROXY:-true}
+      REVERSO_TRUST_PROXY: ${REVERSO_TRUST_PROXY:-false}
       REVERSO_COOKIE_SECURE: ${REVERSO_COOKIE_SECURE:-auto}
+      REVERSO_ALLOW_BOOTSTRAP: ${REVERSO_ALLOW_BOOTSTRAP:-false}
+      REVERSO_ALLOWED_REDIRECT_DOMAINS: ${REVERSO_ALLOWED_REDIRECT_DOMAINS:-}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,7 +53,7 @@ services:
     networks:
       - reverso-network
 
-  # Optional: PostgreSQL for production
+  # Optional: PostgreSQL for production (provider not implemented yet; reserved)
   postgres:
     image: postgres:16-alpine
     container_name: reverso-postgres

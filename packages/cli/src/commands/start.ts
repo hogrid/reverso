@@ -30,12 +30,32 @@ export function startCommand(program: Command): void {
       const spinner = ora();
 
       try {
-        const runtime = await resolveRuntimeConfig(process.cwd(), {
-          port: options.port,
-          // Production binds to every interface unless told otherwise.
-          host: options.host ?? process.env.REVERSO_HOST ?? '0.0.0.0',
-          database: options.database,
-        });
+        // `start` is the production entrypoint: the API hides stack traces,
+        // refuses the development cookie secret and tightens CORS under
+        // NODE_ENV=production, so default to it unless the operator chose
+        // otherwise.
+        process.env.NODE_ENV ??= 'production';
+
+        if (!process.env.REVERSO_COOKIE_SECRET) {
+          console.error(
+            chalk.red('REVERSO_COOKIE_SECRET is not set. Sessions cannot be signed safely without it.')
+          );
+          console.error(chalk.gray('Generate one with: openssl rand -hex 32'));
+          process.exit(1);
+        }
+
+        // A reverso.config that fails to load must stop the server: falling
+        // back to defaults here would silently boot an empty database.
+        const runtime = await resolveRuntimeConfig(
+          process.cwd(),
+          {
+            port: options.port,
+            // Production binds to every interface unless told otherwise.
+            host: options.host ?? process.env.REVERSO_HOST ?? '0.0.0.0',
+            database: options.database,
+          },
+          { strict: true }
+        );
         for (const warning of runtime.warnings) {
           // A missing source dir is irrelevant for `start`; surface the rest.
           if (!warning.startsWith('Source directory')) console.log(chalk.yellow(`Warning: ${warning}`));
@@ -65,13 +85,6 @@ export function startCommand(program: Command): void {
         }
         console.log();
 
-        if (!process.env.REVERSO_COOKIE_SECRET) {
-          console.log(
-            chalk.yellow(
-              'Warning: REVERSO_COOKIE_SECRET is not set. Set it in production (openssl rand -hex 32).'
-            )
-          );
-        }
         if (!process.env.REVERSO_API_KEY) {
           console.log(
             chalk.gray('Info: REVERSO_API_KEY not set; `reverso scan --api-url` cannot sync to this server.')

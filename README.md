@@ -917,7 +917,8 @@ Node.js host with a persistent disk for `.reverso/` (database + uploads).
 | `REVERSO_PORT`, `REVERSO_HOST` | no | Defaults `3001`, `0.0.0.0` |
 | `REVERSO_DB_PATH` | no | SQLite file (default `.reverso/reverso.db`) |
 | `REVERSO_CORS_ORIGIN` | when a browser calls the API | Origins allowed cross-site, comma-separated (or `*`). Server-side reads need nothing |
-| `REVERSO_TRUST_PROXY` | behind a proxy | `true` to honour `X-Forwarded-*` |
+| `REVERSO_TRUST_PROXY` | behind a proxy | `true` to honour `X-Forwarded-*`. Only when the proxy overwrites client-sent headers; with the port exposed directly keep `false` |
+| `REVERSO_ALLOW_BOOTSTRAP` | first admin in a container | The first account is normally claimable only from the server's own machine; set `true` while you register it behind Docker/a proxy, then remove it |
 | `REVERSO_COOKIE_SECURE` | no | `auto` (default, Secure only over HTTPS), `true` or `false` |
 | `REVERSO_API_URL` | for `reverso scan` against a remote CMS | Where the schema is pushed when no local `reverso dev` is running |
 | `REVERSO_SRC_DIR` | no | Overrides `srcDir` from `reverso.config.ts` |
@@ -926,6 +927,19 @@ Node.js host with a persistent disk for `.reverso/` (database + uploads).
 Uploaded files are served by the CMS at `/uploads/<file>`. `@reverso/client`
 rewrites those paths to absolute URLs on the CMS origin, so `<img src>` works
 from a frontend on another domain; pass `mediaBaseUrl` to point at a CDN.
+
+### Docker
+
+```bash
+cp .env.example .env            # set REVERSO_COOKIE_SECRET (and REVERSO_API_KEY)
+REVERSO_ALLOW_BOOTSTRAP=true docker compose up -d
+# open http://localhost:3001/admin and register the first admin, then:
+docker compose up -d            # restart without the bootstrap flag
+```
+
+`reverso start` refuses to boot without `REVERSO_COOKIE_SECRET` or with a
+`reverso.config.ts` it cannot load, so a misconfigured container fails loudly
+instead of serving an empty database.
 
 ### Loading the schema into a deployed CMS
 

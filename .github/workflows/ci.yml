@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   # Astro (apps/docs) requires Node 22.12+; the published packages still run on 20+.
   NODE_VERSION: 22
@@ -95,3 +98,60 @@ jobs:
             packages/admin/playwright-report
             packages/admin/test-results
           retention-days: 7
+
+  changesets:
+    name: Changeset present
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Fails when a published package changed without a changeset, so a
+      # release can never silently skip a fix.
+      - run: pnpm changeset status --since=origin/${{ github.base_ref }}
+
+  docker:
+    name: Docker image boots
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: reverso:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start container and check /health and /admin
+        run: |
+          docker run -d --name reverso-ci -p 3001:3001 \
+            -e REVERSO_COOKIE_SECRET=ci-cookie-secret-0123456789abcdef \
+            -e REVERSO_API_KEY=ci-api-key-0123456789abcdef \
+            reverso:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3001/health; then ok=1; break; fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::container never became healthy"
+            docker logs reverso-ci
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:3001/admin | grep -q '<title>Reverso CMS Admin</title>'
+          # Anonymous reads of the private API must be refused.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/reverso/pages)
+          test "$code" = "401"
+          docker logs reverso-ci
+      - name: Stop container
+        if: always()
+        run: docker rm -f reverso-ci || true
