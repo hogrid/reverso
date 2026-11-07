@@ -2,6 +2,8 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
+  // Canonical URL (README and package homepages link here); enables the sitemap.
+  site: 'https://docs.reverso.dev',
   integrations: [
     starlight({
       title: 'Reverso CMS',

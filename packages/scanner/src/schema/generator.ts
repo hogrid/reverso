@@ -182,7 +182,9 @@ export function generateSchema(
     generatedAt: new Date().toISOString(),
     pages: sortedPages,
     pageCount: sortedPages.length,
-    totalFields: uniqueFields.length,
+    // Every field that will exist in the CMS, repeater containers included,
+    // so the CLI, the pages and the admin all report the same number.
+    totalFields: sortedPages.reduce((sum, p) => sum + p.fieldCount, 0),
     meta: {
       srcDir: '',
       filesScanned: 0,
