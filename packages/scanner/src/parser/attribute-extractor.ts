@@ -4,10 +4,12 @@
 
 import { type FieldAttributes, MARKER_ATTRIBUTE, MARKER_PREFIX } from '@reverso/core';
 import type {
+  CallExpression,
   JsxAttribute,
   JsxExpression,
   JsxOpeningElement,
   JsxSelfClosingElement,
+  Node,
 } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 
@@ -215,8 +217,111 @@ function parseFieldAttributes(raw: Record<string, string | undefined>): Partial<
   return attrs;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00a0',
+  copy: '\u00a9',
+  reg: '\u00ae',
+  trade: '\u2122',
+  hellip: '\u2026',
+  mdash: '\u2014',
+  ndash: '\u2013',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201c',
+  rdquo: '\u201d',
+  laquo: '\u00ab',
+  raquo: '\u00bb',
+  middot: '\u00b7',
+  bull: '\u2022',
+  deg: '\u00b0',
+  euro: '\u20ac',
+};
+
+/** Decode the HTML entities JSX text may contain (`&amp;`, `&#39;`, `&#x27;`). */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity[0] === '#') {
+      const code =
+        entity[1] === 'x' || entity[1] === 'X'
+          ? Number.parseInt(entity.slice(2), 16)
+          : Number.parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
+    }
+    return NAMED_ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
 /**
- * Get the text content of a JSX element.
+ * Normalize raw JSX text the way React renders it: line breaks and the
+ * indentation around them collapse to single spaces, then entities are
+ * decoded (so `&nbsp;` survives the whitespace collapse).
+ */
+function normalizeJsxText(raw: string): string {
+  return decodeHtmlEntities(raw.replace(/[ \t\r\n]+/g, ' ').trim());
+}
+
+/** Text of a string literal or substitution-free template literal node. */
+function literalText(node: Node | undefined): string | undefined {
+  if (!node) return undefined;
+  if (
+    node.getKind() === SyntaxKind.StringLiteral ||
+    node.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral
+  ) {
+    return node.getText().slice(1, -1);
+  }
+  return undefined;
+}
+
+/**
+ * Fallback of a `<anything>.get(path, 'fallback')` call — the pattern the
+ * SDK uses to render content (`page.get('home.hero.title', 'Welcome')`).
+ */
+function getCallFallback(node: Node | undefined): string | undefined {
+  if (!node || node.getKind() !== SyntaxKind.CallExpression) return undefined;
+  const call = node as CallExpression;
+  const callee = call.getExpression();
+  if (callee.getKind() !== SyntaxKind.PropertyAccessExpression) return undefined;
+  if (callee.getLastChildByKind(SyntaxKind.Identifier)?.getText() !== 'get') return undefined;
+  return literalText(call.getArguments()[1]);
+}
+
+/** Static value of an expression: a literal, or the fallback of a `.get()` call. */
+function staticExpressionValue(node: Node | undefined): string | undefined {
+  return literalText(node) ?? getCallFallback(node);
+}
+
+/**
+ * Static value of a regular (non-marker) attribute such as `src` or `href`:
+ * a string literal, `{"literal"}`, or `{page.get(path, 'fallback')}`.
+ */
+function getStaticAttribute(
+  element: JsxOpeningElement | JsxSelfClosingElement,
+  name: string
+): string | undefined {
+  const attr = element.getAttribute(name);
+  if (!attr || attr.getKind() !== SyntaxKind.JsxAttribute) return undefined;
+  const initializer = (attr as JsxAttribute).getInitializer();
+  if (!initializer) return undefined;
+  if (initializer.getKind() === SyntaxKind.StringLiteral) {
+    return decodeHtmlEntities(initializer.getText().slice(1, -1));
+  }
+  if (initializer.getKind() === SyntaxKind.JsxExpression) {
+    return staticExpressionValue((initializer as JsxExpression).getExpression());
+  }
+  return undefined;
+}
+
+/**
+ * Get the text content of a JSX element: its direct text children (entities
+ * decoded, whitespace collapsed) and the fallbacks of `{x.get(path, '...')}`
+ * expression children, in order.
  */
 export function getElementTextContent(
   element: JsxOpeningElement | JsxSelfClosingElement
@@ -226,25 +331,55 @@ export function getElementTextContent(
     return undefined;
   }
 
-  const openingElement = element as JsxOpeningElement;
-  const parent = openingElement.getParent();
-
-  if (!parent || parent.getKind() !== SyntaxKind.JsxElement) {
+  const parent = element.getParentIfKind(SyntaxKind.JsxElement);
+  if (!parent) {
     return undefined;
   }
 
-  // Get all children and extract text
-  const children = parent.getChildren();
   const textParts: string[] = [];
-
-  for (const child of children) {
+  for (const child of parent.getJsxChildren()) {
+    let text: string | undefined;
     if (child.getKind() === SyntaxKind.JsxText) {
-      const text = child.getText().trim();
-      if (text) {
-        textParts.push(text);
-      }
+      text = normalizeJsxText(child.getText());
+    } else if (child.getKind() === SyntaxKind.JsxExpression) {
+      text = staticExpressionValue((child as JsxExpression).getExpression());
+    }
+    if (text) {
+      textParts.push(text);
     }
   }
 
   return textParts.length > 0 ? textParts.join(' ') : undefined;
+}
+
+const IMAGE_TAGS = new Set(['img', 'Image']);
+const LINK_TAGS = new Set(['a', 'Link']);
+const LINK_FIELD_TYPES = new Set(['link', 'url']);
+
+/**
+ * Default content the source code renders for a marked element, used to
+ * pre-fill the field in the admin:
+ * - images (`img`, `Image`): the `src`;
+ * - links (`a`, `Link`): the `href` for link/url fields or links without
+ *   text, otherwise the link text;
+ * - everything else: the text content (see {@link getElementTextContent}).
+ *
+ * An explicit `data-reverso-default` takes precedence in the generator.
+ */
+export function getElementDefaultContent(
+  element: JsxOpeningElement | JsxSelfClosingElement
+): string | undefined {
+  const tag = element.getTagNameNode().getText();
+  if (IMAGE_TAGS.has(tag)) {
+    return getStaticAttribute(element, 'src') || getElementTextContent(element);
+  }
+  const text = getElementTextContent(element);
+  if (LINK_TAGS.has(tag)) {
+    const type = getStaticAttribute(element, `${MARKER_PREFIX}type`);
+    const href = getStaticAttribute(element, 'href');
+    if (href && (!text || (type !== undefined && LINK_FIELD_TYPES.has(type)))) {
+      return href;
+    }
+  }
+  return text;
 }

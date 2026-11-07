@@ -89,7 +89,7 @@ describe('generateSchema', () => {
     expect(schema.pages[0]?.sections[0]?.isRepeater).toBe(true);
   });
 
-  it('sorts fields when sort option is true', () => {
+  it('keeps fields in source order when sort option is true', () => {
     const fields: DetectedField[] = [
       {
         path: 'home.hero.subtitle',
@@ -111,8 +111,9 @@ describe('generateSchema', () => {
 
     const schema = generateSchema(fields, { sort: true });
 
-    expect(schema.pages[0]?.sections[0]?.fields[0]?.path).toBe('home.hero.subtitle');
-    expect(schema.pages[0]?.sections[0]?.fields[1]?.path).toBe('home.hero.title');
+    // title is on line 10, subtitle on line 20: source order, not alphabetical
+    expect(schema.pages[0]?.sections[0]?.fields[0]?.path).toBe('home.hero.title');
+    expect(schema.pages[0]?.sections[0]?.fields[1]?.path).toBe('home.hero.subtitle');
   });
 });
 

@@ -6,12 +6,13 @@ import type { DetectedField } from '@reverso/core';
 import {
   type JsxOpeningElement,
   type JsxSelfClosingElement,
+  type Node,
   type SourceFile,
   SyntaxKind,
 } from 'ts-morph';
 import {
   extractAttributes,
-  getElementTextContent,
+  getElementDefaultContent,
   hasReversoMarker,
 } from './attribute-extractor.js';
 
@@ -35,23 +36,22 @@ export function walkJsxElements(
   const fields: DetectedField[] = [];
   const filePath = sourceFile.getFilePath();
 
-  // Get all JSX opening elements
-  const openingElements = sourceFile.getDescendantsOfKind(SyntaxKind.JsxOpeningElement);
-  for (const element of openingElements) {
-    const field = processElement(element, filePath, options);
+  // Visit opening and self-closing elements in document order, so fields
+  // keep the order they appear in the source.
+  sourceFile.forEachDescendant((node: Node) => {
+    const kind = node.getKind();
+    if (kind !== SyntaxKind.JsxOpeningElement && kind !== SyntaxKind.JsxSelfClosingElement) {
+      return;
+    }
+    const field = processElement(
+      node as JsxOpeningElement | JsxSelfClosingElement,
+      filePath,
+      options
+    );
     if (field) {
       fields.push(field);
     }
-  }
-
-  // Get all self-closing JSX elements
-  const selfClosingElements = sourceFile.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement);
-  for (const element of selfClosingElements) {
-    const field = processElement(element, filePath, options);
-    if (field) {
-      fields.push(field);
-    }
-  }
+  });
 
   return fields;
 }
@@ -72,6 +72,16 @@ function processElement(
   // Extract attributes
   const extracted = extractAttributes(element);
   if (!extracted) {
+    // The marker is there but its path is not a static string (a variable,
+    // a template literal with substitutions, an empty string). It cannot be
+    // turned into a field, so say so instead of dropping it silently.
+    const marker = element.getAttribute('data-reverso');
+    // biome-ignore lint/suspicious/noConsole: scanner diagnostics are reported on the console
+    console.warn(
+      `⚠ Skipped data-reverso marker with a dynamic or empty path at ${filePath}:${element.getStartLineNumber()}` +
+        (marker ? ` (${marker.getText()})` : '') +
+        ' — markers must be string literals like data-reverso="page.section.field".'
+    );
     return null;
   }
 
@@ -94,9 +104,9 @@ function processElement(
     element: tagName,
   };
 
-  // Get text content if requested
+  // Get the default content (text, .get() fallback, img src, link href)
   if (options.includeTextContent !== false) {
-    const textContent = getElementTextContent(element);
+    const textContent = getElementDefaultContent(element);
     if (textContent) {
       field.textContent = textContent;
     }
