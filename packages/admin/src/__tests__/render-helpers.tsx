@@ -38,6 +38,7 @@ export async function render(ui: ReactNode): Promise<Rendered> {
 
 export function renderHook<R>(hook: () => R, wrapper?: (children: ReactNode) => ReactNode) {
   const result = { current: undefined as R };
+  // biome-ignore lint/correctness/noComponentHookFactories: test harness; one component per rendered hook is the point
   function Harness() {
     result.current = hook();
     return null;
