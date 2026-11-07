@@ -199,6 +199,41 @@ When `data-reverso-type` is not specified, the scanner infers from:
 <span data-reverso="home.hero.subtitle">Text here</span>
 ```
 
+## Default Content
+
+The admin pre-fills each field with the default the scanner finds in your
+code, in this order:
+
+1. `data-reverso-default="..."` on the element, when present.
+2. Images (`<img>`, `<Image>`): the `src` literal, or the fallback of
+   `src={page.get('path', '/fallback.jpg')}`.
+3. Links (`<a>`, `<Link>`): the `href` for `link`/`url` fields or links
+   without text; otherwise the link text.
+4. Everything else: the element's text. Plain JSX text has its HTML entities
+   decoded (`&amp;`, `&#39;`, ...) and its line breaks collapsed, and
+   `{page.get('home.hero.title', 'Welcome')}` children contribute their
+   string fallback (any object name works, not just `page`).
+
+Values computed at runtime (variables, function calls) cannot be read
+statically; use `data-reverso-default` for those.
+
+## Field Order
+
+Fields keep their source order (file, then line, then column), so the admin
+lists them the way they appear on the page. Pages and sections are sorted
+by name.
+
+## Warnings
+
+The scanner prints a warning with `file:line` instead of silently dropping or
+changing a marker when:
+
+- the path is dynamic (`data-reverso={path}`, a template literal with
+  `${...}`) or empty: markers must be string literals;
+- `data-reverso-type` is not a known field type (e.g. `richtext`): the field
+  falls back to `text`;
+- the path is malformed, or the same path is declared with different types.
+
 ## Validation
 
 The scanner validates:

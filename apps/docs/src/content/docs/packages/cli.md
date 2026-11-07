@@ -27,7 +27,7 @@ Start the development server:
 reverso dev
 
 # Options
-reverso dev --port 4000      # Custom port (default: 4000)
+reverso dev --port 4000      # Custom port (default: dev.port, REVERSO_PORT or 3001)
 reverso dev --host 0.0.0.0   # Custom host (default: localhost)
 reverso dev --open           # Open browser automatically
 ```
@@ -37,6 +37,17 @@ This command:
 2. Starts the API server
 3. Serves the admin panel at `/admin`
 4. Watches for file changes
+
+**Port selection.** When you ask for a port explicitly (`--port`,
+`REVERSO_PORT` or a non-default `dev.port`) and it is busy, `reverso dev`
+exits with an error instead of moving: your frontend would keep calling the
+port you configured and render fallback content. When the default port is
+busy it moves to the next free one and prints a warning with the new URL;
+point your frontend at it with `REVERSO_URL` (see `@reverso/client`).
+
+If the initial scan finds no markers, `reverso dev` says so and shows the
+`srcDir`/`include` it scanned. `.reverso/dev-server.json` (used by
+`reverso scan` in another terminal) is written only once the API listens.
 
 ### reverso scan
 
@@ -251,6 +262,7 @@ CMD ["npx", "reverso", "start"]
 reverso dev --port 4001
 # Or kill the process using the port
 ```
+Then set `REVERSO_URL=http://localhost:4001` for your frontend.
 
 **Database problems:**
 ```bash
