@@ -1,5 +1,5 @@
 # Reverso CMS Docker Compose Configuration
-# Usage: docker compose up -d
+# Usage: docker compose up -d   (Docker Compose v2.24 or newer)
 #
 # Variables are read from `.env` next to this file (see .env.example).
 # Required:    REVERSO_COOKIE_SECRET (openssl rand -hex 32)

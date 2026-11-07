@@ -102,7 +102,11 @@ jobs:
   changesets:
     name: Changeset present
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Release PRs consume the changesets and dependabot bumps need none.
+    if: >-
+      github.event_name == 'pull_request' &&
+      !startsWith(github.head_ref, 'changeset-release/') &&
+      github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,7 +151,8 @@ jobs:
             docker logs reverso-ci
             exit 1
           fi
-          curl -fsS http://127.0.0.1:3001/admin | grep -q '<title>Reverso CMS Admin</title>'
+          curl -fsS http://127.0.0.1:3001/admin -o admin.html
+          grep -q '<title>Reverso CMS Admin</title>' admin.html
           # Anonymous reads of the private API must be refused.
           code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/reverso/pages)
           test "$code" = "401"

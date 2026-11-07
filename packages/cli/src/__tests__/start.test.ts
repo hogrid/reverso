@@ -136,6 +136,18 @@ describe('reverso start refuses unsafe production configuration', () => {
     }
   }, 30_000);
 
+  it('rejects the placeholder secret shipped in .env.example', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reverso-start-placeholder-'));
+    try {
+      const { code, out } = await runStart(dir, { REVERSO_COOKIE_SECRET: 'your-secure-cookie-secret-here' });
+      expect(code).toBe(1);
+      expect(out).toContain('REVERSO_COOKIE_SECRET');
+      expect(out).not.toContain('Production server ready');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('exits with an error when reverso.config cannot be loaded', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'reverso-start-badconfig-'));
     writeFileSync(join(dir, 'reverso.config.ts'), 'export default { database: { provider: 42 } };\n');

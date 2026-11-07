@@ -36,9 +36,17 @@ export function startCommand(program: Command): void {
         // otherwise.
         process.env.NODE_ENV ??= 'production';
 
-        if (!process.env.REVERSO_COOKIE_SECRET) {
+        const secret = process.env.REVERSO_COOKIE_SECRET ?? '';
+        // The sample value from .env.example is public; a copied-but-unedited
+        // .env must not sign sessions with it.
+        const PLACEHOLDER_SECRET = 'your-secure-cookie-secret-here';
+        if (secret.trim() === '' || secret === PLACEHOLDER_SECRET || secret.length < 16) {
           console.error(
-            chalk.red('REVERSO_COOKIE_SECRET is not set. Sessions cannot be signed safely without it.')
+            chalk.red(
+              secret.trim() === ''
+                ? 'REVERSO_COOKIE_SECRET is not set. Sessions cannot be signed safely without it.'
+                : 'REVERSO_COOKIE_SECRET is the sample value or too short (min 16 characters).'
+            )
           );
           console.error(chalk.gray('Generate one with: openssl rand -hex 32'));
           process.exit(1);
