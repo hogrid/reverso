@@ -17,6 +17,12 @@ MCP (Model Context Protocol) allows AI assistants like Claude to interact with R
 - **Form handling** - View submissions, manage forms
 - **Content generation** - AI-assisted content creation
 
+The server is a **thin client of the Reverso HTTP API**: every tool and
+resource calls the API with your admin API key (`X-API-Key`). AI-driven edits
+therefore go through the same validation, role checks, publish semantics and
+webhooks as the admin editor. The server never opens the database itself, so
+it can run on any machine that can reach your CMS.
+
 ## Installation
 
 ```bash
@@ -25,108 +31,142 @@ npm install @reverso/mcp
 
 ## Configuration
 
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `REVERSO_API_KEY` | yes | The admin API key of your CMS: the same `REVERSO_API_KEY` the API runs with. Must be at least 16 characters; the server refuses to start with a clear message when it is missing or too short. |
+| `REVERSO_API_URL` | no | Base URL of the Reverso API. Default: `http://localhost:3001`. |
+
+Both can also be given as flags: `--api-url` (`-u`) and `--api-key` (`-k`).
+
+Start your CMS first (`reverso dev` locally, `reverso start` in production),
+then start the MCP server pointing at it.
+
 ### Claude Desktop
 
-Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json` on macOS):
+Add to your Claude Desktop config (`claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "reverso": {
       "command": "npx",
-      "args": ["@reverso/mcp"],
+      "args": ["-y", "@reverso/mcp"],
       "env": {
-        "DATABASE_PATH": "/path/to/your/.reverso/data.db"
+        "REVERSO_API_URL": "http://localhost:3001",
+        "REVERSO_API_KEY": "<your admin API key>"
       }
     }
   }
 }
 ```
 
-### Standalone Server
+### Command line
+
+```bash
+REVERSO_API_KEY=<your admin key> reverso-mcp
+# or against a deployed CMS
+reverso-mcp --api-url https://cms.example.com --api-key <your admin key>
+```
+
+### Programmatic
 
 ```typescript
 import { ReversoMcpServer } from '@reverso/mcp';
 
 const server = new ReversoMcpServer({
-  databasePath: '.reverso/data.db',
+  apiUrl: 'http://localhost:3001',
+  apiKey: process.env.REVERSO_API_KEY!,
 });
 
-await server.start();
+await server.start(); // stdio transport
 ```
 
 ## Available Tools
 
+Tool names are prefixed by their group: `content_`, `schema_`, `media_`,
+`forms_` and `ai_` (for example `content_update_content`).
+
 ### Content Tools
 
-| Tool | Description |
-|------|-------------|
-| `list_pages` | List all pages in the schema |
-| `get_page` | Get a page with its sections and fields |
-| `get_content` | Get content by path |
-| `update_content` | Update content value |
-| `publish_content` | Publish content |
-| `unpublish_content` | Unpublish content |
-| `bulk_update_content` | Update multiple content items |
+| Tool | Description | API route |
+|------|-------------|-----------|
+| `list_pages` | List all pages (`includeContent` adds their values) | `GET /pages`, `GET /content/page/:slug` |
+| `get_page` | Get a page with its sections, fields and content | `GET /pages/:slug`, `GET /content/page/:slug` |
+| `get_content` | Get content by path | `GET /content/:path` |
+| `update_content` | Write a field. `value` is required; the value is published unless `publish: false` | `PUT /content/:path` |
+| `bulk_update_content` | Write several fields at once, grouped and validated per page | `PATCH /content/page/:slug` |
+| `publish_content` | Publish content | `POST /content/:path/publish` |
+| `unpublish_content` | Unpublish content | `POST /content/:path/unpublish` |
 
 ### Schema Tools
 
 | Tool | Description |
 |------|-------------|
-| `get_schema` | Get full content schema |
-| `get_fields` | Get fields for a page/section |
-| `suggest_field_type` | AI suggests appropriate field type |
+| `get_schema` | Get the full content schema (`GET /schema`) |
+| `get_fields` | List fields, filtered by type or page |
+| `suggest_field_type` | Suggest a field type from a name or sample value |
 | `list_field_types` | List all available field types |
 
 ### Media Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_media` | List media files |
-| `get_media` | Get media by ID |
-| `delete_media` | Delete media file |
-| `get_media_stats` | Media library statistics |
-| `search_media` | Search media by filename |
+| `list_media` | List media files (`GET /media`) |
+| `search_media` | Search media by filename or alt text |
+| `get_media` | Get media by ID or filename |
+| `delete_media` | Delete a media file (`DELETE /media/:id`, admin key) |
+| `get_media_stats` | Media library statistics (`GET /stats`) |
 
 ### Form Tools
 
 | Tool | Description |
 |------|-------------|
 | `list_forms` | List all forms |
-| `get_form` | Get form with fields |
-| `list_submissions` | List form submissions |
-| `get_submission` | Get submission details |
-| `update_submission_status` | Update submission status |
-| `get_form_stats` | Form statistics |
+| `get_form` | Get a form with its fields, by ID or slug |
+| `list_submissions` | List submissions of a form |
+| `get_submission` | Get a submission (`formId` + `id`) |
+| `update_submission_status` | Update a submission's status (`formId` + `id`) |
+| `get_form_stats` | Submission statistics of a form |
 
 ### Generation Tools
 
+Pure helpers that never call the API.
+
 | Tool | Description |
 |------|-------------|
-| `analyze_content` | Analyze content quality |
-| `suggest_content_improvements` | AI content suggestions |
-| `generate_slug` | Generate URL slug |
-| `generate_excerpt` | Generate content excerpt |
+| `analyze_content` | Analyze content quality and readability |
+| `suggest_content_improvements` | Content suggestions |
+| `generate_slug` | Generate a URL slug |
+| `generate_excerpt` | Generate an excerpt |
 | `count_words` | Count words in content |
 
+## Resources
+
+| URI | Description |
+|-----|-------------|
+| `reverso://schema` | The content schema |
+| `reverso://pages/{slug}` | A page with its content (one resource is listed per page) |
+| `reverso://content/{path}` | A single field's content |
+
+## Errors
+
+Tool inputs are validated before any request is made (a write without a
+`value` is rejected). API errors come back as tool errors that keep the HTTP
+status, so an assistant can tell them apart:
+
+```json
+{ "error": true, "status": 404, "message": "Not found (404): Field \"home.hero.x\" not found", "method": "PUT", "path": "/content/home.hero.x" }
+```
+
+| Status | Meaning |
+|--------|---------|
+| `400` | The API rejected the request (invalid path, unknown field, field of another page, ...) |
+| `401` | The configured `REVERSO_API_KEY` was rejected |
+| `403` | The key's role is not allowed to perform the action |
+| `404` | Page, field, media file or form not found |
+| `0` | The API could not be reached; check `REVERSO_API_URL` |
+
 ## Example Interactions
-
-### List Pages
-
-```
-User: What pages are in my CMS?
-
-Claude: Let me check the pages in your Reverso CMS.
-
-[Uses list_pages tool]
-
-Your CMS has the following pages:
-- home - Homepage
-- about - About Us
-- services - Our Services
-- contact - Contact Page
-- blog - Blog
-```
 
 ### Update Content
 
@@ -135,202 +175,51 @@ User: Change the hero title on the homepage to "Welcome to Acme"
 
 Claude: I'll update the hero title for you.
 
-[Uses update_content tool with path="home.hero.title", value="Welcome to Acme"]
+[Uses content_update_content with path="home.hero.title", value="Welcome to Acme"]
 
-Done! I've updated the homepage hero title to "Welcome to Acme".
-```
-
-### Content Analysis
-
-```
-User: Is my About page content good?
-
-Claude: Let me analyze your About page content.
-
-[Uses analyze_content tool]
-
-Here's my analysis:
-- Word count: 450 words (good length)
-- Readability: Grade 8 (accessible)
-- SEO: Missing meta description
-- Suggestions:
-  1. Add more specific calls-to-action
-  2. Include customer testimonials
-  3. Add team member photos
+Done! The homepage hero title is now "Welcome to Acme" and is live.
 ```
 
 ### Form Submissions
 
 ```
-User: How many contact form submissions this week?
+User: How many contact form submissions do I have?
 
-Claude: Let me check your contact form submissions.
+Claude: [Uses forms_list_forms, then forms_get_form_stats]
 
-[Uses get_form_stats tool]
-
-This week you received:
-- 12 new submissions
-- 8 marked as read
-- 1 marked as spam
-- Most common inquiry: Product pricing
-```
-
-## Prompts
-
-The MCP server provides system prompts:
-
-### content-editor
-
-For content editing tasks:
-```
-You are a content editor for a website using Reverso CMS.
-You can view and modify content using the available tools.
-Always confirm changes before making them.
-```
-
-### content-analyst
-
-For content analysis:
-```
-You are a content analyst. Analyze content for quality,
-SEO, readability, and suggest improvements.
+Your contact form has 21 submissions: 12 new, 8 read and 1 marked as spam.
 ```
 
 ## API Reference
 
-### ReversoMcpServer
-
 ```typescript
-class ReversoMcpServer {
-  constructor(config: McpServerConfig);
-
-  // Start the server
-  start(): Promise<void>;
-
-  // Stop the server
-  stop(): Promise<void>;
-
-  // Register custom tool
-  registerTool(tool: McpTool): void;
-
-  // Register custom prompt
-  registerPrompt(prompt: McpPrompt): void;
-}
+import {
+  ReversoMcpServer,
+  ReversoApiClient,
+  ReversoApiError,
+  resolveMcpConfig,
+  type McpServerConfig,
+} from '@reverso/mcp';
 
 interface McpServerConfig {
-  databasePath: string;
-  transport?: 'stdio' | 'http';
-  port?: number;
+  /** Default: REVERSO_API_URL or http://localhost:3001 */
+  apiUrl?: string;
+  /** Required, 16+ characters */
+  apiKey: string;
+  name?: string;
+  version?: string;
+  /** Injectable fetch, for tests */
+  fetch?: typeof fetch;
 }
+
+// Reads REVERSO_API_URL / REVERSO_API_KEY and throws a clear error when the key is unusable.
+const { apiUrl, apiKey } = resolveMcpConfig(process.env);
 ```
 
-### Tool Definition
-
-```typescript
-interface McpTool {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, {
-      type: string;
-      description: string;
-    }>;
-    required?: string[];
-  };
-  handler: (params: Record<string, unknown>) => Promise<unknown>;
-}
-```
-
-## Custom Tools
-
-Extend with your own tools:
-
-```typescript
-import { ReversoMcpServer } from '@reverso/mcp';
-
-const server = new ReversoMcpServer({
-  databasePath: '.reverso/data.db',
-});
-
-server.registerTool({
-  name: 'custom_tool',
-  description: 'My custom tool',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: {
-        type: 'string',
-        description: 'Search query',
-      },
-    },
-    required: ['query'],
-  },
-  handler: async ({ query }) => {
-    // Your logic here
-    return { results: [] };
-  },
-});
-
-await server.start();
-```
-
-## Security
-
-### Authentication
-
-The MCP server uses the same authentication as the main API:
-
-```typescript
-const server = new ReversoMcpServer({
-  databasePath: '.reverso/data.db',
-  auth: {
-    required: true,
-    apiKey: process.env.MCP_API_KEY,
-  },
-});
-```
-
-### Permissions
-
-Configure tool access:
-
-```typescript
-const server = new ReversoMcpServer({
-  databasePath: '.reverso/data.db',
-  permissions: {
-    // Read-only mode
-    allowWrite: false,
-
-    // Disable specific tools
-    disabledTools: ['delete_media', 'bulk_update_content'],
-
-    // Require confirmation for writes
-    confirmWrites: true,
-  },
-});
-```
-
-## Debugging
-
-Enable debug logging:
-
-```bash
-DEBUG=reverso:mcp npx @reverso/mcp
-```
-
-## TypeScript Support
-
-```typescript
-import type {
-  McpServerConfig,
-  McpTool,
-  McpPrompt,
-  ToolResult,
-} from '@reverso/mcp';
-```
+`ReversoMcpServer` exposes `start()` (stdio), `connect(transport)` for any MCP
+transport, and `close()`.
 
 ## Next Steps
 
-- [MCP Tools Reference](/api/mcp/) - Full tool documentation
+- [@reverso/api](/packages/api/) - The REST API the server talks to
 - [@reverso/cli](/packages/cli/) - CLI commands

@@ -13,6 +13,8 @@ MCP (Model Context Protocol) tools allow AI assistants to interact with your Rev
 
 ## Setup
 
+The MCP server is a client of the Reverso HTTP API: start your CMS first, then point the server at it with your admin API key (`REVERSO_API_KEY`, 16+ characters, required) and the API URL (`REVERSO_API_URL`, default `http://localhost:3001`).
+
 Add to Claude Desktop config:
 
 ```json
@@ -20,14 +22,17 @@ Add to Claude Desktop config:
   "mcpServers": {
     "reverso": {
       "command": "npx",
-      "args": ["@reverso/mcp"],
+      "args": ["-y", "@reverso/mcp"],
       "env": {
-        "DATABASE_PATH": "/path/to/.reverso/data.db"
+        "REVERSO_API_URL": "http://localhost:3001",
+        "REVERSO_API_KEY": "<your admin API key>"
       }
     }
   }
 }
 ```
+
+Tool names are prefixed by their group (`content_`, `schema_`, `media_`, `forms_`, `ai_`), e.g. `content_update_content`. API errors are returned as tool errors with the HTTP status (`401` means the key was rejected, `404` a missing page/field/file).
 
 ---
 
@@ -146,8 +151,9 @@ Update content value.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `path` | string | Yes | Content path |
-| `value` | any | Yes | New value |
+| `value` | string \| number \| boolean \| null \| array \| object | Yes | New value (a write without a value is rejected) |
 | `locale` | string | No | Locale code |
+| `publish` | boolean | No | Publish the value (default `true`); `false` stores a draft |
 
 **Output:**
 ```json
@@ -207,16 +213,14 @@ Update multiple content items at once.
 {
   "updates": [
     { "path": "home.hero.title", "value": "Title" },
-    { "path": "home.hero.subtitle", "value": "Subtitle" }
-  ],
-  "locale": "en"
+    { "path": "home.hero.subtitle", "value": "Subtitle", "locale": "en" }
+  ]
 }
 ```
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `updates` | array | Yes | Array of path/value pairs |
-| `locale` | string | No | Locale for all updates |
+| `updates` | array | Yes | Array of `{ path, value, locale? }`; grouped per page and validated by the API (unknown fields or fields of another page are rejected) |
 
 **Output:**
 ```json
@@ -554,7 +558,7 @@ Get submission details.
 ```json
 {
   "formId": "form_abc123",
-  "submissionId": "sub_xyz789"
+  "id": "sub_xyz789"
 }
 ```
 
@@ -568,13 +572,15 @@ Update submission status.
 ```json
 {
   "formId": "form_abc123",
-  "submissionId": "sub_xyz789",
+  "id": "sub_xyz789",
   "status": "read"
 }
 ```
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
+| `formId` | string | Yes | Form ID |
+| `id` | string | Yes | Submission ID |
 | `status` | string | Yes | new, read, spam, archived |
 
 ---

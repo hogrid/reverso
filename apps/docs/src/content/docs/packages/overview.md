@@ -117,7 +117,7 @@ Reverso is organized as a monorepo with multiple packages, each handling a speci
 
 ### Integration Layer
 
-**@reverso/mcp** → `@reverso/db`, `@reverso/core`
+**@reverso/mcp** → `@reverso/core` (talks to `@reverso/api` over HTTP)
 - Model Context Protocol server
 - AI tool definitions
 - Content operations via MCP
