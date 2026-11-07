@@ -3,7 +3,10 @@
  */
 
 export {
+  assertPublicHost,
+  isPrivateAddress,
   isUrlSafeForSSRF,
+  postToPublicUrl,
   isRedirectUrlSafe,
   generateWebhookSignature,
   verifyWebhookSignature,

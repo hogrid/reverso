@@ -271,6 +271,7 @@ export {
   // Auth
   getUserByEmail,
   getFirstUser,
+  createFirstUser,
   createUser,
   getAccountByUserId,
   createAccount,

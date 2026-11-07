@@ -9,8 +9,7 @@ import {
   getUserByEmail,
   getFirstUser,
   getAccountByUserId,
-  createUser,
-  createAccount,
+  createFirstUser,
   createSession,
   deleteSessionByToken,
   getSessionWithUser,
@@ -96,7 +95,7 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     try {
       const db = (request as unknown as { db: DrizzleDatabase }).db;
       if (!db) {
-        console.error('[AUTH] Database not available on request');
+        request.log.error('Database not available on request');
         return reply.status(500).send({
           success: false,
           error: 'Database not available',
@@ -224,12 +223,16 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
       },
     });
     } catch (error) {
-      console.error('[AUTH LOGIN ERROR]', error);
+      request.log.error({ err: error }, 'Login failed');
       return reply.status(500).send({
         success: false,
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: process.env.NODE_ENV !== 'production' && error instanceof Error ? error.stack : undefined,
+        message:
+          process.env.NODE_ENV === 'production'
+            ? 'Login failed. Check the server logs.'
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error',
       });
     }
   });
@@ -354,42 +357,40 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
       });
     }
 
-    // Check if user already exists (double-check, shouldn't happen if firstUser is null)
-    const existingUser = await getUserByEmail(db, email);
-    if (existingUser) {
-      return reply.status(409).send({
-        success: false,
-        error: 'User exists',
-        message: 'A user with this email already exists',
-      });
-    }
-
-    // Hash password
+    // Hash before the transaction: bcrypt is async and must not run inside it.
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-    // Create user
     const userId = crypto.randomUUID();
     const now = new Date();
 
-    const user = await createUser(db, {
-      id: userId,
-      email,
-      name,
-      role: 'admin', // First user is admin
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Create credential account
-    await createAccount(db, {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      accountId: user.id,
-      providerId: 'credential',
-      password: hashedPassword,
-      createdAt: now,
-      updatedAt: now,
-    });
+    // Check-and-create in one synchronous transaction, so concurrent
+    // registrations on an empty database cannot both create an admin.
+    const user = createFirstUser(
+      db,
+      {
+        id: userId,
+        email: email.trim().toLowerCase(),
+        name,
+        role: 'admin', // First user is admin
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: crypto.randomUUID(),
+        userId,
+        accountId: userId,
+        providerId: 'credential',
+        password: hashedPassword,
+        createdAt: now,
+        updatedAt: now,
+      }
+    );
+    if (!user) {
+      return reply.status(403).send({
+        success: false,
+        error: 'Registration closed',
+        message: 'An admin account already exists. Please sign in instead.',
+      });
+    }
 
     // Auto-login: create session
     const token = generateSessionToken();

@@ -34,6 +34,7 @@ import {
   updateFormSubmissionStatus,
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { roleGuard } from '../plugins/auth.js';
 import {
   formCreateSchema,
   formFieldCreateSchema,
@@ -46,11 +47,15 @@ import {
 } from '../validation.js';
 import {
   isUrlSafeForSSRF,
+  postToPublicUrl,
   isRedirectUrlSafe,
   generateWebhookSignature,
 } from '../utils/security.js';
 
 const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  // Viewers read, editors write, admins delete; public submissions excepted.
+  roleGuard(fastify, { isPublic: (url) => url.includes('/public/') });
+
   // ============================================
   // FORM CRUD
   // ============================================
@@ -1061,25 +1066,24 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
                 headers['X-Webhook-Signature'] = generateWebhookSignature(webhookPayload, form.webhookSecret);
               }
 
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-              const webhookResponse = await fetch(form.webhookUrl, {
-                method: 'POST',
-                headers,
-                body: webhookPayload,
-                signal: controller.signal,
-                redirect: 'error', // Don't follow redirects
+              // The address is resolved and validated in the same step that
+              // opens the socket (no DNS rebinding window), redirects are not
+              // followed, and the whole request is bounded by the timeout.
+              const status = await postToPublicUrl(form.webhookUrl, webhookPayload, headers, {
+                timeoutMs: 10_000,
               });
 
-              clearTimeout(timeout);
-
               await recordWebhookSent(db, submission.id, {
-                status: webhookResponse.status,
-                ok: webhookResponse.ok,
+                status,
+                ok: status >= 200 && status < 300,
               });
             } catch (webhookError) {
               fastify.log.error(webhookError, 'Failed to send webhook');
+              // Leave a trace the admin can see on the submission.
+              await recordWebhookSent(db, submission.id, {
+                ok: false,
+                error: webhookError instanceof Error ? webhookError.message : String(webhookError),
+              }).catch(() => undefined);
             }
           }
         }

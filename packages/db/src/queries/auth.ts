@@ -2,14 +2,16 @@
  * Authentication queries.
  */
 
-import { eq, and } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DrizzleDatabase } from '../connection.js';
 import { users, accounts, sessions } from '../schema/auth.js';
 import type { User, NewUser, Account, NewAccount, Session, NewSession } from '../schema/auth.js';
 import { deleteSessionByToken } from './sessions.js';
 
 /**
- * Get user by email.
+ * Get user by email. Emails are matched case-insensitively: `Admin@Site.com`
+ * and `admin@site.com` are the same mailbox, and a user who registered with
+ * capitals must still be able to sign in typing lowercase.
  */
 export async function getUserByEmail(
   db: DrizzleDatabase,
@@ -18,10 +20,33 @@ export async function getUserByEmail(
   const result = await db
     .select()
     .from(users)
-    .where(eq(users.email, email))
+    .where(sql`lower(${users.email}) = ${email.trim().toLowerCase()}`)
+    // Deterministic if legacy rows differ only by case: the oldest account wins.
+    .orderBy(users.createdAt)
     .limit(1);
 
   return result[0] ?? null;
+}
+
+/**
+ * Create the first user and its credential account, atomically, only if no
+ * user exists yet. Returns null when another user already exists.
+ *
+ * Runs as one synchronous SQLite transaction: two concurrent registrations
+ * on an empty database can never both see "no users" and create two admins.
+ */
+export function createFirstUser(
+  db: DrizzleDatabase,
+  user: NewUser,
+  account: NewAccount
+): User | null {
+  return db.$client.transaction(() => {
+    const existing = db.select({ id: users.id }).from(users).limit(1).get();
+    if (existing) return null;
+    const created = db.insert(users).values(user).returning().get();
+    db.insert(accounts).values(account).run();
+    return created;
+  })();
 }
 
 /**

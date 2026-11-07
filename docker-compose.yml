@@ -12,8 +12,8 @@
 # .env, `docker compose up -d`, register at /admin/login, then remove the
 # variable and `docker compose up -d` again.
 #
-# Reverse proxy: set REVERSO_TRUST_PROXY=true only when nginx/Caddy/Traefik is
-# in front of the container AND it overwrites client-sent X-Forwarded-* headers;
+# Reverse proxy: set REVERSO_TRUST_PROXY=1 (one nginx/Caddy/Traefik hop in
+# front of the container) so client IPs come from X-Forwarded-For;
 # with the port published directly (the default below) leave it false, or any
 # client can spoof its IP and walk past rate limits and login lockout.
 

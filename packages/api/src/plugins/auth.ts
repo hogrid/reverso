@@ -341,3 +341,32 @@ export function hasPermission(userRole: AuthRole, permission: Permission): boole
   const allowedRoles = PERMISSIONS[permission];
   return allowedRoles.includes(userRole);
 }
+
+/**
+ * Route-level role policy for a whole route module: reads need any signed-in
+ * role, writes need an editor, deletions need an admin. Routes for which
+ * `isPublic` returns true (form submissions, redirect lookups, the sitemap)
+ * are left to the global hook, which already lets them through.
+ *
+ * Registered as a preHandler inside an encapsulated route plugin, so it only
+ * applies to that module's routes.
+ */
+export function roleGuard(
+  fastify: FastifyInstance,
+  options: { isPublic?: (routeUrl: string) => boolean; deleteRoles?: AuthRole[] } = {}
+): void {
+  const read: AuthRole[] = ['viewer', 'editor', 'admin'];
+  const write: AuthRole[] = ['editor', 'admin'];
+  const remove: AuthRole[] = options.deleteRoles ?? ['admin'];
+  fastify.addHook('preHandler', async (request, reply) => {
+    const routeUrl = request.routeOptions.url ?? request.url;
+    if (options.isPublic?.(routeUrl)) return;
+    const roles =
+      request.method === 'GET' || request.method === 'HEAD'
+        ? read
+        : request.method === 'DELETE'
+          ? remove
+          : write;
+    await fastify.requireAuth(roles)(request, reply);
+  });
+}

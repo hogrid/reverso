@@ -17,9 +17,13 @@ import {
   updateRedirect,
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { roleGuard } from '../plugins/auth.js';
 import { idParamSchema, paginationSchema, redirectCreateSchema, redirectUpdateSchema } from '../validation.js';
 
 const redirectsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  // Viewers read, editors write, admins delete; the frontend lookup is public.
+  roleGuard(fastify, { isPublic: (url) => url.endsWith('/redirect') });
+
   /**
    * GET /redirects
    * List all redirects.

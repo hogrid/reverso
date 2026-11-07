@@ -41,11 +41,13 @@ export interface ServerConfig {
    */
   authEnabled?: boolean;
   /**
-   * Trust `X-Forwarded-*` headers from a reverse proxy (default:
-   * `REVERSO_TRUST_PROXY=true`). Needed for correct client IPs behind nginx,
-   * Caddy, Coolify, Railway, etc.
+   * Trust `X-Forwarded-*` headers from a reverse proxy (default: from
+   * `REVERSO_TRUST_PROXY`). Needed for correct client IPs behind nginx,
+   * Caddy, Coolify, Railway, etc. A number trusts exactly that many proxy
+   * hops (recommended: `1` for a single proxy), a string is a list of trusted
+   * proxy addresses/CIDRs, `true` trusts every hop.
    */
-  trustProxy?: boolean;
+  trustProxy?: boolean | number | string;
 }
 
 export interface CorsOptions {
@@ -76,18 +78,33 @@ function getCookieSecret(): string {
  * Defaults, resolved when a server is created (not at import time) so that
  * environment variables loaded late (dotenv in the CLI, test setups) count.
  */
-function defaultConfig(): Required<ServerConfig> {
+/**
+ * REVERSO_TRUST_PROXY: `true`/`false`, a hop count (`1` for one proxy in
+ * front) or a comma-separated list of proxy addresses/CIDRs. `true` trusts
+ * every hop, which lets a client prepend any X-Forwarded-For value: prefer a
+ * hop count.
+ */
+export function trustProxyFromEnv(raw = process.env.REVERSO_TRUST_PROXY): boolean | number | string {
+  const value = raw?.trim();
+  if (!value || value === 'false' || value === '0') return false;
+  if (value === 'true') return true;
+  if (/^\d+$/.test(value)) return Number.parseInt(value, 10);
+  return value;
+}
+
+function defaultConfig(overrides: ServerConfig = {}): Required<ServerConfig> {
   return {
   port: 3001,
   host: '0.0.0.0',
   cors: true,
-  cookieSecret: getCookieSecret(),
+  // An explicit secret makes the environment irrelevant (and must not throw).
+  cookieSecret: overrides.cookieSecret || getCookieSecret(),
   uploadsDir: '.reverso/uploads',
   logger: true,
   prefix: '/api/reverso',
   apiKey: process.env.REVERSO_API_KEY || '',
   authEnabled: resolveAuthEnabled(),
-  trustProxy: process.env.REVERSO_TRUST_PROXY === 'true',
+  trustProxy: trustProxyFromEnv(),
   };
 }
 
@@ -101,7 +118,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   const provided = Object.fromEntries(
     Object.entries(config).filter(([, value]) => value !== undefined)
   ) as ServerConfig;
-  const opts = { ...defaultConfig(), ...provided };
+  const opts = { ...defaultConfig(provided), ...provided };
 
   const fastifyOptions: FastifyServerOptions = {
     trustProxy: opts.trustProxy,
@@ -153,10 +170,13 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
+        // The admin build has no inline scripts (Vite emits module files).
+        scriptSrc: ["'self'"],
+        // Image fields accept external URLs; previews must be able to show them.
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        connectSrc: ["'self'"],
+        // Map field address search (OpenStreetMap Nominatim).
+        connectSrc: ["'self'", 'https://nominatim.openstreetmap.org'],
         objectSrc: ["'none'"],
         // Only force https when cookies are explicitly Secure; otherwise a
         // plain-http deployment would have its own assets upgraded and break.
@@ -232,6 +252,20 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     root: join(process.cwd(), opts.uploadsDir),
     prefix: '/uploads/',
     decorateReply: false,
+    // Uploaded files are served from the admin's own origin. An SVG can carry
+    // <script>; sandbox every upload so nothing in it ever runs as the admin.
+    setHeaders: (res, filePath) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Types a browser can execute as a document (an SVG with <script>)
+      // are sandboxed; PDFs, video and audio stay viewable in the browser.
+      const active = /\.(svg|svgz|html?|xhtml|xml)$/i.test(filePath);
+      res.setHeader(
+        'Content-Security-Policy',
+        active
+          ? "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; sandbox"
+          : "default-src 'none'; img-src 'self' data:; media-src 'self'; object-src 'self'; plugin-types application/pdf"
+      );
+    },
   });
 
   // Serve admin panel static files
@@ -272,11 +306,15 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
     const err = error as Error & { statusCode?: number };
     server.log.error({ url: request.url, method: request.method, err }, 'Request error');
 
-    reply.status(err.statusCode || 500).send({
+    const status = err.statusCode || 500;
+    const production = process.env.NODE_ENV === 'production';
+    // 4xx messages are meant for the client; a 5xx message is an internal
+    // detail (SQL errors, file paths) and stays in the log in production.
+    reply.status(status).send({
       success: false,
-      error: err.name || 'Internal Server Error',
-      message: err.message,
-      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+      error: status >= 500 ? 'Internal Server Error' : err.name || 'Error',
+      message: status >= 500 && production ? 'Internal server error' : err.message,
+      ...(!production && { stack: err.stack }),
     });
   });
 
@@ -297,7 +335,7 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
  * Should be called AFTER the database plugin to ensure request.db is available.
  */
 export async function registerAuth(server: FastifyInstance, config: ServerConfig = {}): Promise<void> {
-  const opts = { ...defaultConfig(), ...server.config, ...config };
+  const opts = { ...defaultConfig(server.config), ...server.config, ...config };
 
   await server.register(authPlugin, {
     apiKey: opts.apiKey,
@@ -378,7 +416,7 @@ export async function startServer(
   config: ServerConfig = {}
 ): Promise<string> {
   // Use server's stored config as base, then override with passed config
-  const opts = { ...defaultConfig(), ...server.config, ...config };
+  const opts = { ...defaultConfig(server.config), ...server.config, ...config };
 
   try {
     const address = await server.listen({

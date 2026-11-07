@@ -87,7 +87,7 @@ export async function createApiServer(options: {
   logger?: boolean;
   apiKey?: string;
   authEnabled?: boolean;
-  trustProxy?: boolean;
+  trustProxy?: boolean | number | string;
 }) {
   const { createServer, registerAuth } = await import('./server.js');
   const { databasePlugin } = await import('./plugins/index.js');
