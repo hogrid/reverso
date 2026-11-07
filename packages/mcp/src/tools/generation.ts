@@ -5,7 +5,7 @@
  * They are designed to be helpful for content creation workflows.
  */
 
-import type { DrizzleDatabase } from '@reverso/db';
+import type { ReversoApiClient } from '../api-client.js';
 import { z } from 'zod';
 import type { ContentAnalysis } from '../types.js';
 
@@ -16,7 +16,7 @@ export const generationTools = {
       content: z.string().describe('Content to analyze'),
       type: z.enum(['text', 'html', 'markdown']).optional().describe('Content type'),
     }),
-    handler: async (_db: DrizzleDatabase, input: { content: string; type?: string }): Promise<ContentAnalysis> => {
+    handler: async (_api: ReversoApiClient, input: { content: string; type?: string }): Promise<ContentAnalysis> => {
       const text = stripHtml(input.content);
       const words = text.split(/\s+/).filter(Boolean);
       const sentences = text.split(/[.!?]+/).filter(Boolean);
@@ -91,7 +91,7 @@ export const generationTools = {
       maxLength: z.number().optional().describe('Maximum length constraint'),
     }),
     handler: async (
-      _db: DrizzleDatabase,
+      _api: ReversoApiClient,
       input: { content: string; fieldType: string; fieldName?: string; maxLength?: number }
     ) => {
       const suggestions: string[] = [];
@@ -161,7 +161,7 @@ export const generationTools = {
       text: z.string().describe('Text to convert to slug'),
       maxLength: z.number().optional().describe('Maximum slug length'),
     }),
-    handler: async (_db: DrizzleDatabase, input: { text: string; maxLength?: number }) => {
+    handler: async (_api: ReversoApiClient, input: { text: string; maxLength?: number }) => {
       let slug = input.text
         .toLowerCase()
         .normalize('NFD')
@@ -187,7 +187,7 @@ export const generationTools = {
       preserveWords: z.boolean().optional().describe('Preserve whole words (default: true)'),
     }),
     handler: async (
-      _db: DrizzleDatabase,
+      _api: ReversoApiClient,
       input: { content: string; maxLength?: number; preserveWords?: boolean }
     ) => {
       const text = stripHtml(input.content).trim();
@@ -207,7 +207,7 @@ export const generationTools = {
         }
       }
 
-      excerpt = excerpt.trim() + '...';
+      excerpt = `${excerpt.trim()}...`;
 
       return { excerpt, truncated: true, originalLength: text.length };
     },
@@ -218,7 +218,7 @@ export const generationTools = {
     inputSchema: z.object({
       content: z.string().describe('Content to count'),
     }),
-    handler: async (_db: DrizzleDatabase, input: { content: string }) => {
+    handler: async (_api: ReversoApiClient, input: { content: string }) => {
       const text = stripHtml(input.content);
       const words = text.split(/\s+/).filter(Boolean);
       const sentences = text.split(/[.!?]+/).filter(Boolean);

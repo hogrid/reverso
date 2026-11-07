@@ -2,41 +2,80 @@
  * Reverso MCP Server
  *
  * Provides AI assistants with tools to interact with Reverso CMS content.
+ *
+ * The server is a thin client of the Reverso HTTP API: every tool and
+ * resource calls the API with the configured `X-API-Key`, so the API's
+ * validation, role checks, publish semantics and webhooks apply to AI-driven
+ * changes exactly as they do to the admin editor. It never opens the database.
  */
 
-import { existsSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
-import { createDatabase, createDatabaseSchema, type DrizzleDatabase } from '@reverso/db';
-import type { McpServerConfig } from './types.js';
-import { contentTools } from './tools/content.js';
-import { schemaTools } from './tools/schema.js';
-import { mediaTools } from './tools/media.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { ZodError, type ZodRawShape } from 'zod';
+import { ReversoApiClient, ReversoApiError } from './api-client.js';
+import { DEFAULT_API_URL, validateApiKey } from './config.js';
+import { contentTools, type PageSummary } from './tools/content.js';
 import { formsTools } from './tools/forms.js';
 import { generationTools } from './tools/generation.js';
+import { mediaTools } from './tools/media.js';
+import { schemaTools } from './tools/schema.js';
+import type { ToolDefinition } from './tools/shared.js';
+import type { McpServerConfig } from './types.js';
+
+const JSON_MIME = 'application/json';
+
+/** Shape of a tool result for MCP clients. */
+interface ToolResult {
+  [key: string]: unknown;
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}
+
+function textResult(value: unknown): ToolResult {
+  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
+}
+
+/**
+ * One line per invalid argument, e.g. `value is required`.
+ */
+function formatZodError(error: ZodError): string {
+  const lines = error.issues.map((issue) => {
+    const path = issue.path.length > 0 ? issue.path.map(String).join('.') : 'input';
+    if (issue.code === 'invalid_union') {
+      return `${path} is required and must be a JSON value (string, number, boolean, null, array or object)`;
+    }
+    return `${path}: ${issue.message}`;
+  });
+  return `Invalid arguments: ${lines.join('; ')}`;
+}
+
+/**
+ * Turn a thrown error into a tool error result. API errors keep their HTTP
+ * status so clients can tell "not found" from "unauthorized".
+ */
+function errorResult(error: unknown): ToolResult {
+  const payload =
+    error instanceof ReversoApiError
+      ? error.toJSON()
+      : error instanceof ZodError
+        ? { error: true as const, message: formatZodError(error) }
+        : { error: true as const, message: error instanceof Error ? error.message : String(error) };
+  return { content: [{ type: 'text', text: JSON.stringify(payload) }], isError: true };
+}
 
 export class ReversoMcpServer {
-  private server: McpServer;
-  private db: DrizzleDatabase | null = null;
-  private config: McpServerConfig;
-  private isAuthenticated = false;
+  private readonly server: McpServer;
+  private readonly api: ReversoApiClient;
 
   constructor(config: McpServerConfig) {
-    this.config = config;
+    // Refuse to build a server that could not authenticate: the API rejects
+    // short tokens outright, so failing here gives a clear message instead of
+    // a 401 on the first tool call.
+    const apiKey = validateApiKey(config.apiKey);
+    const apiUrl = (config.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, '');
 
-    // Validate API key if authentication is enabled
-    const apiKey = config.apiKey || process.env.REVERSO_MCP_API_KEY;
-    const authEnabled = config.authEnabled ?? !!apiKey;
-
-    if (authEnabled && !apiKey) {
-      console.error('[MCP] Warning: Authentication enabled but no API key provided.');
-      console.error('[MCP] Set REVERSO_MCP_API_KEY environment variable or pass apiKey in config.');
-    }
-
-    // In production-like environments, authentication is validated at startup
-    this.isAuthenticated = !authEnabled || !!apiKey;
+    this.api = new ReversoApiClient({ baseUrl: apiUrl, apiKey, fetch: config.fetch });
 
     this.server = new McpServer({
       name: config.name ?? 'reverso-mcp',
@@ -47,97 +86,45 @@ export class ReversoMcpServer {
     this.registerResources();
   }
 
-  /**
-   * Validate that the server is authenticated.
-   * Throws if auth is required but not provided.
-   */
-  private validateAuth(): void {
-    if (!this.isAuthenticated) {
-      throw new Error('MCP Server requires authentication. Set REVERSO_MCP_API_KEY environment variable.');
-    }
+  /** The API client every tool uses. */
+  get apiClient(): ReversoApiClient {
+    return this.api;
   }
 
   /**
    * Register all tools with the MCP server.
    */
   private registerTools(): void {
-    // Content tools
     this.registerToolGroup(contentTools, 'content');
-
-    // Schema tools
     this.registerToolGroup(schemaTools, 'schema');
-
-    // Media tools
     this.registerToolGroup(mediaTools, 'media');
-
-    // Forms tools
     this.registerToolGroup(formsTools, 'forms');
-
-    // Generation tools
     this.registerToolGroup(generationTools, 'ai');
   }
 
   /**
    * Register a group of tools.
    *
-   * Each tool exposes a zod `inputSchema`; the MCP SDK validates incoming
-   * arguments against that schema's shape before the handler runs. The raw
-   * input is therefore typed as `unknown` here and parsed/narrowed via the
-   * tool's own schema (`z.infer`) before being handed to the handler, instead
-   * of being passed through as `any`.
+   * Each tool exposes a zod object `inputSchema`; the MCP SDK validates
+   * incoming arguments against its shape before the handler runs. The input
+   * is parsed again through the full schema so the handler receives a value
+   * matching its declared type.
    */
-  private registerToolGroup(
-    tools: Record<
-      string,
-      {
-        description: string;
-        inputSchema: z.ZodType;
-        handler: (db: DrizzleDatabase, input: never) => Promise<unknown>;
-      }
-    >,
-    prefix: string
-  ): void {
+  private registerToolGroup(tools: Record<string, ToolDefinition>, prefix: string): void {
     for (const [name, tool] of Object.entries(tools)) {
       const toolName = `${prefix}_${name}`;
+      const shape = tool.inputSchema.shape as ZodRawShape;
 
-      this.server.tool(
+      this.server.registerTool(
         toolName,
-        tool.description,
-        tool.inputSchema instanceof z.ZodObject
-          ? (tool.inputSchema as z.ZodObject<Record<string, z.ZodType>>).shape
-          : {},
-        async (input: Record<string, unknown>) => {
+        { description: tool.description, inputSchema: shape },
+        async (input: unknown): Promise<ToolResult> => {
           try {
-            // Validate authentication before executing any tool
-            this.validateAuth();
-
-            // Narrow the raw input through the tool's own zod schema so the
-            // handler receives a value matching its declared input type.
-            const parsed = tool.inputSchema.parse(input) as never;
-
-            const db = await this.getDatabase();
-            const result = await tool.handler(db, parsed);
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify(result, null, 2),
-                },
-              ],
-            };
+            const parsed = tool.inputSchema.parse(input ?? {}) as never;
+            const result = await tool.handler(this.api, parsed);
+            return textResult(result);
           } catch (error) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    error: true,
-                    message: error instanceof Error ? error.message : String(error),
-                  }),
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(error);
           }
         }
       );
@@ -148,144 +135,82 @@ export class ReversoMcpServer {
    * Register resources with the MCP server.
    */
   private registerResources(): void {
-    // Schema resource
-    this.server.resource(
+    this.server.registerResource(
       'schema',
       'reverso://schema',
-      async () => {
-        const db = await this.getDatabase();
-        const result = await schemaTools.get_schema.handler(db, {});
-        return {
-          contents: [
-            {
-              uri: 'reverso://schema',
-              mimeType: 'application/json',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      { description: 'The complete content schema (pages, sections, fields)', mimeType: JSON_MIME },
+      async (uri) => {
+        const result = await schemaTools.get_schema.handler(this.api, {});
+        return { contents: [{ uri: uri.href, mimeType: JSON_MIME, text: JSON.stringify(result, null, 2) }] };
       }
     );
 
-    // Pages resource template
-    this.server.resource(
+    this.server.registerResource(
       'page',
-      'reverso://pages/{slug}',
-      async (uri) => {
-        const db = await this.getDatabase();
-        const slug = uri.pathname.split('/').pop() ?? '';
-        const result = await contentTools.get_page.handler(db, { slug });
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      new ResourceTemplate('reverso://pages/{slug}', {
+        list: async () => {
+          const { data: pages } = await this.api.get<PageSummary[]>('/pages');
+          return {
+            resources: pages.map((page) => ({
+              uri: `reverso://pages/${page.slug}`,
+              name: page.name,
+              description: `Page "${page.slug}" with its sections, fields and content`,
+              mimeType: JSON_MIME,
+            })),
+          };
+        },
+      }),
+      { description: 'A page with its sections, fields and content', mimeType: JSON_MIME },
+      async (uri, variables) => {
+        const slug = String(variables.slug ?? '');
+        const result = await contentTools.get_page.handler(this.api, { slug });
+        return { contents: [{ uri: uri.href, mimeType: JSON_MIME, text: JSON.stringify(result, null, 2) }] };
       }
     );
 
-    // Content resource template
-    this.server.resource(
+    this.server.registerResource(
       'content',
-      'reverso://content/{path}',
-      async (uri) => {
-        const db = await this.getDatabase();
-        const path = uri.pathname.replace('/content/', '');
-        const result = await contentTools.get_content.handler(db, { path });
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+      new ResourceTemplate('reverso://content/{path}', { list: undefined }),
+      { description: 'The content of a single field by dotted path (e.g. home.hero.title)', mimeType: JSON_MIME },
+      async (uri, variables) => {
+        const path = String(variables.path ?? '');
+        const result = await contentTools.get_content.handler(this.api, { path });
+        return { contents: [{ uri: uri.href, mimeType: JSON_MIME, text: JSON.stringify(result, null, 2) }] };
       }
     );
   }
 
   /**
-   * Resolve and validate the configured database path.
-   *
-   * Accepts in-memory SQLite (`:memory:`) as-is; otherwise resolves to an
-   * absolute path and verifies the file exists, failing fast with a clear
-   * error rather than letting an unexpected/missing path reach the driver.
+   * Connect the server to any MCP transport (stdio, in-memory, ...).
    */
-  private resolveDatabasePath(): string {
-    const raw = this.config.databasePath;
-
-    if (!raw || typeof raw !== 'string' || raw.trim().length === 0) {
-      throw new Error('MCP Server requires a valid databasePath.');
-    }
-
-    // In-memory database is a valid SQLite target.
-    if (raw === ':memory:') {
-      return raw;
-    }
-
-    const resolved = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
-
-    if (!existsSync(resolved)) {
-      throw new Error(
-        `Database file not found at "${resolved}". Run the Reverso migrations or check the configured databasePath.`
-      );
-    }
-
-    return resolved;
-  }
-
-  /**
-   * Get or create database connection.
-   */
-  private async getDatabase(): Promise<DrizzleDatabase> {
-    if (!this.db) {
-      const url = this.resolveDatabasePath();
-      // Every other entry point migrates before it queries. Without this the
-      // MCP server is the one process that reads a database written by an
-      // older Reverso, and the first tool call fails on a renamed column
-      // ("no such column: webhook_sent_at"). Applying pending migrations is
-      // idempotent and skips databases that are already current.
-      if (url !== ':memory:') {
-        await createDatabaseSchema(url);
-      }
-      this.db = await createDatabase({ url });
-    }
-    return this.db;
+  async connect(transport: Transport): Promise<void> {
+    await this.server.connect(transport);
   }
 
   /**
    * Start the MCP server with stdio transport.
    */
   async start(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+    await this.connect(new StdioServerTransport());
   }
 
   /**
-   * Close the server and database connection.
+   * Close the server and its transport.
    */
   async close(): Promise<void> {
-    if (this.db) {
-      // Database cleanup if needed
-      this.db = null;
-    }
+    await this.server.close();
   }
 }
 
 /**
- * Create and start a Reverso MCP server.
+ * Create a Reverso MCP server (not yet connected to a transport).
  */
 export async function createMcpServer(config: McpServerConfig): Promise<ReversoMcpServer> {
-  const server = new ReversoMcpServer(config);
-  return server;
+  return new ReversoMcpServer(config);
 }
 
 /**
- * Start the MCP server with the given configuration.
+ * Start the MCP server on stdio with the given configuration.
  */
 export async function startMcpServer(config: McpServerConfig): Promise<void> {
   const server = await createMcpServer(config);

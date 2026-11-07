@@ -3,22 +3,29 @@
  */
 
 export interface McpServerConfig {
-  /** Database path for SQLite */
-  databasePath: string;
-  /** Server name */
+  /**
+   * Base URL of the Reverso API the server talks to
+   * (default: `REVERSO_API_URL` or `http://localhost:3001`).
+   */
+  apiUrl?: string;
+  /**
+   * Admin API key sent as `X-API-Key` on every request. Required, at least
+   * 16 characters: the server refuses to start without a usable key.
+   */
+  apiKey: string;
+  /** Server name advertised to MCP clients */
   name?: string;
-  /** Server version */
+  /** Server version advertised to MCP clients */
   version?: string;
-  /** API key for authentication (optional - if set, all tool calls require this key) */
-  apiKey?: string;
-  /** Enable authentication (default: true if apiKey is set) */
-  authEnabled?: boolean;
+  /** Fetch implementation (default: global `fetch`); injectable for tests */
+  fetch?: typeof fetch;
 }
 
 export interface ContentUpdateInput {
   path: string;
   value: unknown;
   locale?: string;
+  publish?: boolean;
 }
 
 export interface ContentGenerationInput {

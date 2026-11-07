@@ -36,12 +36,13 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@reverso/core": "workspace:*",
-    "@reverso/db": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@reverso/core": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@reverso/api": "workspace:*",
+    "@reverso/db": "workspace:*",
     "@types/node": "^25.2.0",
     "typescript": "^6.0.3",
     "vitest": "^4.0.18"

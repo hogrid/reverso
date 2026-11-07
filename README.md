@@ -895,11 +895,12 @@ form submissions per minute per IP, login lockout after repeated failures, track
 Reverso includes an MCP (Model Context Protocol) server that allows AI tools like Claude, Cursor, and others to interact with your CMS directly.
 
 ```bash
-# The MCP server binary is available after installing @reverso/mcp
-reverso-mcp
+# The MCP server binary is available after installing @reverso/mcp.
+# It is a client of the running CMS: point it at the API with your admin key.
+REVERSO_API_URL=http://localhost:3001 REVERSO_API_KEY=<your admin key> reverso-mcp
 ```
 
-This enables AI assistants to read and write content, query the schema, and manage your CMS programmatically.
+This enables AI assistants to read and write content, query the schema, and manage your CMS programmatically. Every call goes through the HTTP API with `X-API-Key`, so the same validation, roles and publish rules apply as in the admin.
 
 ---
 
@@ -930,7 +931,7 @@ Node.js host with a persistent disk for `.reverso/` (database + uploads).
 | `REVERSO_TRUST_PROXY` | behind a proxy | Number of proxies in front (usually `1`), or their addresses/CIDRs. `true` trusts every hop and lets clients spoof their IP; with the port exposed directly keep `false` |
 | `REVERSO_ALLOW_BOOTSTRAP` | first admin in a container | The first account is normally claimable only from the server's own machine; set `true` while you register it behind Docker/a proxy, then remove it |
 | `REVERSO_COOKIE_SECURE` | no | `auto` (default, Secure only over HTTPS), `true` or `false` |
-| `REVERSO_API_URL` | for `reverso scan` against a remote CMS | Where the schema is pushed when no local `reverso dev` is running |
+| `REVERSO_API_URL` | for `reverso scan` against a remote CMS, and for `reverso-mcp` | Where the schema is pushed when no local `reverso dev` is running; the API the MCP server talks to (default `http://localhost:3001`) |
 | `REVERSO_SRC_DIR` | no | Overrides `srcDir` from `reverso.config.ts` |
 | `REVERSO_AUTH_ENABLED` | never in production | `false` disables authentication (local experiments only) |
 
