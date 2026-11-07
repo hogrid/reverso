@@ -1,6 +1,6 @@
 {
   "name": "@reverso/blocks",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Block editor component for Reverso CMS built with Tiptap",
   "homepage": "https://reverso.dev/docs/packages/blocks",
   "bugs": {

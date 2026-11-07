@@ -1,5 +1,42 @@
 # @reverso/mcp
 
+## 0.4.0
+
+### Minor Changes
+
+- aeb0830: The MCP server is now a client of the Reverso HTTP API instead of opening the SQLite database.
+
+  **Breaking**
+
+  - `reverso-mcp` no longer takes a database path. The `--database` / `-d` flag (and the old `.reverso/dev.db` default) is gone; the server exits with a clear message if it is passed. Configure the server with `REVERSO_API_URL` (default `http://localhost:3001`, or `--api-url`) and `REVERSO_API_KEY` (or `--api-key`), the admin API key your CMS runs with. The key is **required** and must be at least 16 characters: the server refuses to start otherwise, instead of accepting any key and failing on the first call.
+  - `McpServerConfig.databasePath` was replaced by `apiUrl` / `apiKey`. `@reverso/db` is no longer a runtime dependency.
+  - `publish_content` / `unpublish_content` take only `path`; `get_submission` and `update_submission_status` require `formId` as well as `id`; `update_content` and `bulk_update_content` no longer accept `changedBy` (the API records the key's user).
+
+  **Fixed**
+
+  - Authentication was fake: any key present in the environment counted as "authenticated" and every write tool wrote straight into the database, bypassing the API's validation, role checks, publish semantics and webhooks. Every tool and resource now calls the API with `X-API-Key`, so a wrong key is a `401` tool error and unknown fields or fields of another page are rejected by the API (`400`/`404`) instead of being written. `update_content` publishes by default (pass `publish: false` for a draft), matching `PUT /content/:path`.
+  - Tool inputs are validated with zod before any request: a write without a `value` is rejected.
+  - API errors (400/401/403/404, unreachable API) are returned as tool errors carrying the HTTP status and the API's message.
+  - `reverso://pages/{slug}` and `reverso://content/{path}` are registered as real resource templates (`ResourceTemplate`), so clients can list pages as resources and read them by URI; previously they were static URIs that never matched.
+  - `close()` closes the MCP server.
+
+### Patch Changes
+
+- b97c9de: Fixes from the review of the launch-readiness branch.
+
+  - `@reverso/api`: the cross-site check for cookie-authenticated mutations compares the Origin against the proxy-aware host and the configured CORS origins, so an admin behind nginx or the Vite dev proxy can save again instead of getting 403; a rejected cookie now falls through to API-key and Bearer authentication. The rate limiter only gives a bucket of its own to the configured API key, so an arbitrary `X-API-Key` header can no longer mint unlimited buckets. Login lockout is tracked per account _and_ source address, so a stranger can no longer keep a known account locked out; expired attempt rows are pruned periodically. Creating the first admin on an empty database is restricted to the machine running the server unless `REVERSO_ALLOW_BOOTSTRAP=true`; locality is read from the TCP peer, never from `X-Forwarded-For`, and behind a proxy only the explicit opt-in works.
+  - `@reverso/db`: adopting a legacy database drops obsolete `NOT NULL` columns that the current schema no longer writes, so form submissions stop failing on `form_submissions.updated_at`. Media search escapes `%` and `_` with an explicit `ESCAPE` clause, so filenames containing them are found.
+  - `@reverso/scanner`: a scan that cannot read its source directory reports the failure instead of producing an empty schema, which used to be written to disk and pushed to the server.
+  - `@reverso/cli`: `scan` and `dev` never sync a schema with no fields, so a wrong `srcDir` cannot delete every field and its content; `scan` exits non-zero on a failed scan and prints the configured output directory instead of `undefined`.
+  - `@reverso/admin`: the WYSIWYG editor keeps its content when the Visual tab is reopened after the HTML tab, instead of coming back empty and overwriting the field on the next save.
+  - `@reverso/mcp`: pending migrations are applied before the first query, so pointing the server at a database written by an older Reverso no longer fails on renamed columns.
+
+  The Vite dev proxy no longer rewrites `Host`, which is what made the standalone admin's own writes look cross-site.
+
+- Updated dependencies [d96eda3]
+- Updated dependencies [ff5d8ee]
+  - @reverso/core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
