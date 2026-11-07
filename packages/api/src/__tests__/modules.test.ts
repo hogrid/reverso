@@ -87,6 +87,35 @@ describe('forms', () => {
     expect(json(res).message).toMatch(/webhook/i);
   });
 
+  it('clears a webhook URL when updated with null', async () => {
+    const created = await t.server.inject({
+      method: 'POST',
+      url: '/api/reverso/forms',
+      payload: { name: 'Hook', slug: 'hook', webhookUrl: 'https://example.com/hook' },
+    });
+    expect(created.statusCode).toBe(200);
+    const id = json(created).data.id as string;
+    const detail = () => t.server.inject({ method: 'GET', url: `/api/reverso/forms/${id}` });
+    expect(json(await detail()).data.webhookUrl).toBe('https://example.com/hook');
+
+    const cleared = await t.server.inject({
+      method: 'PUT',
+      url: `/api/reverso/forms/${id}`,
+      payload: { webhookUrl: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(json(await detail()).data.webhookUrl).toBeNull();
+
+    // Leaving the field out keeps the stored value untouched.
+    await t.server.inject({
+      method: 'PUT',
+      url: `/api/reverso/forms/${id}`,
+      payload: { webhookUrl: 'https://example.com/other' },
+    });
+    await t.server.inject({ method: 'PUT', url: `/api/reverso/forms/${id}`, payload: { name: 'Hook 2' } });
+    expect(json(await detail()).data.webhookUrl).toBe('https://example.com/other');
+  });
+
   it('manages fields and reorders them', async () => {
     const id = await createForm();
 
@@ -401,6 +430,61 @@ describe('media', () => {
     const deleted = await t.server.inject({ method: 'DELETE', url: `/api/reverso/media/${media.id}` });
     expect(deleted.statusCode).toBe(200);
     expect(existsSync(join(t.uploadsDir, media.filename))).toBe(false);
+  });
+
+  it('bulk-deletes media files and rows, reporting missing ids', async () => {
+    const ids: string[] = [];
+    const filenames: string[] = [];
+    for (const name of ['a.gif', 'b.gif', 'c.gif']) {
+      const upload = multipartFile(name, 'image/gif', TINY_GIF);
+      const res = await t.server.inject({
+        method: 'POST',
+        url: '/api/reverso/media',
+        headers: upload.headers,
+        payload: upload.payload,
+      });
+      ids.push(json(res).data.id);
+      filenames.push(json(res).data.filename);
+    }
+
+    const res = await t.server.inject({
+      method: 'POST',
+      url: '/api/reverso/media/bulk-delete',
+      payload: { ids: [ids[0], ids[1], 'does-not-exist'] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(json(res).data).toEqual({ deleted: 2, missing: ['does-not-exist'] });
+    expect(existsSync(join(t.uploadsDir, filenames[0] as string))).toBe(false);
+    expect(existsSync(join(t.uploadsDir, filenames[1] as string))).toBe(false);
+    expect(existsSync(join(t.uploadsDir, filenames[2] as string))).toBe(true);
+
+    const list = json(await t.server.inject({ method: 'GET', url: '/api/reverso/media' }));
+    expect(list.data.map((m: { id: string }) => m.id)).toEqual([ids[2]]);
+  });
+
+  it('validates the bulk-delete payload', async () => {
+    for (const payload of [{}, { ids: [] }, { ids: Array.from({ length: 101 }, (_, i) => `id-${i}`) }]) {
+      const res = await t.server.inject({
+        method: 'POST',
+        url: '/api/reverso/media/bulk-delete',
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('requires authentication for bulk delete when auth is enabled', async () => {
+    const secured = await createTestServer({ name: 'media-bulk-auth', authEnabled: true });
+    try {
+      const res = await secured.server.inject({
+        method: 'POST',
+        url: '/api/reverso/media/bulk-delete',
+        payload: { ids: ['x'] },
+      });
+      expect(res.statusCode).toBe(401);
+    } finally {
+      await secured.close();
+    }
   });
 
   it('rejects disallowed types and mismatched extensions', async () => {

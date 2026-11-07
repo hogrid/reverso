@@ -161,6 +161,13 @@ export const mediaUpdateSchema = z.object({
 });
 
 /**
+ * Bulk media delete body: 1 to 100 media IDs.
+ */
+export const mediaBulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1).max(100)).min(1).max(100),
+});
+
+/**
  * Pagination query schema.
  */
 export const paginationSchema = z.object({
@@ -262,7 +269,10 @@ export const formCreateSchema = z.object({
 /**
  * Form update schema.
  */
-export const formUpdateSchema = formCreateSchema.partial();
+export const formUpdateSchema = formCreateSchema.partial().extend({
+  // null clears a stored webhook URL; leaving the field out keeps it.
+  webhookUrl: z.string().url().nullable().optional(),
+});
 
 /**
  * Form field type enum.
