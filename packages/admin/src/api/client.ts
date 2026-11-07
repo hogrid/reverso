@@ -47,6 +47,54 @@ function notifyUnauthorized(): void {
   }
 }
 
+/** Upload timeout: 30s base + 1s per MB, capped at 10 minutes. */
+const UPLOAD_BASE_TIMEOUT_MS = 30_000;
+const UPLOAD_MAX_TIMEOUT_MS = 10 * 60_000;
+
+export function uploadTimeoutMs(bytes: number): number {
+  const perMb = Math.ceil(Math.max(0, bytes) / (1024 * 1024)) * 1000;
+  return Math.min(UPLOAD_BASE_TIMEOUT_MS + perMb, UPLOAD_MAX_TIMEOUT_MS);
+}
+
+function formDataSize(formData: FormData): number {
+  let total = 0;
+  for (const [, value] of formData.entries()) {
+    total += typeof value === 'string' ? value.length : value.size;
+  }
+  return total;
+}
+
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+/** Extract the filename from a Content-Disposition header, if any. */
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const star = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''));
+    } catch {
+      // fall through to the plain filename parameter
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain?.[1]?.trim() || null;
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  if (response.status === 401) notifyUnauthorized();
+  const errBody = ((await parseJsonSafe(response)) ?? {}) as Partial<ApiError>;
+  return {
+    success: false,
+    error: errBody.error || 'Unknown error',
+    message: errBody.message,
+    statusCode: response.status,
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -54,32 +102,31 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async request<T>(
+    url: string,
+    options: RequestInit & { json?: unknown } = {}
+  ): Promise<ApiResponse<T>> {
+    const { json, headers, ...init } = options;
+    const hasBody = json !== undefined;
     const response = await fetch(`${this.baseUrl}${url}`, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       // Always send the httpOnly session cookie (also through the Vite proxy).
       credentials: 'include',
-      ...options,
+      ...init,
+      // Only declare a JSON body when there is one: Fastify answers 400 to a
+      // request that says application/json but carries an empty body.
+      ...(hasBody ? { body: JSON.stringify(json) } : {}),
       headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
       },
     });
 
-    const data = await parseJsonSafe(response);
-
     if (!response.ok) {
-      if (response.status === 401) notifyUnauthorized();
-      const errBody = (data ?? {}) as Partial<ApiError>;
-      throw {
-        success: false,
-        error: errBody.error || 'Unknown error',
-        message: errBody.message,
-        statusCode: response.status,
-      } as ApiError;
+      throw await toApiError(response);
     }
 
-    return data as ApiResponse<T>;
+    return (await parseJsonSafe(response)) as ApiResponse<T>;
   }
 
   async get<T>(url: string): Promise<ApiResponse<T>> {
@@ -87,28 +134,49 @@ class ApiClient {
   }
 
   async post<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return this.request<T>(url, { method: 'POST', json: body });
   }
 
   async put<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return this.request<T>(url, { method: 'PUT', json: body });
   }
 
   async patch<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return this.request<T>(url, { method: 'PATCH', json: body });
   }
 
   async delete<T>(url: string): Promise<ApiResponse<T>> {
     return this.request<T>(url, { method: 'DELETE' });
+  }
+
+  /**
+   * Fetch a non-JSON payload (e.g. a CSV export) as a Blob, keeping the
+   * session cookie. The filename comes from Content-Disposition when present.
+   */
+  async download(
+    url: string,
+    options: { method?: 'GET' | 'POST'; body?: unknown; fallbackFilename?: string } = {}
+  ): Promise<DownloadedFile> {
+    const hasBody = options.body !== undefined;
+    const response = await fetch(`${this.baseUrl}${url}`, {
+      method: options.method ?? 'GET',
+      credentials: 'include',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS * 6),
+      ...(hasBody
+        ? { body: JSON.stringify(options.body), headers: { 'Content-Type': 'application/json' } }
+        : {}),
+    });
+
+    if (!response.ok) {
+      throw await toApiError(response);
+    }
+
+    const blob = await response.blob();
+    const filename =
+      filenameFromDisposition(response.headers.get('content-disposition')) ??
+      options.fallbackFilename ??
+      'download';
+    return { blob, filename };
   }
 
   async upload<T>(url: string, formData: FormData): Promise<ApiResponse<T>> {
@@ -116,24 +184,16 @@ class ApiClient {
       method: 'POST',
       body: formData,
       credentials: 'include',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      // Large files on slow links need far longer than the JSON request cap.
+      signal: AbortSignal.timeout(uploadTimeoutMs(formDataSize(formData))),
       // Don't set Content-Type header for FormData
     });
 
-    const data = await parseJsonSafe(response);
-
     if (!response.ok) {
-      if (response.status === 401) notifyUnauthorized();
-      const errBody = (data ?? {}) as Partial<ApiError>;
-      throw {
-        success: false,
-        error: errBody.error || 'Unknown error',
-        message: errBody.message,
-        statusCode: response.status,
-      } as ApiError;
+      throw await toApiError(response);
     }
 
-    return data as ApiResponse<T>;
+    return (await parseJsonSafe(response)) as ApiResponse<T>;
   }
 }
 
