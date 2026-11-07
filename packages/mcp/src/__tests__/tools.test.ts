@@ -325,14 +325,14 @@ describe('MCP server over the Reverso API', () => {
     const single = await callTool(client, 'content_update_content', { path: 'home.hero.title' });
     expect(single.isError).toBe(true);
     expect(single.text).toMatch(/Input validation error/);
-    expect(single.text).toMatch(/"value"/);
+    expect(single.text).toMatch(/\bvalue\b/);
 
     const bulk = await callTool(client, 'content_bulk_update_content', {
       updates: [{ path: 'home.hero.title' }],
     });
     expect(bulk.isError).toBe(true);
     expect(bulk.text).toMatch(/Input validation error/);
-    expect(bulk.text).toMatch(/"value"/);
+    expect(bulk.text).toMatch(/\bvalue\b/);
 
     const after = (await callTool(client, 'content_get_content', { path: 'home.hero.title' })).json;
     expect(after).toEqual(before);

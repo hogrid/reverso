@@ -44,11 +44,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
-    "@changesets/cli": "^2.31.0",
+    "@changesets/cli": "^2.31.1",
     "@reverso/core": "workspace:^",
     "@types/node": "^26.6.6",
     "husky": "^9.1.7",
-    "turbo": "^2.9.12",
+    "turbo": "^2.11.10",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"
   }
