@@ -80,6 +80,41 @@ export interface SyncOptions {
   prune?: boolean;
 }
 
+export interface PruneDecision {
+  prune: boolean;
+  /** Why pruning was declined although it was requested. */
+  reason?: string;
+}
+
+/**
+ * Decide whether a sync may delete what is missing from the schema. Pruning
+ * is only safe when the scan is complete: never from the watcher (every
+ * transient keystroke produces a schema), never when markers were skipped as
+ * invalid (a half-typed attribute hides a real field) and never for an empty
+ * result (almost always a wrong srcDir).
+ */
+export function resolvePrune(input: {
+  requested: boolean;
+  watch: boolean;
+  schema: ProjectSchema;
+}): PruneDecision {
+  if (!input.requested) return { prune: false };
+  if (input.watch) {
+    return { prune: false, reason: 'pruning is disabled in watch mode; run "reverso scan --prune" once instead' };
+  }
+  const skipped = input.schema.meta.skippedMarkers ?? 0;
+  if (skipped > 0) {
+    return {
+      prune: false,
+      reason: `${skipped} marker(s) were skipped as invalid, so the scan is incomplete; fix them and run again`,
+    };
+  }
+  if (input.schema.totalFields === 0) {
+    return { prune: false, reason: 'the scan found no markers; check srcDir before deleting everything' };
+  }
+  return { prune: true };
+}
+
 export async function syncSchemaToServer(
   schema: ProjectSchema,
   target: SyncTarget,
@@ -229,8 +264,10 @@ export function scanCommand(program: Command): void {
                     console.log(chalk.gray(`  Check that "${srcDir}" is the folder with your markers.`));
                     break;
                   }
+                  const decision = resolvePrune({ requested: options.prune, watch: true, schema: event.schema });
+                  if (decision.reason) console.log(chalk.yellow(`  Not pruning: ${decision.reason}.`));
                   reportSync(
-                    await syncSchemaToServer(event.schema, syncTarget, { prune: options.prune }),
+                    await syncSchemaToServer(event.schema, syncTarget, { prune: decision.prune }),
                     syncTarget
                   );
                 }
@@ -303,8 +340,10 @@ export function scanCommand(program: Command): void {
           } else {
             // Auto-sync to the configured Reverso server
             console.log();
+            const decision = resolvePrune({ requested: options.prune, watch: false, schema: result.schema });
+            if (decision.reason) console.log(chalk.yellow(`  Not pruning: ${decision.reason}.`));
             reportSync(
-              await syncSchemaToServer(result.schema, syncTarget, { prune: options.prune }),
+              await syncSchemaToServer(result.schema, syncTarget, { prune: decision.prune }),
               syncTarget
             );
           }

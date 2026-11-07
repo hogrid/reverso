@@ -211,6 +211,30 @@ describe('useAutosave', () => {
     await hook.unmount();
   });
 
+  it('retries on its own after a failure when edits were typed during the failed request', async () => {
+    const pending = deferred();
+    const onSave = vi.fn().mockImplementationOnce(() => pending.promise).mockImplementation(() => Promise.resolve());
+    const hook = renderAutosave(onSave);
+    await hook.mount();
+    await inStore(() => useEditorStore.getState().setCurrentPage('home'));
+    await setField('home.hero.title', 'v1');
+    await tick();
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    // Typed while the first request is in flight, then that request fails.
+    await setField('home.hero.title', 'v2');
+    pending.reject(new Error('boom'));
+    await flushPromises();
+
+    // The newer edit was never attempted, so autosave must try it.
+    await tick();
+    const calls = onSave.mock.calls.map((c) => c[0]);
+    // Unmount before asserting so a failure here cannot leak timers into the next test.
+    await hook.unmount();
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual({ 'home.hero.title': 'v2' });
+  });
+
   it('still allows a manual save after a failure', async () => {
     const onSave = vi.fn(() => Promise.reject(new Error('500')));
     const hook = renderAutosave(onSave);

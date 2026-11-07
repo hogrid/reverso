@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ProjectSchema } from '@reverso/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveSyncTarget, syncSchemaToServer } from '../commands/scan.js';
+import { resolvePrune, resolveSyncTarget, syncSchemaToServer } from '../commands/scan.js';
 
 const SCHEMA: ProjectSchema = {
   version: '1.0.0',
@@ -159,5 +159,36 @@ describe('syncSchemaToServer', () => {
     const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: 'http://127.0.0.1:1' });
     expect(outcome.ok).toBe(false);
     expect(outcome.ok === false && outcome.reason).toBe('unreachable');
+  });
+});
+
+describe('resolvePrune', () => {
+  const withMeta = (overrides: Partial<ProjectSchema['meta']>, totalFields = 1): ProjectSchema => ({
+    ...SCHEMA,
+    totalFields,
+    meta: { ...SCHEMA.meta, ...overrides },
+  });
+
+  it('prunes only when asked and the scan is complete', () => {
+    expect(resolvePrune({ requested: false, watch: false, schema: withMeta({}) }).prune).toBe(false);
+    expect(resolvePrune({ requested: true, watch: false, schema: withMeta({}) })).toEqual({ prune: true });
+  });
+
+  it('refuses to prune when markers were skipped as invalid', () => {
+    const outcome = resolvePrune({ requested: true, watch: false, schema: withMeta({ skippedMarkers: 2 }) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/2 marker/);
+  });
+
+  it('refuses to prune an empty scan', () => {
+    const outcome = resolvePrune({ requested: true, watch: false, schema: withMeta({}, 0) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/no markers/i);
+  });
+
+  it('never prunes in watch mode', () => {
+    const outcome = resolvePrune({ requested: true, watch: true, schema: withMeta({}) });
+    expect(outcome.prune).toBe(false);
+    expect(outcome.reason).toMatch(/watch/);
   });
 });

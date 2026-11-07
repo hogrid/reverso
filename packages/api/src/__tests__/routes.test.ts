@@ -392,7 +392,7 @@ describe('API Routes', () => {
         ...testSchema,
         pages: [
           {
-            slug: 'about_us',
+            slug: 'about_us--v2',
             name: 'About us',
             sourceFiles: ['src/about.tsx'],
             fieldCount: 1,
@@ -403,7 +403,7 @@ describe('API Routes', () => {
                 isRepeater: false,
                 order: 0,
                 fields: [
-                  { path: 'about_us.hero-banner.title', type: 'text', label: 'Title', file: 'src/about.tsx', line: 1, column: 1 },
+                  { path: 'about_us--v2.hero-banner.title', type: 'text', label: 'Title', file: 'src/about.tsx', line: 1, column: 1 },
                 ],
               },
             ],
@@ -414,15 +414,15 @@ describe('API Routes', () => {
 
       const put = await server!.inject({
         method: 'PUT',
-        url: '/api/reverso/content/about_us.hero-banner.title',
+        url: '/api/reverso/content/about_us--v2.hero-banner.title',
         payload: { value: 'Hi' },
       });
       expect(put.statusCode).toBe(200);
-      const page = await server!.inject({ method: 'GET', url: '/api/reverso/content/page/about_us' });
+      const page = await server!.inject({ method: 'GET', url: '/api/reverso/content/page/about_us--v2' });
       expect(page.statusCode).toBe(200);
-      const pub = await server!.inject({ method: 'GET', url: '/api/reverso/public/content/page/about_us' });
+      const pub = await server!.inject({ method: 'GET', url: '/api/reverso/public/content/page/about_us--v2' });
       expect(pub.statusCode).toBe(200);
-      expect(JSON.parse(pub.payload).data.content['about_us.hero-banner.title']).toBe('Hi');
+      expect(JSON.parse(pub.payload).data.content['about_us--v2.hero-banner.title']).toBe('Hi');
     });
 
     it('POST /content/bulk updates multiple fields', async () => {

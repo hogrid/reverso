@@ -44,7 +44,7 @@ export const MAX_FILE_SIZE = 50 * 1024 * 1024;
  * (`[a-z0-9_-]`): spaces and symbols become `_`, so a page called "About us"
  * is `about_us` and must be addressable here.
  */
-export const SLUG_REGEX = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
+export const SLUG_REGEX = /^[a-z0-9_-]+$/;
 
 /**
  * Path validation regex.
@@ -143,6 +143,7 @@ export const schemaSyncSchema = z.object({
       filesScanned: z.number().int().min(0),
       filesWithMarkers: z.number().int().min(0),
       scanDuration: z.number().min(0),
+      skippedMarkers: z.number().int().min(0).optional(),
     }),
   }),
   // Deleting a field cascades to its content and history, so it is never the

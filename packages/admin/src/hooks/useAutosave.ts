@@ -86,6 +86,9 @@ export function useAutosave({
     cancel();
     setFailedOn(null);
     const token = ++latestSaveToken;
+    // Identity of the dirty map this request is saving. Edits typed while it
+    // is in flight replace the map, so a failure must not disarm them.
+    const attempted = store.dirtyFields;
     store.setIsSaving(true);
 
     try {
@@ -97,7 +100,7 @@ export function useAutosave({
       }
     } catch (error) {
       if (isMountedRef.current) {
-        setFailedOn(useEditorStore.getState().dirtyFields);
+        setFailedOn(attempted);
         onError?.(error);
       }
     } finally {
