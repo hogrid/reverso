@@ -2,7 +2,8 @@
  * File watcher for detecting changes in source files.
  */
 
-import { resolve } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
   DEFAULT_EXCLUDE_PATTERNS,
   DEFAULT_INCLUDE_PATTERNS,
@@ -47,7 +48,15 @@ export interface WatcherOptions {
   onError?: (error: Error) => void;
   /** Ready handler */
   onReady?: () => void;
+  /**
+   * Delays (ms after ready) of the reconciliation passes that catch changes
+   * the OS watch missed while it was starting. Default `[200, 1000]`.
+   */
+  reconcileDelays?: number[];
 }
+
+/** Path → mtime of the files the watcher cares about. */
+type FileSnapshot = Map<string, number>;
 
 /**
  * File watcher class.
@@ -59,6 +68,14 @@ export class FileWatcher {
   private debounceDelay: number;
   private isReady = false;
   private readyWaiters: Array<() => void> = [];
+  private reconcileTimers: NodeJS.Timeout[] = [];
+  /** Files on disk when watching started (updated by each reconcile pass). */
+  private snapshot: FileSnapshot = new Map();
+  /** Paths the OS watch reported since start (raw or final events). */
+  private seenPaths = new Set<string>();
+  private srcDir = '';
+  private isIgnoredPath: (filePath: string, stats?: { isFile(): boolean }) => boolean = () =>
+    false;
 
   constructor(options: WatcherOptions) {
     this.options = options;
@@ -90,8 +107,13 @@ export class FileWatcher {
       .filter(Boolean);
 
     const isIgnored = (filePath: string, stats?: { isFile(): boolean }): boolean => {
-      // Ignore anything under an excluded directory.
-      if (excludedDirs.some((dir) => filePath.split('/').includes(dir))) {
+      // Ignore anything under an excluded directory *inside* the watched
+      // root. Only the relative part is checked: a project that itself lives
+      // under a folder named `build`, `dist` or `node_modules` must still be
+      // watched. Split on both separators so Windows paths work too.
+      const rel = relative(srcDir, filePath);
+      const segments = rel === '' ? [] : rel.split(/[\\/]+/);
+      if (excludedDirs.some((dir) => segments.includes(dir))) {
         return true;
       }
       // For files, keep only those with an allowed extension.
@@ -101,6 +123,13 @@ export class FileWatcher {
       }
       return false;
     };
+
+    this.srcDir = srcDir;
+    this.isIgnoredPath = isIgnored;
+    this.seenPaths.clear();
+    // Record what is on disk *before* the OS watch starts, so the
+    // reconciliation passes can tell what changed while it was starting.
+    this.snapshot = this.takeSnapshot();
 
     this.watcher = watch(srcDir, {
       ignored: isIgnored,
@@ -116,6 +145,18 @@ export class FileWatcher {
     this.watcher.on('add', (path) => this.handleEvent('add', path));
     this.watcher.on('change', (path) => this.handleEvent('change', path));
     this.watcher.on('unlink', (path) => this.handleEvent('unlink', path));
+    // Raw events arrive before awaitWriteFinish settles; remember their paths
+    // so reconciliation doesn't duplicate an event chokidar is about to emit.
+    this.watcher.on('raw', (_event: string, evPath: string, details: unknown) => {
+      const watchedPath =
+        typeof details === 'object' && details !== null && 'watchedPath' in details
+          ? String((details as { watchedPath: unknown }).watchedPath)
+          : '';
+      if (watchedPath) this.seenPaths.add(resolve(watchedPath));
+      if (evPath) {
+        this.seenPaths.add(isAbsolute(evPath) ? evPath : resolve(watchedPath || srcDir, evPath));
+      }
+    });
 
     this.watcher.on('error', (error: unknown) => {
       if (this.options.onError) {
@@ -125,6 +166,7 @@ export class FileWatcher {
 
     this.watcher.on('ready', () => {
       this.isReady = true;
+      this.scheduleReconcile();
       for (const resolve of this.readyWaiters.splice(0)) resolve();
       if (this.options.onReady) {
         this.options.onReady();
@@ -154,6 +196,80 @@ export class FileWatcher {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
+    for (const timer of this.reconcileTimers) {
+      clearTimeout(timer);
+    }
+    this.reconcileTimers = [];
+  }
+
+  /**
+   * chokidar reports "ready" once its `fs.watch` calls have returned, but on
+   * macOS libuv backs `fs.watch` with an FSEvents stream that starts
+   * asynchronously: changes made in the first moments after "ready" can be
+   * dropped by the OS and never reported (seen under load in CI). A couple of
+   * cheap reconciliation passes shortly after ready compare the files on
+   * disk with the pre-watch snapshot and emit the events that were missed.
+   */
+  private scheduleReconcile(): void {
+    const delays = this.options.reconcileDelays ?? [200, 1000];
+    for (const delay of delays) {
+      const timer = setTimeout(() => {
+        this.reconcileTimers = this.reconcileTimers.filter((t) => t !== timer);
+        this.reconcile();
+      }, delay);
+      timer.unref?.();
+      this.reconcileTimers.push(timer);
+    }
+  }
+
+  private reconcile(): void {
+    if (!this.watcher) return;
+    const current = this.takeSnapshot();
+    for (const [path, mtime] of current) {
+      if (this.seenPaths.has(path)) continue;
+      const before = this.snapshot.get(path);
+      if (before === undefined) {
+        this.seenPaths.add(path);
+        this.handleEvent('add', path);
+      } else if (before !== mtime) {
+        this.seenPaths.add(path);
+        this.handleEvent('change', path);
+      }
+    }
+    for (const path of this.snapshot.keys()) {
+      if (!current.has(path) && !this.seenPaths.has(path)) {
+        this.seenPaths.add(path);
+        this.handleEvent('unlink', path);
+      }
+    }
+    this.snapshot = current;
+  }
+
+  /** Walk the watched root and record every watched file with its mtime. */
+  private takeSnapshot(): FileSnapshot {
+    const files: FileSnapshot = new Map();
+    const walk = (dir: string): void => {
+      let entries: import('node:fs').Dirent[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (!this.isIgnoredPath(path)) walk(path);
+        } else if (entry.isFile() && !this.isIgnoredPath(path, entry)) {
+          try {
+            files.set(path, statSync(path).mtimeMs);
+          } catch {
+            // Removed between readdir and stat.
+          }
+        }
+      }
+    };
+    if (this.srcDir) walk(this.srcDir);
+    return files;
   }
 
   /**
@@ -245,7 +361,7 @@ export class FileWatcher {
 
     for (const [dir, files] of Object.entries(watched)) {
       for (const file of files) {
-        paths.push(`${dir}/${file}`);
+        paths.push(`${dir}${sep}${file}`);
       }
     }
 
