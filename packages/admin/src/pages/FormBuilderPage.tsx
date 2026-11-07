@@ -35,7 +35,8 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import { formToSettings, type FormSettingsValues, settingsToUpdate } from '@/lib/form-settings';
+import { withToast } from '@/stores/toast';
 import {
   ArrowLeft,
   Calendar,
@@ -94,78 +95,57 @@ export function FormBuilderPage() {
     width: 12,
   });
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
-  const [formSettings, setFormSettings] = useState({
-    name: '',
-    slug: '',
-    description: '',
-    submitButtonText: 'Submit',
-    successMessage: 'Thank you for your submission!',
-    redirectUrl: '',
-    honeypotEnabled: true,
-    rateLimitPerMinute: 10,
-    notifyEmails: '',
-    webhookUrl: '',
-    webhookEnabled: false,
-  });
+  const [formSettings, setFormSettings] = useState<FormSettingsValues | null>(null);
 
-  // Initialize form settings when form data loads
-  useState(() => {
-    if (form) {
-      setFormSettings({
-        name: form.name,
-        slug: form.slug,
-        description: form.description || '',
-        submitButtonText: form.settings?.submitButtonText || 'Submit',
-        successMessage: form.settings?.successMessage || 'Thank you for your submission!',
-        redirectUrl: form.settings?.redirectUrl || '',
-        honeypotEnabled: form.honeypotEnabled ?? true,
-        rateLimitPerMinute: form.rateLimitPerMinute ?? 10,
-        notifyEmails: form.notifyEmails?.join(', ') || '',
-        webhookUrl: form.webhookUrl || '',
-        webhookEnabled: form.webhookEnabled ?? false,
-      });
-    }
-  });
+  // Load the stored values every time the dialog opens, so it never shows
+  // stale or default values (and saving can't overwrite real settings).
+  const openSettings = () => {
+    if (!form) return;
+    setFormSettings(formToSettings(form));
+    setIsSettingsDialogOpen(true);
+  };
+
+  const updateSettings = (patch: Partial<FormSettingsValues>) =>
+    setFormSettings((current) => (current ? { ...current, ...patch } : current));
 
   const handleAddField = async () => {
-    try {
-      await addField.mutateAsync(newFieldData);
-      setIsFieldDialogOpen(false);
-      setNewFieldData({
-        name: '',
-        type: 'text',
-        label: '',
-        placeholder: '',
-        help: '',
-        required: false,
-        width: 12,
-      });
-    } catch (err) {
-      console.error('Failed to add field:', err);
-    }
+    await withToast(
+      async () => {
+        await addField.mutateAsync(newFieldData);
+        setIsFieldDialogOpen(false);
+        setNewFieldData({
+          name: '',
+          type: 'text',
+          label: '',
+          placeholder: '',
+          help: '',
+          required: false,
+          width: 12,
+        });
+      },
+      { success: 'Field added', error: 'Failed to add field' }
+    );
   };
 
   const handleUpdateField = async () => {
     if (!editingField) return;
-    try {
-      await updateField.mutateAsync({
-        fieldId: editingField.id,
-        data: newFieldData,
-      });
-      setIsFieldDialogOpen(false);
-      setEditingField(null);
-    } catch (err) {
-      console.error('Failed to update field:', err);
-    }
+    const fieldId = editingField.id;
+    await withToast(
+      async () => {
+        await updateField.mutateAsync({ fieldId, data: newFieldData });
+        setIsFieldDialogOpen(false);
+        setEditingField(null);
+      },
+      { success: 'Field updated', error: 'Failed to update field' }
+    );
   };
 
   const handleDeleteField = async (fieldId: string) => {
     if (confirm('Are you sure you want to delete this field?')) {
-      try {
-        await deleteField.mutateAsync(fieldId);
-      } catch (err) {
-        console.error('Failed to delete field:', err);
-      }
+      await withToast(() => deleteField.mutateAsync(fieldId), {
+        success: 'Field deleted',
+        error: 'Failed to delete field',
+      });
     }
   };
 
@@ -177,53 +157,41 @@ export function FormBuilderPage() {
     const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     if (newIndex < 0 || newIndex >= form.fields.length) return;
 
-    const newOrder = [...form.fields.map((f) => f.id)];
-    const temp = newOrder[currentIndex]!;
-    newOrder[currentIndex] = newOrder[newIndex]!;
-    newOrder[newIndex] = temp;
+    const newOrder = form.fields.map((f) => f.id);
+    [newOrder[currentIndex], newOrder[newIndex]] = [
+      newOrder[newIndex] as string,
+      newOrder[currentIndex] as string,
+    ];
 
-    try {
-      await reorderFields.mutateAsync(newOrder);
-    } catch (err) {
-      console.error('Failed to reorder fields:', err);
-    }
+    await withToast(() => reorderFields.mutateAsync(newOrder), {
+      error: 'Failed to reorder fields',
+    });
   };
 
   const handleSaveSettings = async () => {
-    try {
-      await updateForm.mutateAsync({
-        name: formSettings.name,
-        slug: formSettings.slug,
-        description: formSettings.description,
-        settings: {
-          submitButtonText: formSettings.submitButtonText,
-          successMessage: formSettings.successMessage,
-          redirectUrl: formSettings.redirectUrl || undefined,
-        },
-        honeypotEnabled: formSettings.honeypotEnabled,
-        rateLimitPerMinute: formSettings.rateLimitPerMinute,
-        notifyEmails: formSettings.notifyEmails
-          ? formSettings.notifyEmails.split(',').map((e) => e.trim())
-          : [],
-        webhookUrl: formSettings.webhookUrl || undefined,
-        webhookEnabled: formSettings.webhookEnabled,
-      });
-      setIsSettingsDialogOpen(false);
-    } catch (err) {
-      console.error('Failed to save settings:', err);
-    }
+    if (!formSettings) return;
+    const values = formSettings;
+    await withToast(
+      async () => {
+        await updateForm.mutateAsync(settingsToUpdate(values));
+        setIsSettingsDialogOpen(false);
+      },
+      { success: 'Settings saved', error: 'Failed to save settings' }
+    );
   };
 
   const handleTogglePublish = async () => {
     if (!form) return;
-    try {
-      if (form.status === 'published') {
-        await unpublishForm.mutateAsync(form.id);
-      } else {
-        await publishForm.mutateAsync(form.id);
-      }
-    } catch (err) {
-      console.error('Failed to toggle publish:', err);
+    if (form.status === 'published') {
+      await withToast(() => unpublishForm.mutateAsync(form.id), {
+        success: 'Form unpublished',
+        error: 'Failed to unpublish form',
+      });
+    } else {
+      await withToast(() => publishForm.mutateAsync(form.id), {
+        success: 'Form published',
+        error: 'Failed to publish form',
+      });
     }
   };
 
@@ -288,7 +256,7 @@ export function FormBuilderPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsSettingsDialogOpen(true)}>
+          <Button variant="outline" size="sm" onClick={openSettings}>
             <Settings className="mr-1.5 h-3.5 w-3.5" />
             Settings
           </Button>
@@ -640,6 +608,7 @@ export function FormBuilderPage() {
             <DialogTitle>Form Settings</DialogTitle>
             <DialogDescription>Configure your form settings and behavior.</DialogDescription>
           </DialogHeader>
+          {formSettings && (
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="general">General</TabsTrigger>
@@ -651,21 +620,21 @@ export function FormBuilderPage() {
                 <Label>Form Name</Label>
                 <Input
                   value={formSettings.name}
-                  onChange={(e) => setFormSettings({ ...formSettings, name: e.target.value })}
+                  onChange={(e) => updateSettings({ name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Slug</Label>
                 <Input
                   value={formSettings.slug}
-                  onChange={(e) => setFormSettings({ ...formSettings, slug: e.target.value })}
+                  onChange={(e) => updateSettings({ slug: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
                   value={formSettings.description}
-                  onChange={(e) => setFormSettings({ ...formSettings, description: e.target.value })}
+                  onChange={(e) => updateSettings({ description: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -673,7 +642,7 @@ export function FormBuilderPage() {
                 <Input
                   value={formSettings.submitButtonText}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, submitButtonText: e.target.value })
+                    updateSettings({ submitButtonText: e.target.value })
                   }
                 />
               </div>
@@ -682,7 +651,7 @@ export function FormBuilderPage() {
                 <Textarea
                   value={formSettings.successMessage}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, successMessage: e.target.value })
+                    updateSettings({ successMessage: e.target.value })
                   }
                 />
               </div>
@@ -692,7 +661,7 @@ export function FormBuilderPage() {
                   placeholder="https://example.com/thank-you"
                   value={formSettings.redirectUrl}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, redirectUrl: e.target.value })
+                    updateSettings({ redirectUrl: e.target.value })
                   }
                 />
               </div>
@@ -704,7 +673,7 @@ export function FormBuilderPage() {
                   placeholder="email@example.com, another@example.com"
                   value={formSettings.notifyEmails}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, notifyEmails: e.target.value })
+                    updateSettings({ notifyEmails: e.target.value })
                   }
                 />
                 <p className="text-xs text-muted-foreground">
@@ -717,7 +686,7 @@ export function FormBuilderPage() {
                   placeholder="https://example.com/webhook"
                   value={formSettings.webhookUrl}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, webhookUrl: e.target.value })
+                    updateSettings({ webhookUrl: e.target.value })
                   }
                 />
               </div>
@@ -726,7 +695,7 @@ export function FormBuilderPage() {
                 <Switch
                   checked={formSettings.webhookEnabled}
                   onCheckedChange={(checked) =>
-                    setFormSettings({ ...formSettings, webhookEnabled: checked })
+                    updateSettings({ webhookEnabled: checked })
                   }
                 />
               </div>
@@ -742,7 +711,7 @@ export function FormBuilderPage() {
                 <Switch
                   checked={formSettings.honeypotEnabled}
                   onCheckedChange={(checked) =>
-                    setFormSettings({ ...formSettings, honeypotEnabled: checked })
+                    updateSettings({ honeypotEnabled: checked })
                   }
                 />
               </div>
@@ -754,7 +723,7 @@ export function FormBuilderPage() {
                   max={1000}
                   value={formSettings.rateLimitPerMinute}
                   onChange={(e) =>
-                    setFormSettings({ ...formSettings, rateLimitPerMinute: Number(e.target.value) })
+                    updateSettings({ rateLimitPerMinute: Number(e.target.value) })
                   }
                 />
                 <p className="text-sm text-muted-foreground">
@@ -763,11 +732,12 @@ export function FormBuilderPage() {
               </div>
             </TabsContent>
           </Tabs>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveSettings} disabled={updateForm.isPending}>
+            <Button onClick={handleSaveSettings} disabled={!formSettings || updateForm.isPending}>
               {updateForm.isPending ? 'Saving...' : 'Save Settings'}
             </Button>
           </DialogFooter>

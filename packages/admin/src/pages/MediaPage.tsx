@@ -1,8 +1,4 @@
-import {
-  useBulkDeleteMedia,
-  useDeleteMedia,
-  useMedia,
-} from '@/api/hooks/useMedia';
+import { useBulkDeleteMedia, useDeleteMedia, useInfiniteMedia } from '@/api/hooks/useMedia';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
@@ -35,9 +31,13 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
+import { withToast } from '@/stores/toast';
 import { useRef, useState } from 'react';
 
 type ViewMode = 'grid' | 'list';
+
+/** Items fetched per "Load more" page. */
+const PAGE_SIZE = 24;
 type MediaType = 'all' | 'image' | 'video' | 'audio' | 'document';
 
 const mediaTypeFilters: { value: MediaType; label: string; icon: typeof ImageIcon }[] = [
@@ -68,14 +68,18 @@ export function MediaPage() {
             : 'application/*';
 
   const {
-    data: media,
+    items,
+    total,
     isLoading,
     error,
     refetch,
-  } = useMedia({
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteMedia({
     search: search || undefined,
     mimeType: mimeTypeFilter,
-    pageSize: 50,
+    pageSize: PAGE_SIZE,
   });
 
   const deleteMedia = useDeleteMedia();
@@ -92,40 +96,118 @@ export function MediaPage() {
   };
 
   const selectAll = () => {
-    if (!media?.items) return;
-    if (selectedItems.size === media.items.length) {
+    if (items.length === 0) return;
+    if (selectedItems.size === items.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(media.items.map((item) => item.id)));
+      setSelectedItems(new Set(items.map((item) => item.id)));
     }
   };
 
   const handleDelete = async () => {
     const ids = Array.from(selectedItems);
-    if (ids.length === 1 && ids[0]) {
-      await deleteMedia.mutateAsync(ids[0]);
-    } else if (ids.length > 1) {
-      await bulkDeleteMedia.mutateAsync(ids);
-    }
+    const plural = ids.length === 1 ? 'file' : 'files';
+    const done = await withToast(
+      async () => {
+        if (ids.length === 1 && ids[0]) {
+          await deleteMedia.mutateAsync(ids[0]);
+        } else if (ids.length > 1) {
+          await bulkDeleteMedia.mutateAsync(ids);
+        }
+        return true;
+      },
+      { success: `Deleted ${ids.length} ${plural}`, error: `Failed to delete ${plural}` }
+    );
+    if (!done) return;
     setSelectedItems(new Set());
     setDeleteDialogOpen(false);
   };
 
+  // The toolbar (search, filters) stays mounted while loading so typing in the
+  // search box never loses focus; only the results area shows loading/error.
+  let results: React.ReactNode;
   if (isLoading) {
-    return (
-      <div className="p-12">
-        <LoadingState message="Loading media library..." />
-      </div>
+    results = <LoadingState message="Loading media library..." />;
+  } else if (error) {
+    results = (
+      <ErrorState
+        title="Failed to load media"
+        message="Could not fetch the media library."
+        onRetry={() => refetch()}
+      />
     );
-  }
+  } else if (items.length > 0) {
+    results = (
+      <>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={items.length > 0 && selectedItems.size === items.length}
+            onCheckedChange={selectAll}
+            aria-label="Select all loaded files"
+          />
+          <span className="text-[13px] text-[hsl(var(--muted-foreground))]">Select all</span>
+          <span className="ml-auto text-[13px] text-[hsl(var(--muted-foreground))]">
+            Showing {items.length} of {total}
+          </span>
+        </div>
 
-  if (error) {
-    return (
-      <div className="p-12">
-        <ErrorState
-          title="Failed to load media"
-          message="Could not fetch the media library."
-          onRetry={() => refetch()}
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-5">
+            {items.map((item) => (
+              <MediaGridItem
+                key={item.id}
+                item={item}
+                selected={selectedItems.has(item.id)}
+                onSelect={() => toggleSelection(item.id)}
+                onDelete={() => {
+                  setSelectedItems(new Set([item.id]));
+                  setDeleteDialogOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {items.map((item) => (
+              <MediaListItem
+                key={item.id}
+                item={item}
+                selected={selectedItems.has(item.id)}
+                onSelect={() => toggleSelection(item.id)}
+                onDelete={() => {
+                  setSelectedItems(new Set([item.id]));
+                  setDeleteDialogOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {hasNextPage && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+            >
+              {isFetchingNextPage ? 'Loading more...' : 'Load more'}
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  } else {
+    results = (
+      <div className="border border-[hsl(var(--border))] rounded-md py-12">
+        <EmptyState
+          icon={ImageIcon}
+          title={search ? 'No matching files' : 'No media files'}
+          description={
+            search
+              ? 'Try a different search term or filter.'
+              : 'Upload some files to get started with your media library.'
+          }
         />
       </div>
     );
@@ -217,60 +299,10 @@ export function MediaPage() {
       )}
 
       {/* Upload area */}
-      <MediaUploader inputRef={uploadInputRef} onUploadComplete={() => refetch()} />
+      <MediaUploader inputRef={uploadInputRef} />
 
       {/* Media grid/list */}
-      {media?.items && media.items.length > 0 ? (
-        <>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={media.items.length > 0 && selectedItems.size === media.items.length}
-              onCheckedChange={selectAll}
-            />
-            <span className="text-[13px] text-[hsl(var(--muted-foreground))]">Select all</span>
-          </div>
-
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-5">
-              {media.items.map((item) => (
-                <MediaGridItem
-                  key={item.id}
-                  item={item}
-                  selected={selectedItems.has(item.id)}
-                  onSelect={() => toggleSelection(item.id)}
-                  onDelete={() => {
-                    setSelectedItems(new Set([item.id]));
-                    setDeleteDialogOpen(true);
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {media.items.map((item) => (
-                <MediaListItem
-                  key={item.id}
-                  item={item}
-                  selected={selectedItems.has(item.id)}
-                  onSelect={() => toggleSelection(item.id)}
-                  onDelete={() => {
-                    setSelectedItems(new Set([item.id]));
-                    setDeleteDialogOpen(true);
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="border border-[hsl(var(--border))] rounded-md py-12">
-          <EmptyState
-            icon={ImageIcon}
-            title="No media files"
-            description="Upload some files to get started with your media library."
-          />
-        </div>
-      )}
+      {results}
 
       {/* Delete confirmation dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

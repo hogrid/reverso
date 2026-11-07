@@ -3,8 +3,7 @@ import { useStats } from '@/api/hooks/useStats';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { Badge } from '@/components/ui/badge';
-import { formatFileSize } from '@/lib/utils';
-import { ArrowRight, Clock, FileText, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowRight, Clock, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function DashboardPage() {
@@ -40,26 +39,18 @@ export function DashboardPage() {
     {
       label: 'TOTAL PAGES',
       value: stats?.pages.total ?? 0,
-      change: '+12%',
-      positive: true,
     },
     {
       label: 'TOTAL FIELDS',
       value: stats?.fields.total ?? 0,
-      change: '+8%',
-      positive: true,
     },
     {
       label: 'MEDIA FILES',
       value: stats?.media.total ?? 0,
-      change: '+24%',
-      positive: true,
     },
     {
       label: 'FIELD TYPES',
       value: stats?.fields.byType ? Object.keys(stats.fields.byType).length : 0,
-      change: '-2%',
-      positive: false,
     },
   ];
 
@@ -86,16 +77,6 @@ export function DashboardPage() {
               <p className="font-display text-[56px] font-medium leading-none" style={{ letterSpacing: '-2px' }}>
                 {stat.value}
               </p>
-              <div className="flex items-center gap-1.5">
-                {stat.positive ? (
-                  <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : (
-                  <TrendingDown className="h-3.5 w-3.5 text-[hsl(var(--destructive))]" aria-hidden="true" />
-                )}
-                <span className={`text-xs font-medium ${!stat.positive ? 'text-[hsl(var(--destructive))]' : ''}`}>
-                  {stat.change}
-                </span>
-              </div>
             </div>
             {i < statItems.length - 1 && (
               <div className="w-px bg-[hsl(var(--border))] self-stretch" />

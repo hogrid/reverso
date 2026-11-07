@@ -2,7 +2,6 @@ import { usePages } from '@/api/hooks/usePages';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -117,9 +116,6 @@ export function PagesListPage() {
                     <FileText className="h-[18px] w-[18px] text-[hsl(var(--muted-foreground))]" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-[hsl(var(--secondary))] text-foreground hover:bg-[hsl(var(--secondary))] border-0 text-xs font-semibold">
-                      Published
-                    </Badge>
                     <button type="button" className="text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors">
                       <MoreVertical className="h-4 w-4" />
                     </button>

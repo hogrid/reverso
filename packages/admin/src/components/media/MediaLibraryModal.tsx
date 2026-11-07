@@ -1,4 +1,4 @@
-import { type MediaItem, useMedia } from '@/api/hooks/useMedia';
+import { type MediaItem, useInfiniteMedia } from '@/api/hooks/useMedia';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,11 +18,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Filter, Grid, Image as ImageIcon, List, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MediaGridSelector, type ViewMode } from './MediaGridSelector';
 import { MediaUploader } from './MediaUploader';
 
 type MediaType = 'all' | 'image' | 'video' | 'audio' | 'document';
+
+/** Items fetched per "Load more" page. */
+const PAGE_SIZE = 24;
 
 const mediaTypeFilters: { value: MediaType; label: string }[] = [
   { value: 'all', label: 'All Files' },
@@ -72,15 +75,23 @@ export function MediaLibraryModal({
             ? 'audio/*'
             : 'application/*');
 
-  const { data: media, isLoading, refetch } = useMedia({
-    search: search || undefined,
-    mimeType: queryMimeType,
-    pageSize: 50,
-  });
+  const { items, total, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useInfiniteMedia({
+      search: search || undefined,
+      mimeType: queryMimeType,
+      pageSize: PAGE_SIZE,
+    });
+
+  // Remember every item seen, so a selection survives a new search or filter
+  // that no longer lists it.
+  const seenRef = useRef(new Map<string, MediaItem>());
+  for (const item of items) seenRef.current.set(item.id, item);
 
   const handleSelect = () => {
-    if (!media?.items) return;
-    const selectedItems = media.items.filter((item) => selectedIds.has(item.id));
+    const selectedItems = Array.from(selectedIds)
+      .map((id) => seenRef.current.get(id))
+      .filter((item): item is MediaItem => item !== undefined);
+    if (selectedItems.length === 0) return;
     onSelect(selectedItems);
     handleClose();
   };
@@ -93,7 +104,7 @@ export function MediaLibraryModal({
   };
 
   const handleUploadComplete = () => {
-    refetch();
+    // The upload mutation invalidates the media queries; just switch back.
     setActiveTab('browse');
   };
 
@@ -184,15 +195,31 @@ export function MediaLibraryModal({
 
             {/* Media grid */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              {media?.items && media.items.length > 0 ? (
-                <MediaGridSelector
-                  items={media.items}
-                  selectedIds={selectedIds}
-                  onSelectionChange={handleSelectionChange}
-                  multiple={effectiveMultiple}
-                  viewMode={viewMode}
-                  isLoading={isLoading}
-                />
+              {items.length > 0 ? (
+                <>
+                  <MediaGridSelector
+                    items={items}
+                    selectedIds={selectedIds}
+                    onSelectionChange={handleSelectionChange}
+                    multiple={effectiveMultiple}
+                    viewMode={viewMode}
+                  />
+                  <div className="flex items-center justify-between gap-3 pt-4">
+                    <span className="text-xs text-muted-foreground">
+                      Showing {items.length} of {total}
+                    </span>
+                    {hasNextPage && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                      >
+                        {isFetchingNextPage ? 'Loading more...' : 'Load more'}
+                      </Button>
+                    )}
+                  </div>
+                </>
               ) : isLoading ? (
                 <MediaGridSelector
                   items={[]}

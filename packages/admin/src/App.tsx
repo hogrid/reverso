@@ -1,5 +1,7 @@
 import { ProtectedRoute } from '@/components/auth';
 import { LoadingPage } from '@/components/common/LoadingState';
+import { RouteErrorBoundary } from '@/components/common/RouteErrorBoundary';
+import { Toaster } from '@/components/common/Toaster';
 import { RootLayout } from '@/components/layout';
 import { initializeTheme } from '@/stores/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -52,6 +54,7 @@ const router = createBrowserRouter(
   [
     {
       path: '/login',
+      errorElement: <RouteErrorBoundary />,
       element: (
         <SuspensePage>
           <LoginPage />
@@ -65,7 +68,13 @@ const router = createBrowserRouter(
           <RootLayout />
         </ProtectedRoute>
       ),
+      errorElement: <RouteErrorBoundary />,
       children: [
+        {
+          // Pathless layout route: a page that throws renders the error card
+          // inside the shell, keeping the sidebar/header usable.
+          errorElement: <RouteErrorBoundary />,
+          children: [
         {
           index: true,
           element: (
@@ -146,6 +155,8 @@ const router = createBrowserRouter(
             </SuspensePage>
           ),
         },
+          ],
+        },
       ],
     },
   ],
@@ -182,6 +193,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
     </QueryClientProvider>
   );
 }

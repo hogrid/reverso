@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { saveBlob } from '@/lib/utils';
 import { apiClient } from '../client';
 import { endpoints } from '../endpoints';
 
@@ -48,7 +49,7 @@ export interface FormDetail extends FormListItem {
   };
   notifyEmails?: string[];
   notifyOnSubmission?: boolean;
-  webhookUrl?: string;
+  webhookUrl?: string | null;
   webhookEnabled?: boolean;
   honeypotEnabled?: boolean;
   rateLimitPerMinute?: number;
@@ -96,6 +97,11 @@ export interface CreateFormInput {
   rateLimitPerMinute?: number;
 }
 
+/** PUT /forms/:id body: any subset of the create fields; null clears the webhook URL. */
+export type UpdateFormInput = Omit<Partial<CreateFormInput>, 'webhookUrl'> & {
+  webhookUrl?: string | null;
+};
+
 export interface CreateFormFieldInput {
   name: string;
   type: string;
@@ -108,6 +114,20 @@ export interface CreateFormFieldInput {
   width?: number;
   step?: number;
   sortOrder?: number;
+}
+
+/**
+ * Export a form's submissions as CSV and trigger the browser download.
+ * The API only exposes POST /forms/:id/submissions/export (a GET would hit
+ * /submissions/:subId and 404), so this goes through the client to keep the
+ * session cookie instead of opening the URL in a new tab.
+ */
+export async function exportFormSubmissions(formId: string, formSlug?: string): Promise<void> {
+  const file = await apiClient.download(endpoints.forms.exportSubmissions(formId), {
+    method: 'POST',
+    fallbackFilename: `${formSlug || formId}-submissions.csv`,
+  });
+  saveBlob(file.blob, file.filename);
 }
 
 // Query hooks
@@ -201,7 +221,7 @@ export function useUpdateForm(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: Partial<CreateFormInput>) => {
+    mutationFn: async (data: UpdateFormInput) => {
       const response = await apiClient.put<FormListItem>(endpoints.forms.update(id), data);
       return response.data;
     },
