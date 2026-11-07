@@ -923,7 +923,7 @@ Node.js host with a persistent disk for `.reverso/` (database + uploads).
 | `REVERSO_PORT`, `REVERSO_HOST` | no | Defaults `3001`, `0.0.0.0` |
 | `REVERSO_DB_PATH` | no | SQLite file (default `.reverso/reverso.db`) |
 | `REVERSO_CORS_ORIGIN` | when a browser calls the API | Origins allowed cross-site, comma-separated (or `*`). Server-side reads need nothing |
-| `REVERSO_TRUST_PROXY` | behind a proxy | `true` to honour `X-Forwarded-*`. Only when the proxy overwrites client-sent headers; with the port exposed directly keep `false` |
+| `REVERSO_TRUST_PROXY` | behind a proxy | Number of proxies in front (usually `1`), or their addresses/CIDRs. `true` trusts every hop and lets clients spoof their IP; with the port exposed directly keep `false` |
 | `REVERSO_ALLOW_BOOTSTRAP` | first admin in a container | The first account is normally claimable only from the server's own machine; set `true` while you register it behind Docker/a proxy, then remove it |
 | `REVERSO_COOKIE_SECURE` | no | `auto` (default, Secure only over HTTPS), `true` or `false` |
 | `REVERSO_API_URL` | for `reverso scan` against a remote CMS | Where the schema is pushed when no local `reverso dev` is running |

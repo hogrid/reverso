@@ -5,6 +5,7 @@
 
 import { getFormsByStatus, getPages } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { roleGuard } from '../plugins/auth.js';
 
 interface SitemapUrl {
   loc: string;
@@ -70,6 +71,9 @@ let sitemapCache: { xml: string; timestamp: number } | null = null;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 
 const sitemapRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  // The sitemap itself is public; invalidating it needs an editor.
+  roleGuard(fastify, { isPublic: (url) => url.endsWith('/sitemap.xml') });
+
   /**
    * GET /sitemap.xml
    * Generate dynamic sitemap.

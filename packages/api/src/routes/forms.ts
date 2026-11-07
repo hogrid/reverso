@@ -34,6 +34,7 @@ import {
   updateFormSubmissionStatus,
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { roleGuard } from '../plugins/auth.js';
 import {
   formCreateSchema,
   formFieldCreateSchema,
@@ -45,12 +46,16 @@ import {
   slugParamSchema,
 } from '../validation.js';
 import {
+  assertPublicHost,
   isUrlSafeForSSRF,
   isRedirectUrlSafe,
   generateWebhookSignature,
 } from '../utils/security.js';
 
 const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  // Viewers read, editors write, admins delete; public submissions excepted.
+  roleGuard(fastify, { isPublic: (url) => url.includes('/public/') });
+
   // ============================================
   // FORM CRUD
   // ============================================
@@ -1040,6 +1045,9 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
             fastify.log.warn({ url: form.webhookUrl, reason: urlCheck.reason }, 'Blocked unsafe webhook URL');
           } else {
             try {
+              // Re-check against DNS right before connecting: a public name
+              // may resolve to a private address (or be rebound to one).
+              await assertPublicHost(form.webhookUrl);
               const timestamp = Date.now();
               const webhookPayload = JSON.stringify({
                 formId: form.id,
