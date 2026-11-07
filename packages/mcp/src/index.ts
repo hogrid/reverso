@@ -4,13 +4,17 @@
  * MCP Server for AI integration with Reverso CMS.
  * Allows AI assistants to interact with CMS content via Model Context Protocol.
  *
+ * The server is a thin client of the Reverso HTTP API (`REVERSO_API_URL`,
+ * default `http://localhost:3001`) authenticated with the admin API key
+ * (`REVERSO_API_KEY`). It never opens the database itself.
+ *
  * @example
  * ```typescript
- * import { createMcpServer, startMcpServer } from '@reverso/mcp';
+ * import { startMcpServer } from '@reverso/mcp';
  *
- * // Start the server
  * await startMcpServer({
- *   databasePath: '.reverso/dev.db',
+ *   apiUrl: 'http://localhost:3001',
+ *   apiKey: process.env.REVERSO_API_KEY!,
  * });
  * ```
  *
@@ -21,7 +25,11 @@
  *   "mcpServers": {
  *     "reverso": {
  *       "command": "npx",
- *       "args": ["reverso-mcp", "-d", "/path/to/.reverso/dev.db"]
+ *       "args": ["-y", "@reverso/mcp"],
+ *       "env": {
+ *         "REVERSO_API_URL": "http://localhost:3001",
+ *         "REVERSO_API_KEY": "<your admin API key>"
+ *       }
  *     }
  *   }
  * }
@@ -45,12 +53,30 @@ export const VERSION: string = (() => {
 // Server exports
 export { ReversoMcpServer, createMcpServer, startMcpServer } from './server.js';
 
+// API client and configuration
+export { ReversoApiClient, ReversoApiError } from './api-client.js';
+export type { ReversoApiClientOptions, ApiResult } from './api-client.js';
+export {
+  DEFAULT_API_URL,
+  MIN_API_KEY_LENGTH,
+  resolveMcpConfig,
+  validateApiKey,
+} from './config.js';
+export type { ResolvedMcpConfig, McpConfigOverrides } from './config.js';
+
 // Tool exports
 export { contentTools } from './tools/content.js';
 export { schemaTools } from './tools/schema.js';
 export { mediaTools } from './tools/media.js';
 export { formsTools } from './tools/forms.js';
 export { generationTools } from './tools/generation.js';
+export type { ToolDefinition } from './tools/shared.js';
 
 // Type exports
-export type { McpServerConfig, ContentUpdateInput, ContentGenerationInput, FieldTypeSuggestion, ContentAnalysis } from './types.js';
+export type {
+  McpServerConfig,
+  ContentUpdateInput,
+  ContentGenerationInput,
+  FieldTypeSuggestion,
+  ContentAnalysis,
+} from './types.js';

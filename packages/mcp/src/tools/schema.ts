@@ -1,12 +1,22 @@
 /**
  * Schema tools for the MCP server.
+ *
+ * The schema is read through `GET /schema` on the Reverso API; the field-type
+ * helpers are pure functions and never call the API.
  */
 
-import type { DrizzleDatabase } from '@reverso/db';
-import { getPages, getFields, type Page, type Field } from '@reverso/db';
-import type { FieldType } from '@reverso/core';
+import type { FieldSchema, FieldType, ProjectSchema } from '@reverso/core';
 import { z } from 'zod';
+import type { ReversoApiClient } from '../api-client.js';
 import type { FieldTypeSuggestion } from '../types.js';
+
+/** A field with the page and section it belongs to. */
+export type FlatField = FieldSchema & { page: string; section: string };
+
+async function fetchSchema(api: ReversoApiClient): Promise<ProjectSchema> {
+  const { data } = await api.get<ProjectSchema>('/schema');
+  return data;
+}
 
 export const schemaTools = {
   get_schema: {
@@ -14,15 +24,14 @@ export const schemaTools = {
     inputSchema: z.object({
       pageSlug: z.string().optional().describe('Filter by specific page slug'),
     }),
-    handler: async (db: DrizzleDatabase, input: { pageSlug?: string }) => {
-      const pages = await getPages(db);
-
-      if (input.pageSlug) {
-        const filtered = pages.filter((p: Page) => p.slug === input.pageSlug);
-        return { pages: filtered, totalPages: filtered.length };
-      }
-
-      return { pages, totalPages: pages.length };
+    handler: async (api: ReversoApiClient, input: { pageSlug?: string }) => {
+      const schema = await fetchSchema(api);
+      const pages = input.pageSlug ? schema.pages.filter((p) => p.slug === input.pageSlug) : schema.pages;
+      return {
+        pages,
+        totalPages: pages.length,
+        totalFields: pages.reduce((sum, page) => sum + page.fieldCount, 0),
+      };
     },
   },
 
@@ -32,17 +41,18 @@ export const schemaTools = {
       type: z.string().optional().describe('Filter by field type (e.g., "text", "image")'),
       pageSlug: z.string().optional().describe('Filter by page slug'),
     }),
-    handler: async (db: DrizzleDatabase, input: { type?: string; pageSlug?: string }) => {
-      let fields = await getFields(db);
-
-      if (input.type) {
-        fields = fields.filter((f: Field) => f.type === input.type);
+    handler: async (api: ReversoApiClient, input: { type?: string; pageSlug?: string }) => {
+      const schema = await fetchSchema(api);
+      const fields: FlatField[] = [];
+      for (const page of schema.pages) {
+        if (input.pageSlug && page.slug !== input.pageSlug) continue;
+        for (const section of page.sections) {
+          for (const field of section.fields) {
+            if (input.type && field.type !== input.type) continue;
+            fields.push({ ...field, page: page.slug, section: section.slug });
+          }
+        }
       }
-
-      if (input.pageSlug) {
-        fields = fields.filter((f: Field) => f.path.startsWith(`${input.pageSlug}.`));
-      }
-
       return { fields, totalFields: fields.length };
     },
   },
@@ -55,7 +65,7 @@ export const schemaTools = {
       context: z.string().optional().describe('Context about the field usage'),
     }),
     handler: async (
-      _db: DrizzleDatabase,
+      _api: ReversoApiClient,
       input: { content?: string; fieldName?: string; context?: string }
     ): Promise<FieldTypeSuggestion[]> => {
       const suggestions: FieldTypeSuggestion[] = [];

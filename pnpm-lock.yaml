@@ -747,13 +747,16 @@ importers:
       '@reverso/core':
         specifier: workspace:*
         version: link:../core
-      '@reverso/db':
-        specifier: workspace:*
-        version: link:../db
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@reverso/api':
+        specifier: workspace:*
+        version: link:../api
+      '@reverso/db':
+        specifier: workspace:*
+        version: link:../db
       '@types/node':
         specifier: ^25.2.0
         version: 25.2.3

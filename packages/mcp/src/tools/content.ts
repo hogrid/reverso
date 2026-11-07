@@ -1,192 +1,241 @@
 /**
  * Content management tools for the MCP server.
+ *
+ * Every tool calls the Reverso REST API; nothing here touches the database.
  */
 
-import type { DrizzleDatabase } from '@reverso/db';
-import type { ContentValue } from '@reverso/core';
-import {
-  getPages,
-  getPageBySlug,
-  getContentByPath,
-  getContentByPathPrefix,
-  getFieldByPath,
-  parseContentValue,
-  upsertContent,
-  publishContent,
-  unpublishContent,
-  type Page,
-} from '@reverso/db';
 import { z } from 'zod';
+import type { ReversoApiClient } from '../api-client.js';
+import { ReversoApiError } from '../api-client.js';
+import { type ContentValueInput, contentValueSchema, pageSlugOf } from './shared.js';
 
-/** Flatten a content row into `{ path, value, published }` with the parsed value. */
-function toContentEntry(row: { path: string; content: Parameters<typeof parseContentValue>[0] & { published: boolean | null } }) {
-  return {
-    path: row.path,
-    value: parseContentValue(row.content),
-    published: row.content.published ?? false,
-  };
+/** `GET /pages` item. */
+export interface PageSummary {
+  slug: string;
+  name: string;
+  sectionCount: number;
+  fieldCount: number;
+  sourceFiles: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `GET /pages/:slug`. */
+export interface PageDetail {
+  slug: string;
+  name: string;
+  fieldCount: number;
+  sourceFiles: string[];
+  sections: Array<{
+    slug: string;
+    name: string;
+    isRepeater: boolean;
+    repeaterConfig: unknown;
+    fields: Array<Record<string, unknown> & { path: string; value: unknown; published: boolean }>;
+  }>;
+}
+
+/** `GET /content/page/:slug`. */
+export interface PageContent {
+  page: string;
+  slug: string;
+  locale: string;
+  data: Record<string, Record<string, unknown>>;
+  content: Record<string, unknown>;
+}
+
+/** `GET /content/:path` and `PUT /content/:path`. */
+export interface ContentEntry {
+  id?: string;
+  path: string;
+  locale: string;
+  value: unknown;
+  published: boolean;
+  publishedAt?: string | null;
+  updatedAt?: string;
+}
+
+/** `POST /content/:path/publish|unpublish`. */
+export interface PublishResult {
+  id?: string;
+  path: string;
+  published?: boolean;
+  publishedAt?: string | null;
+}
+
+/** `PATCH /content/page/:slug`. */
+export interface PagePatchResult {
+  page: string;
+  locale: string;
+  updated: number;
+}
+
+function toEntries(content: Record<string, unknown>): Array<{ path: string; value: unknown }> {
+  return Object.entries(content).map(([path, value]) => ({ path, value }));
 }
 
 export const contentTools = {
   list_pages: {
-    description: 'List all pages in the CMS with their sections and field counts',
+    description: 'List all pages in the CMS with their section and field counts',
     inputSchema: z.object({
       includeContent: z.boolean().optional().describe('Include content values in response'),
+      locale: z.string().optional().describe('Locale for content values (default: "default")'),
     }),
-    handler: async (db: DrizzleDatabase, input: { includeContent?: boolean }) => {
-      const pages = await getPages(db);
+    handler: async (api: ReversoApiClient, input: { includeContent?: boolean; locale?: string }) => {
+      const { data: pages } = await api.get<PageSummary[]>('/pages');
 
-      if (input.includeContent) {
-        const pagesWithContent = await Promise.all(
-          pages.map(async (page: Page) => {
-            const rows = await getContentByPathPrefix(db, `${page.slug}.`);
-            return { ...page, content: rows.map(toContentEntry) };
-          })
-        );
-        return pagesWithContent;
+      if (!input.includeContent) {
+        return pages;
       }
 
-      return pages;
+      return Promise.all(
+        pages.map(async (page) => {
+          const { data } = await api.get<PageContent>(`/content/page/${encodeURIComponent(page.slug)}`, {
+            locale: input.locale,
+          });
+          return { ...page, content: toEntries(data.content) };
+        })
+      );
     },
   },
 
   get_page: {
     description: 'Get a specific page by slug with all its sections, fields, and content',
     inputSchema: z.object({
-      slug: z.string().describe('The page slug (e.g., "home", "about")'),
+      slug: z.string().min(1).describe('The page slug (e.g., "home", "about")'),
       locale: z.string().optional().describe('Locale for content (default: "default")'),
     }),
-    handler: async (db: DrizzleDatabase, input: { slug: string; locale?: string }) => {
-      const page = await getPageBySlug(db, input.slug);
-      if (!page) {
-        throw new Error(`Page not found: ${input.slug}`);
-      }
-
-      const rows = await getContentByPathPrefix(db, `${input.slug}.`, input.locale);
-      return { ...page, content: rows.map(toContentEntry) };
+    handler: async (api: ReversoApiClient, input: { slug: string; locale?: string }) => {
+      const slug = encodeURIComponent(input.slug);
+      const [{ data: page }, { data: content }] = await Promise.all([
+        api.get<PageDetail>(`/pages/${slug}`),
+        api.get<PageContent>(`/content/page/${slug}`, { locale: input.locale }),
+      ]);
+      return { ...page, locale: content.locale, content: toEntries(content.content) };
     },
   },
 
   get_content: {
     description: 'Get content for a specific field by its path',
     inputSchema: z.object({
-      path: z.string().describe('Field path (e.g., "home.hero.title")'),
+      path: z.string().min(1).describe('Field path (e.g., "home.hero.title")'),
       locale: z.string().optional().describe('Locale for content (default: "default")'),
     }),
-    handler: async (db: DrizzleDatabase, input: { path: string; locale?: string }) => {
-      const content = await getContentByPath(db, input.path, input.locale);
-      if (!content) {
-        return { path: input.path, value: null, published: false, exists: false };
-      }
-      // Values are stored JSON-encoded; hand the caller the real value.
-      return { ...content, value: parseContentValue(content), exists: true };
+    handler: async (api: ReversoApiClient, input: { path: string; locale?: string }) => {
+      const { data } = await api.get<ContentEntry>(`/content/${encodeURIComponent(input.path)}`, {
+        locale: input.locale,
+      });
+      // The API answers `value: null, published: false` without an id when the
+      // field exists but nothing was written yet.
+      return { ...data, exists: data.id !== undefined };
     },
   },
 
   update_content: {
-    description: 'Update content for a specific field',
+    description:
+      'Update content for a specific field. The change is published (live) unless publish is false.',
     inputSchema: z.object({
-      path: z.string().describe('Field path (e.g., "home.hero.title")'),
-      value: z.unknown().describe('New value for the field'),
+      path: z.string().min(1).describe('Field path (e.g., "home.hero.title")'),
+      value: contentValueSchema.describe('New value for the field'),
       locale: z.string().optional().describe('Locale for content (default: "default")'),
-      changedBy: z.string().optional().describe('User or system that made the change'),
+      publish: z
+        .boolean()
+        .optional()
+        .describe('Publish the value (default: true). Pass false to store a draft.'),
     }),
     handler: async (
-      db: DrizzleDatabase,
-      input: { path: string; value: unknown; locale?: string; changedBy?: string }
+      api: ReversoApiClient,
+      input: { path: string; value: ContentValueInput; locale?: string; publish?: boolean }
     ) => {
-      // Get the field by path to find its ID
-      const field = await getFieldByPath(db, input.path);
-      if (!field) {
-        throw new Error(`Field not found: ${input.path}`);
-      }
-
-      const content = await upsertContent(db, {
-        fieldId: field.id,
-        value: input.value as ContentValue,
-        locale: input.locale ?? 'default',
-        changedBy: input.changedBy ?? 'mcp-server',
+      const { data } = await api.put<ContentEntry>(`/content/${encodeURIComponent(input.path)}`, {
+        value: input.value,
+        locale: input.locale,
+        publish: input.publish,
       });
-      return { ...content, value: parseContentValue(content), path: input.path };
+      return data;
     },
   },
 
   publish_content: {
     description: 'Publish content for a specific field, making it live',
     inputSchema: z.object({
-      path: z.string().describe('Field path to publish'),
-      locale: z.string().optional().describe('Locale for content (default: "default")'),
+      path: z.string().min(1).describe('Field path to publish'),
     }),
-    handler: async (db: DrizzleDatabase, input: { path: string; locale?: string }) => {
-      // Get the content by path to find its ID
-      const existingContent = await getContentByPath(db, input.path, input.locale);
-      if (!existingContent) {
-        throw new Error(`Content not found: ${input.path}`);
-      }
-
-      const content = await publishContent(db, existingContent.id);
-      if (!content) {
-        throw new Error(`Failed to publish content: ${input.path}`);
-      }
-      return { ...content, path: input.path };
+    handler: async (api: ReversoApiClient, input: { path: string }) => {
+      const { data } = await api.post<PublishResult>(`/content/${encodeURIComponent(input.path)}/publish`);
+      return data;
     },
   },
 
   unpublish_content: {
-    description: 'Unpublish content for a specific field',
+    description: 'Unpublish content for a specific field, removing it from the public API',
     inputSchema: z.object({
-      path: z.string().describe('Field path to unpublish'),
-      locale: z.string().optional().describe('Locale for content (default: "default")'),
+      path: z.string().min(1).describe('Field path to unpublish'),
     }),
-    handler: async (db: DrizzleDatabase, input: { path: string; locale?: string }) => {
-      // Get the content by path to find its ID
-      const existingContent = await getContentByPath(db, input.path, input.locale);
-      if (!existingContent) {
-        throw new Error(`Content not found: ${input.path}`);
-      }
-
-      const content = await unpublishContent(db, existingContent.id);
-      if (!content) {
-        throw new Error(`Failed to unpublish content: ${input.path}`);
-      }
-      return { ...content, path: input.path };
+    handler: async (api: ReversoApiClient, input: { path: string }) => {
+      const { data } = await api.post<PublishResult>(`/content/${encodeURIComponent(input.path)}/unpublish`);
+      return data;
     },
   },
 
   bulk_update_content: {
-    description: 'Update multiple content fields at once',
+    description:
+      'Update multiple content fields at once (published immediately). Updates are grouped per page and locale; every path must be a known field of its page.',
     inputSchema: z.object({
-      updates: z.array(
-        z.object({
-          path: z.string(),
-          value: z.unknown(),
-          locale: z.string().optional(),
-        })
-      ).describe('Array of content updates'),
-      changedBy: z.string().optional().describe('User or system that made the changes'),
+      updates: z
+        .array(
+          z.object({
+            path: z.string().min(1).describe('Field path (e.g., "home.hero.title")'),
+            value: contentValueSchema.describe('New value for the field'),
+            locale: z.string().optional().describe('Locale for content (default: "default")'),
+          })
+        )
+        .min(1)
+        .describe('Array of content updates'),
     }),
     handler: async (
-      db: DrizzleDatabase,
-      input: { updates: Array<{ path: string; value: unknown; locale?: string }>; changedBy?: string }
+      api: ReversoApiClient,
+      input: { updates: Array<{ path: string; value: ContentValueInput; locale?: string }> }
     ) => {
-      const results = await Promise.all(
-        input.updates.map(async (update) => {
-          // Get the field by path to find its ID
-          const field = await getFieldByPath(db, update.path);
-          if (!field) {
-            return { path: update.path, error: `Field not found: ${update.path}` };
-          }
+      // One PATCH per page+locale: the API validates that every path belongs
+      // to that page and names an existing field.
+      const groups = new Map<string, { slug: string; locale?: string; data: Record<string, unknown> }>();
+      for (const update of input.updates) {
+        const slug = pageSlugOf(update.path);
+        const key = `${slug}\u0000${update.locale ?? ''}`;
+        const group = groups.get(key) ?? { slug, locale: update.locale, data: {} };
+        group.data[update.path] = update.value;
+        groups.set(key, group);
+      }
 
-          const content = await upsertContent(db, {
-            fieldId: field.id,
-            value: update.value as ContentValue,
-            locale: update.locale ?? 'default',
-            changedBy: input.changedBy ?? 'mcp-server',
+      const pages: PagePatchResult[] = [];
+      const errors: Array<{ page: string; locale?: string; paths: string[]; status: number; message: string }> = [];
+
+      for (const group of groups.values()) {
+        try {
+          const { data } = await api.patch<PagePatchResult>(
+            `/content/page/${encodeURIComponent(group.slug)}`,
+            { data: group.data },
+            { locale: group.locale }
+          );
+          pages.push(data);
+        } catch (error) {
+          if (!(error instanceof ReversoApiError)) throw error;
+          errors.push({
+            page: group.slug,
+            locale: group.locale,
+            paths: Object.keys(group.data),
+            status: error.status,
+            message: error.message,
           });
-          return { ...content, path: update.path };
-        })
-      );
-      return { updated: results.filter(r => !('error' in r)).length, results };
+        }
+      }
+
+      const updated = pages.reduce((sum, page) => sum + page.updated, 0);
+      if (updated === 0 && errors.length > 0) {
+        throw new Error(errors.map((e) => e.message).join('; '));
+      }
+      return { updated, pages, errors };
     },
   },
 };
