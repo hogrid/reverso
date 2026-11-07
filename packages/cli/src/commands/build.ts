@@ -34,7 +34,7 @@ export function buildCommand(program: Command): void {
         console.log(chalk.blue.bold('Building Reverso CMS for production...'));
         console.log();
 
-        const runtime = await resolveRuntimeConfig(process.cwd(), options);
+        const runtime = await resolveRuntimeConfig(process.cwd(), options, { strict: true });
         for (const warning of runtime.warnings) {
           console.log(chalk.yellow(`Warning: ${warning}`));
         }

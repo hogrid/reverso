@@ -102,3 +102,24 @@ describe('resolveRuntimeConfig', () => {
     expect(rc.warnings.some((w) => w.includes('postgresql'))).toBe(true);
   });
 });
+
+describe('resolveRuntimeConfig strict mode', () => {
+  let cwd: string;
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), 'reverso-rc-strict-'));
+  });
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('throws instead of falling back to defaults when the config is invalid', async () => {
+    writeFileSync(join(cwd, 'reverso.config.ts'), 'export default { database: { provider: 42 } };\n');
+    await expect(resolveRuntimeConfig(cwd, {}, { strict: true })).rejects.toThrow(/reverso\.config/);
+  });
+
+  it('still warns (no throw) outside strict mode', async () => {
+    writeFileSync(join(cwd, 'reverso.config.ts'), 'export default { database: { provider: 42 } };\n');
+    const rc = await resolveRuntimeConfig(cwd);
+    expect(rc.warnings.some((w) => w.includes('reverso.config'))).toBe(true);
+  });
+});

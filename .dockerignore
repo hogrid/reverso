@@ -1,63 +1,60 @@
-# Docker ignore file
+# Keep the build context small and never let host build artefacts (macOS
+# native binaries, stale dist, turbo cache) leak into the image. Patterns are
+# anchored with `**/` so they apply inside every workspace package.
 
-# Dependencies
-node_modules
-.pnpm-store
+**/node_modules
+**/.pnpm-store
+**/dist
+**/.next
+**/.astro
+**/.turbo
+**/.cache
+**/*.tsbuildinfo
+**/coverage
+**/playwright-report
+**/test-results
+**/.test
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+**/e2e
 
-# Build outputs (we rebuild in Docker)
-dist
-*.tsbuildinfo
+# Local data
+**/.reverso
+**/*.db
+**/*.db-shm
+**/*.db-wal
 
-# Development files
-.reverso
-.turbo
-.cache
-
-# Test files
-coverage
-*.test.ts
-*.spec.ts
-__tests__
-.test
-
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Git
-.git
-.gitignore
-
-# Documentation
-docs
-*.md
-!package.json
-!pnpm-lock.yaml
-!pnpm-workspace.yaml
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# Environment files
-.env
-.env.*
+# Environment and secrets
+**/.env
+**/.env.*
 !.env.example
 
-# CI/CD
+# Repository and tooling
+.git
 .github
-.gitlab-ci.yml
-.travis.yml
+.husky
+.changeset
+.claude
+.memory-bank
+.devils-advocate
+.fallow
+.vscode
+.idea
 
-# Misc
-Makefile
-*.bak
-*.tmp
+# Docs and internal artefacts
+apps/docs/src
+docs
+**/*.md
+!**/package.json
+*.pen
+public
+
+# OS and editor files
+**/.DS_Store
+**/Thumbs.db
+**/*.swp
+**/*.swo
+**/*.log
+**/*.bak
+**/*.tmp

@@ -101,3 +101,63 @@ describe('reverso build + start', () => {
     expect(pub.status).toBe(200);
   });
 });
+
+describe('reverso start refuses unsafe production configuration', () => {
+  function runStart(cwd: string, env: Record<string, string | undefined>) {
+    const child = spawn(process.execPath, [BIN, 'start', '--port', '3899', '--host', '127.0.0.1'], {
+      cwd,
+      env: { ...process.env, REVERSO_COOKIE_SECRET: undefined, NODE_ENV: undefined, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout?.on('data', (d) => {
+      out += d;
+    });
+    child.stderr?.on('data', (d) => {
+      out += d;
+    });
+    return new Promise<{ code: number | null; out: string }>((resolveExit) => {
+      child.on('exit', (code) => resolveExit({ code, out }));
+      setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGTERM');
+      }, 15_000);
+    });
+  }
+
+  it('exits with an error when REVERSO_COOKIE_SECRET is missing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reverso-start-nosecret-'));
+    try {
+      const { code, out } = await runStart(dir, {});
+      expect(code).toBe(1);
+      expect(out).toContain('REVERSO_COOKIE_SECRET');
+      expect(out).not.toContain('Production server ready');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('rejects the placeholder secret shipped in .env.example', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reverso-start-placeholder-'));
+    try {
+      const { code, out } = await runStart(dir, { REVERSO_COOKIE_SECRET: 'your-secure-cookie-secret-here' });
+      expect(code).toBe(1);
+      expect(out).toContain('REVERSO_COOKIE_SECRET');
+      expect(out).not.toContain('Production server ready');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('exits with an error when reverso.config cannot be loaded', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reverso-start-badconfig-'));
+    writeFileSync(join(dir, 'reverso.config.ts'), 'export default { database: { provider: 42 } };\n');
+    try {
+      const { code, out } = await runStart(dir, { REVERSO_COOKIE_SECRET: 'smoke-cookie-secret' });
+      expect(code).toBe(1);
+      expect(out).toContain('reverso.config');
+      expect(out).not.toContain('Production server ready');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});

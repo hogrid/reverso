@@ -34,6 +34,15 @@ export interface RuntimeFlags {
   exclude?: string[];
 }
 
+export interface RuntimeOptions {
+  /**
+   * Fail instead of falling back to defaults when a reverso.config file exists
+   * but cannot be loaded. Production commands (`start`, `build`) use this so a
+   * broken config never silently boots an empty database.
+   */
+  strict?: boolean;
+}
+
 export interface RuntimeConfig {
   /** Loaded (or default) reverso.config. */
   config: ReversoConfig;
@@ -65,7 +74,8 @@ function envString(name: string): string | undefined {
  */
 export async function resolveRuntimeConfig(
   cwd: string,
-  flags: RuntimeFlags = {}
+  flags: RuntimeFlags = {},
+  options: RuntimeOptions = {}
 ): Promise<RuntimeConfig> {
   const warnings: string[] = [];
   let config: ReversoConfig = mergeWithDefaults({
@@ -81,9 +91,11 @@ export async function resolveRuntimeConfig(
       ({ config } = await loadConfig({ cwd }));
       hasConfigFile = true;
     } catch (error) {
-      warnings.push(
-        `Could not load reverso.config (${error instanceof Error ? error.message : String(error)}). Using defaults.`
-      );
+      const reason = error instanceof Error ? error.message : String(error);
+      if (options.strict) {
+        throw new Error(`Could not load reverso.config: ${reason}`);
+      }
+      warnings.push(`Could not load reverso.config (${reason}). Using defaults.`);
     }
   }
 
