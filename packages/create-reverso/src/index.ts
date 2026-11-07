@@ -92,9 +92,19 @@ export async function createReverso(): Promise<void> {
   const skipPrompts = argv.includes('--yes') || argv.includes('-y');
   const positionalName = argv.find((a) => !a.startsWith('-'));
 
+  if (skipPrompts && positionalName !== undefined) {
+    const nameError = validateProjectName(positionalName);
+    if (nameError) {
+      console.log(chalk.red(`Error: invalid project name "${positionalName}": ${nameError}`));
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   const config = skipPrompts ? defaultConfig(positionalName) : await promptConfig(positionalName);
   if (!config) {
     console.log(chalk.gray('Setup cancelled.'));
+    process.exitCode = 1;
     return;
   }
 
@@ -118,9 +128,29 @@ export function defaultConfig(projectName?: string): ProjectConfig {
 }
 
 /**
- * Prompt user for project configuration.
+ * Validate a project name: it becomes both the directory name and the npm
+ * package name, so it must be a valid (lowercase, unscoped) npm name and
+ * must not be a path. Returns an error message, or `null` when valid.
  */
-async function promptConfig(initialName?: string): Promise<ProjectConfig | null> {
+export function validateProjectName(name: string): string | null {
+  if (!name || name.trim() === '') return 'the project name is required';
+  if (/[\\/]/.test(name)) return 'it must be a folder name, not a path';
+  if (name.length > 214) return 'npm package names are limited to 214 characters';
+  if (/\s/.test(name)) return 'it cannot contain spaces';
+  if (name !== name.toLowerCase()) return 'npm package names must be lowercase';
+  if (!/^[a-z0-9][a-z0-9._~-]*$/.test(name)) {
+    return 'use lowercase letters, numbers, ".", "_" and "-", starting with a letter or number';
+  }
+  return null;
+}
+
+/**
+ * Prompt user for project configuration. Returns `null` when the user
+ * cancels any prompt (Ctrl+C / Esc), so nothing is scaffolded from a
+ * partially answered configuration.
+ */
+export async function promptConfig(initialName?: string): Promise<ProjectConfig | null> {
+  let cancelled = false;
   const response = await prompts(
     [
       {
@@ -129,11 +159,8 @@ async function promptConfig(initialName?: string): Promise<ProjectConfig | null>
         message: 'Project name:',
         initial: initialName || 'my-reverso-app',
         validate: (value: string) => {
-          if (!value) return 'Project name is required';
-          if (!/^[a-z0-9-]+$/.test(value)) {
-            return 'Project name can only contain lowercase letters, numbers, and hyphens';
-          }
-          return true;
+          const error = validateProjectName(value);
+          return error ? `Invalid project name: ${error}` : true;
         },
       },
       {
@@ -173,10 +200,15 @@ async function promptConfig(initialName?: string): Promise<ProjectConfig | null>
       { type: 'confirm', name: 'git', message: 'Initialize git repository?', initial: true },
       { type: 'confirm', name: 'install', message: 'Install dependencies?', initial: true },
     ],
-    { onCancel: () => false }
+    {
+      onCancel: () => {
+        cancelled = true;
+        return false; // stop asking further questions
+      },
+    }
   );
 
-  if (!response.projectName) {
+  if (cancelled || !response.projectName) {
     return null;
   }
 
@@ -252,6 +284,10 @@ export function generateProjectFiles(config: ProjectConfig): ProjectFiles {
 
   if (config.typescript) {
     files['tsconfig.json'] = generateTsConfig(config);
+  } else {
+    // The templates import '@/lib/reverso' and '@/components/...'; JS
+    // projects need the same alias, which Next.js reads from jsconfig.json.
+    files['jsconfig.json'] = generateJsConfig();
   }
 
   switch (config.framework) {
@@ -351,6 +387,10 @@ function sortKeys(obj: Record<string, string>): Record<string, string> {
 /**
  * Generate TypeScript config.
  */
+function generateJsConfig(): string {
+  return `${JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@/*': ['./src/*'] } } }, null, 2)}\n`;
+}
+
 function generateTsConfig(config: ProjectConfig): string {
   const compilerOptions: Record<string, unknown> = {
     target: 'ES2022',
@@ -476,8 +516,15 @@ npm-debug.log*
 }
 
 function generateEnvExample(config: ProjectConfig): string {
-  return `# URL of the Reverso API + admin started by \`npm run reverso:dev\`
+  const header = '# URL of the Reverso API + admin started by `npm run reverso:dev`\n';
+  if (config.framework === 'nextjs') {
+    return `${header}# Read at runtime by server components:
+REVERSO_URL=http://localhost:3001
+# Inlined at build time; only needed by client components:
 ${apiUrlEnvVar(config.framework)}=http://localhost:3001
+`;
+  }
+  return `${header}${apiUrlEnvVar(config.framework)}=http://localhost:3001
 `;
 }
 
@@ -544,8 +591,12 @@ function devUrl(framework: Framework): string {
  */
 function generateClientModule(config: ProjectConfig): string {
   const env = apiUrlEnvVar(config.framework);
+  // Next.js inlines NEXT_PUBLIC_* at build time; server components read the
+  // runtime REVERSO_URL first so one build can target any API.
   const read =
-    config.framework === 'nextjs' ? `process.env.${env}` : `import.meta.env.${env}`;
+    config.framework === 'nextjs'
+      ? `process.env.REVERSO_URL ?? process.env.${env}`
+      : `import.meta.env.${env}`;
 
   return `import { createReversoClient } from '@reverso/client';
 

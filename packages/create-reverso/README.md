@@ -22,12 +22,19 @@ bun create reverso my-project
 
 The wizard will prompt you for:
 
-1. **Project name** - Name of your project
+1. **Project name** - Used as the folder and npm package name, so it must be a valid
+   npm name: lowercase letters, numbers, `.`, `_` and `-`, no spaces or paths
+   (validated for `--yes` and positional names too)
 2. **Framework** - Next.js, Vite, or Astro
 3. **Database** - SQLite (local) or PostgreSQL
 4. **TypeScript** - Enable/disable TypeScript
 5. **Package manager** - npm, pnpm, yarn, or bun
 6. **Git** - Initialize git repository
+
+Press Ctrl+C on any prompt to abort; nothing is written.
+
+Pass `--yes` (or `-y`) to skip the prompts and use the defaults (Next.js,
+TypeScript, SQLite).
 
 ## What's Created
 
@@ -38,7 +45,8 @@ my-project/
 │       └── Hero.tsx       # Example component with markers
 ├── reverso.config.ts      # CMS configuration
 ├── package.json
-├── tsconfig.json
+├── tsconfig.json          # jsconfig.json for JavaScript projects (same @/* alias)
+├── .env.example           # REVERSO_URL (runtime) for the API URL
 └── README.md
 ```
 
