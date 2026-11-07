@@ -35,6 +35,11 @@ scanner.watch((schema) => {
 - **Schema Generation**: Creates structured schema from markers
 - **Watch Mode**: Real-time scanning with chokidar
 - **Type Inference**: Detects field types from attributes
+- **Default Content**: Reads defaults from `data-reverso-default`, JSX text,
+  `{page.get(path, 'fallback')}` children, image `src` and link `href`
+- **Source Order**: Fields keep the order they appear in the code
+- **Warnings**: Dynamic marker paths and unknown `data-reverso-type` values are
+  reported with `file:line` instead of being dropped or changed silently
 
 ## Documentation
 

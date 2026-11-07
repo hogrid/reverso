@@ -9,7 +9,7 @@ import { resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { corsOption, resolveRuntimeConfig } from '../runtime-config.js';
+import { corsOption, DEFAULT_PORT, resolveRuntimeConfig } from '../runtime-config.js';
 import { describeOrphaned, type Orphaned } from './scan.js';
 
 interface DevOptions {
@@ -165,6 +165,73 @@ async function findAvailablePort(startPort: number): Promise<number> {
 }
 
 /**
+ * Whether the user asked for a specific port (`--port`, `REVERSO_PORT` or
+ * `dev.port` in reverso.config). The loaded config is merged with defaults,
+ * so a `dev.port` equal to the default is treated as "not set".
+ */
+export function isExplicitPort(
+  flags: { port?: string | number },
+  env: Record<string, string | undefined>,
+  config: { dev?: { port?: number } }
+): boolean {
+  if (flags.port !== undefined && String(flags.port).trim() !== '') return true;
+  if (env.REVERSO_PORT !== undefined && env.REVERSO_PORT.trim() !== '') return true;
+  const configPort = config.dev?.port;
+  return configPort !== undefined && configPort !== DEFAULT_PORT;
+}
+
+export type PortChoice =
+  | { ok: true; port: number; changed: boolean }
+  | { ok: false; message: string };
+
+/**
+ * Pick the port `reverso dev` listens on. An explicitly requested port is
+ * used as-is or the command fails: moving silently would leave the frontend
+ * SDK calling the old port and rendering fallbacks. The default port moves to
+ * the next free one (the caller warns loudly about it).
+ */
+export async function choosePort(options: {
+  port: number;
+  explicit: boolean;
+  isPortInUse: (port: number) => Promise<boolean>;
+  maxAttempts?: number;
+}): Promise<PortChoice> {
+  const { port, explicit } = options;
+  if (!(await options.isPortInUse(port))) {
+    return { ok: true, port, changed: false };
+  }
+  if (explicit) {
+    return {
+      ok: false,
+      message:
+        `Port ${port} is already in use. It was requested explicitly (--port, REVERSO_PORT or dev.port), ` +
+        'so Reverso will not pick another one: your frontend would keep calling this port. ' +
+        'Stop the process using it or choose a different port.',
+    };
+  }
+  const maxAttempts = options.maxAttempts ?? 100;
+  for (let candidate = port + 1; candidate < port + maxAttempts; candidate++) {
+    if (!(await options.isPortInUse(candidate))) {
+      return { ok: true, port: candidate, changed: true };
+    }
+  }
+  return {
+    ok: false,
+    message: `Ports ${port}-${port + maxAttempts - 1} are all in use. Pass --port to choose one.`,
+  };
+}
+
+/** Hint printed when the initial scan finds no markers at all. */
+export function noMarkersHint(srcDir: string, include: string[]): string {
+  return [
+    `No data-reverso markers found in ${srcDir} (include: ${include.join(', ')}).`,
+    'The admin will have nothing to edit until the scanner finds some. Check that',
+    '"srcDir" (and "include") in reverso.config.ts point at your components, or pass --src,',
+    'and mark editable elements like <h1 data-reverso="home.hero.title">Welcome</h1>.',
+  ].join('\n');
+}
+
+/**
  * File where `reverso dev` records where it listens and its API key, so a
  * `reverso scan` in another terminal can sync to it. Removed on shutdown.
  */
@@ -260,12 +327,34 @@ export function devCommand(program: Command): void {
       }
 
       // Check 3: Port availability
-      let port = defaultPort;
-      if (await isPortInUse(port)) {
-        spinner.start(`Port ${port} is in use, finding available port...`);
-        port = await findAvailablePort(port);
-        spinner.succeed(`Using port ${port}`);
+      const portChoice = await choosePort({
+        port: defaultPort,
+        explicit: isExplicitPort(options, process.env, config),
+        isPortInUse,
+      });
+      if (!portChoice.ok) {
+        console.log(chalk.red(portChoice.message));
+        process.exit(1);
       }
+      const port = portChoice.port;
+      if (portChoice.changed) {
+        const url = `http://${host}:${port}`;
+        console.log();
+        console.log(chalk.bgYellow.black(` Port ${defaultPort} is in use: the API will run on ${url} `));
+        console.log(chalk.yellow('  Your frontend must call this URL, or it will keep rendering fallback content.'));
+        console.log(chalk.yellow(`  Set REVERSO_URL=${url} for your frontend (and NEXT_PUBLIC_REVERSO_URL if client components read it),`));
+        console.log(chalk.yellow(`  or free port ${defaultPort}, or pin a port with --port / REVERSO_PORT.`));
+        console.log();
+      }
+
+      const devServerFile = resolve(cwd, DEV_SERVER_FILE);
+      const removeDevServerFile = (): void => {
+        try {
+          unlinkSync(devServerFile);
+        } catch {
+          // Already gone
+        }
+      };
 
       const startServer = async (): Promise<void> => {
         const dbPath = resolve(databasePath);
@@ -280,14 +369,9 @@ export function devCommand(program: Command): void {
         const adminCreds = readAdminCredentials(cwd);
 
         // Every request to the API is authenticated. The scanner and
-        // `reverso scan` authenticate with this key.
+        // `reverso scan` authenticate with this key. The key file is written
+        // only once the API is listening (see below).
         const apiKey = resolveDevApiKey();
-        const devServerFile = resolve(cwd, DEV_SERVER_FILE);
-        writeFileSync(
-          devServerFile,
-          JSON.stringify({ apiUrl: `http://${host}:${port}`, apiKey, pid: process.pid }),
-          { mode: 0o600 }
-        );
         const syncHeaders = { 'Content-Type': 'application/json', 'X-API-Key': apiKey };
 
         // Start scanner in watch mode
@@ -304,6 +388,9 @@ export function devCommand(program: Command): void {
         const initialScan = await scanner.scan();
         if (initialScan.success) {
           spinner.succeed('Initial scan complete');
+          if (initialScan.schema.totalFields === 0) {
+            console.log(chalk.yellow(noMarkersHint(resolve(cwd, srcDir), runtime.include)));
+          }
         } else {
           spinner.fail('Initial scan failed');
           for (const error of initialScan.errors) {
@@ -379,6 +466,14 @@ export function devCommand(program: Command): void {
 
         await startApiServer(server);
         spinner.succeed(`API server running at http://${host}:${port}`);
+
+        // Record where the server listens for `reverso scan` in another
+        // terminal — only now that it actually listens.
+        writeFileSync(
+          devServerFile,
+          JSON.stringify({ apiUrl: `http://${host}:${port}`, apiKey, pid: process.pid }),
+          { mode: 0o600 }
+        );
 
         // Auto-seed admin user from .reverso/admin.json if no users exist
         if (adminCreds) {
@@ -494,11 +589,7 @@ export function devCommand(program: Command): void {
           console.log(chalk.gray('\nShutting down...'));
           scanner.stopWatch();
           await server.close();
-          try {
-            unlinkSync(devServerFile);
-          } catch {
-            // Already gone
-          }
+          removeDevServerFile();
           process.exit(0);
         };
 
@@ -509,6 +600,8 @@ export function devCommand(program: Command): void {
       try {
         await startServer();
       } catch (error) {
+        // Never leave a key file pointing at a server that isn't running.
+        removeDevServerFile();
         const errorMsg = error instanceof Error ? error.message : String(error);
         const errorCode = (error as NodeJS.ErrnoException)?.code;
 

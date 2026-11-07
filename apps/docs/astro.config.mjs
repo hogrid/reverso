@@ -55,6 +55,7 @@ export default defineConfig({
             { label: '@reverso/scanner', link: '/packages/scanner/' },
             { label: '@reverso/db', link: '/packages/db/' },
             { label: '@reverso/api', link: '/packages/api/' },
+            { label: '@reverso/client', link: '/packages/client/' },
             { label: '@reverso/admin', link: '/packages/admin/' },
             { label: '@reverso/blocks', link: '/packages/blocks/' },
             { label: '@reverso/forms', link: '/packages/forms/' },

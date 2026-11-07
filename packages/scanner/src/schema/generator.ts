@@ -77,6 +77,25 @@ export function generateSchema(
   }
   const uniqueFields = [...firstByPath.values()];
 
+  // Unknown data-reverso-type values (e.g. "richtext") degrade to the default
+  // type; flag them so a typo doesn't silently change the editor.
+  const unknownTypes = uniqueFields.filter(
+    (f) => f.attributes.type !== undefined && !isValidFieldType(f.attributes.type)
+  );
+  if (unknownTypes.length > 0) {
+    const fallbackType = options.defaultFieldType ?? DEFAULT_FIELD_TYPE;
+    // biome-ignore lint/suspicious/noConsole: scanner diagnostics are reported on the console
+    console.warn(`\n⚠ ${unknownTypes.length} marker(s) use an unknown data-reverso-type:`);
+    for (const f of unknownTypes) {
+      // biome-ignore lint/suspicious/noConsole: scanner diagnostics are reported on the console
+      console.warn(
+        `  "${f.path}" has type "${f.attributes.type}" in ${f.file}:${f.line} (using "${fallbackType}")`
+      );
+    }
+    // biome-ignore lint/suspicious/noConsole: scanner diagnostics are reported on the console
+    console.warn('');
+  }
+
   // Group valid fields by page and section
   const grouped = groupPathsBySection(uniqueFields.map((f) => f.path));
 
@@ -93,6 +112,11 @@ export function generateSchema(
         const parsed = parsePath(f.path);
         return parsed.page === pageSlug && parsed.section === sectionSlug;
       });
+
+      // Fields always keep source order (file, then line, then column) so the
+      // admin lists them the way they appear on the page. `sort` only orders
+      // pages and sections.
+      sectionFields.sort(compareSourcePosition);
 
       // Convert to FieldSchema
       const fieldSchemas = sectionFields.map((f) => convertToFieldSchema(f, options));
@@ -122,9 +146,7 @@ export function generateSchema(
       const section: SectionSchema = {
         slug: sectionSlug,
         name: formatLabel(sectionSlug),
-        fields: options.sort
-          ? fieldSchemas.sort((a, b) => a.path.localeCompare(b.path))
-          : fieldSchemas,
+        fields: fieldSchemas,
         isRepeater,
         order: order++,
       };
@@ -169,6 +191,12 @@ export function generateSchema(
       skippedMarkers: invalidFields.length,
     },
   };
+}
+
+/** Order detected fields by source position: file, then line, then column. */
+function compareSourcePosition(a: DetectedField, b: DetectedField): number {
+  if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+  return a.line - b.line || a.column - b.column;
 }
 
 /**
@@ -283,9 +311,11 @@ export function convertToFieldSchema(
     schema.hidden = field.attributes.hidden === 'true' || field.attributes.hidden === '';
   }
 
-  // Include default content from JSX
-  if (options.includeDefaults !== false && field.textContent) {
-    schema.defaultContent = field.textContent;
+  // Include default content: an explicit data-reverso-default wins over what
+  // the JSX renders (text, .get() fallback, img src, link href).
+  const defaultContent = field.attributes.default || field.textContent;
+  if (options.includeDefaults !== false && defaultContent) {
+    schema.defaultContent = defaultContent;
   }
 
   return schema;

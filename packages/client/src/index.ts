@@ -89,14 +89,33 @@ export interface ReversoClientOptions {
   /** Request timeout in milliseconds (default: 5000). */
   timeoutMs?: number;
   /**
-   * Fetch cache mode. Defaults to `no-store` so edits show up immediately.
+   * Fetch cache mode. Defaults to `no-store` so edits show up immediately,
+   * unless `revalidate` is set (then the framework's caching applies).
    * Pass `default` (plus your framework's revalidation) for cached reads.
    */
   cache?: ReversoCacheMode;
   /**
+   * Next.js data cache revalidation, sent as `next: { revalidate }` on every
+   * request. When set and `cache` is not given, `no-store` is not forced.
+   */
+  revalidate?: number | false;
+  /** Next.js cache tags, sent as `next: { tags }` (for `revalidateTag`). */
+  tags?: string[];
+  /** Extra request headers (merged over `accept: application/json`). */
+  headers?: Record<string, string>;
+  /**
+   * Window in milliseconds during which `getPage` calls for the same slug
+   * share one request (while in flight, and for this long after it
+   * succeeds), so several components reading the same page don't refetch
+   * it. Default 1000; `0` disables deduplication.
+   */
+  dedupeMs?: number;
+  /**
    * Observability hook called whenever a request fails (network error,
    * timeout, non-2xx status). The client still falls back to default
    * content; this only surfaces the failure so it isn't swallowed silently.
+   * When omitted, outside production the client logs one `console.warn`
+   * per failing path instead.
    */
   onError?: (error: { path: string; status?: number; cause?: unknown }) => void;
   /**
@@ -173,16 +192,30 @@ function isEmpty(value: unknown): boolean {
 export const MEDIA_PATH_PREFIX = '/uploads/';
 
 /**
+ * Upload paths embedded in rich text: quoted HTML attribute values
+ * (`src="/uploads/..."`, `href='/uploads/...'`, `poster`, ...) and Markdown
+ * link/image targets (`](/uploads/...)`).
+ */
+const EMBEDDED_MEDIA_PATTERN = /(=\s*["']|\]\(\s*<?)(\/uploads\/)/g;
+
+/**
  * Rewrite every relative upload path in a stored value to an absolute URL on
- * `baseUrl`. Walks objects and arrays (galleries, repeater items) and leaves
- * every other string untouched, so site-internal links keep working.
+ * `baseUrl`. Walks objects and arrays (galleries, repeater items), rewrites
+ * strings that are an upload path as well as upload paths embedded in
+ * HTML/Markdown rich text, and leaves every other string untouched, so
+ * site-internal links keep working.
  */
 export function resolveMediaUrls<T>(value: T, baseUrl: string): T {
   const base = baseUrl.replace(/\/+$/, '');
   if (base === '') return value;
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') {
-      return v.startsWith(MEDIA_PATH_PREFIX) ? `${base}${v}` : v;
+      if (v.startsWith(MEDIA_PATH_PREFIX)) return `${base}${v}`;
+      if (!v.includes(MEDIA_PATH_PREFIX)) return v;
+      return v.replace(
+        EMBEDDED_MEDIA_PATTERN,
+        (_match, lead: string, prefix: string) => `${lead}${base}${prefix}`
+      );
     }
     if (Array.isArray(v)) {
       const items = v.map(walk);
@@ -378,6 +411,28 @@ function buildPage(slug: string, content: Record<string, unknown>): ReversoPage 
   };
 }
 
+/** Failure passed to {@link ReversoClientOptions.onError}. */
+interface ReversoRequestError {
+  path: string;
+  status?: number;
+  cause?: unknown;
+}
+
+/** Next.js extension of the fetch init (`next: { revalidate, tags }`). */
+interface NextFetchOptions {
+  revalidate?: number | false;
+  tags?: string[];
+}
+
+interface PageRequest {
+  promise: Promise<Record<string, unknown> | undefined>;
+  expiresAt: number;
+}
+
+function isProduction(): boolean {
+  return typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+}
+
 /**
  * Create a Reverso content client.
  *
@@ -393,8 +448,40 @@ function buildPage(slug: string, content: Record<string, unknown>): ReversoPage 
 export function createReversoClient(options: ReversoClientOptions): ReversoClient {
   const baseUrl = options.url.replace(/\/+$/, '');
   const timeoutMs = options.timeoutMs ?? 5000;
-  const cache = options.cache ?? 'no-store';
   const mediaBase = options.mediaBaseUrl === false ? '' : (options.mediaBaseUrl ?? baseUrl);
+  const dedupeMs = Math.max(0, options.dedupeMs ?? 1000);
+
+  // When Next.js revalidation is requested, let the framework cache decide
+  // unless the caller pinned a cache mode explicitly.
+  const cache: ReversoCacheMode | undefined =
+    options.cache ?? (options.revalidate !== undefined ? undefined : 'no-store');
+  const next: NextFetchOptions = {};
+  if (options.revalidate !== undefined) next.revalidate = options.revalidate;
+  if (options.tags !== undefined) next.tags = options.tags;
+  const hasNext = next.revalidate !== undefined || next.tags !== undefined;
+  const headers = { accept: 'application/json', ...options.headers };
+
+  const warnedPaths = new Set<string>();
+  function reportError(error: ReversoRequestError, url: URL): void {
+    if (options.onError) {
+      options.onError(error);
+      return;
+    }
+    if (isProduction() || warnedPaths.has(error.path)) return;
+    warnedPaths.add(error.path);
+    const reason =
+      error.status !== undefined
+        ? `HTTP ${error.status}`
+        : error.cause instanceof Error
+          ? error.cause.message
+          : String(error.cause);
+    // biome-ignore lint/suspicious/noConsole: intentional dev-only diagnostic when no onError is given
+    console.warn(
+      `[reverso] Request to ${url.toString()} failed (${reason}); rendering fallback content. ` +
+        'Check that the Reverso API is running and that REVERSO_URL points to it. ' +
+        'Pass `onError` to createReversoClient to handle failures yourself.'
+    );
+  }
 
   async function fetchJson<T>(path: string): Promise<T | undefined> {
     const url = new URL(`${baseUrl}${path}`);
@@ -402,31 +489,65 @@ export function createReversoClient(options: ReversoClientOptions): ReversoClien
       url.searchParams.set('locale', options.locale);
     }
 
+    const init: RequestInit & { next?: NextFetchOptions } = {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers,
+    };
+    if (cache !== undefined) init.cache = cache;
+    if (hasNext) init.next = next;
+
     try {
-      const response = await fetch(url, {
-        cache,
-        signal: AbortSignal.timeout(timeoutMs),
-        headers: { accept: 'application/json' },
-      });
+      const response = await fetch(url, init);
       if (!response.ok) {
-        options.onError?.({ path, status: response.status });
+        reportError({ path, status: response.status }, url);
         return undefined;
       }
       return (await response.json()) as T;
     } catch (cause) {
       // API unreachable — callers fall back to their default content.
-      // The failure is surfaced via onError so it isn't swallowed silently.
-      options.onError?.({ path, cause });
+      // The failure is surfaced via onError (or a dev warning) so it isn't
+      // swallowed silently.
+      reportError({ path, cause }, url);
       return undefined;
     }
   }
 
-  return {
-    async getPage(slug: string): Promise<ReversoPage> {
+  // getPage deduplication: in-flight requests are always shared; successful
+  // results are reused until `expiresAt`. Failures are dropped once settled
+  // so the next call retries.
+  const pageRequests = new Map<string, PageRequest>();
+
+  function loadPageContent(slug: string): Promise<Record<string, unknown> | undefined> {
+    const load = async () => {
       const body = await fetchJson<PublicPageResponse>(
         `/api/reverso/public/content/page/${encodeURIComponent(slug)}`
       );
-      const content = body?.success ? (body.data?.content ?? {}) : {};
+      return body?.success ? (body.data?.content ?? {}) : undefined;
+    };
+    if (dedupeMs === 0) return load();
+
+    const now = Date.now();
+    for (const [key, entry] of pageRequests) {
+      if (entry.expiresAt <= now) pageRequests.delete(key);
+    }
+    const cached = pageRequests.get(slug);
+    if (cached) return cached.promise;
+
+    const entry: PageRequest = { promise: load(), expiresAt: Number.POSITIVE_INFINITY };
+    pageRequests.set(slug, entry);
+    void entry.promise.then((content) => {
+      if (content === undefined) {
+        if (pageRequests.get(slug) === entry) pageRequests.delete(slug);
+      } else {
+        entry.expiresAt = Date.now() + dedupeMs;
+      }
+    });
+    return entry.promise;
+  }
+
+  return {
+    async getPage(slug: string): Promise<ReversoPage> {
+      const content = (await loadPageContent(slug)) ?? {};
       return buildPage(slug, resolveMediaUrls(content, mediaBase));
     },
 
