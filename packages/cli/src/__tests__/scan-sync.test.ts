@@ -114,7 +114,24 @@ describe('syncSchemaToServer', () => {
     const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: url, apiKey: 'key-0123456789abcdef' });
     expect(outcome).toEqual({ ok: true });
     expect(lastRequest?.headers['x-api-key']).toBe('key-0123456789abcdef');
-    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: true, schema: { version: '1.0.0' } });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ schema: { version: '1.0.0' } });
+  });
+
+  it('never asks the server to delete fields unless prune is requested', async () => {
+    await syncSchemaToServer(SCHEMA, { apiUrl: url });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: false });
+
+    await syncSchemaToServer(SCHEMA, { apiUrl: url }, { prune: true });
+    expect(JSON.parse(lastRequest?.body ?? '{}')).toMatchObject({ deleteRemoved: true });
+  });
+
+  it('surfaces the fields the server kept because the scan no longer has them', async () => {
+    respondWith = {
+      status: 200,
+      body: { success: true, data: { orphaned: { pages: [], sections: [], fields: ['home.hero.old'] } } },
+    };
+    const outcome = await syncSchemaToServer(SCHEMA, { apiUrl: url });
+    expect(outcome).toEqual({ ok: true, orphaned: { pages: [], sections: [], fields: ['home.hero.old'] } });
   });
 
   it('omits the header without a key', async () => {

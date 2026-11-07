@@ -16,9 +16,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAutosave, useKeyboardShortcuts, editorShortcuts, useUnsavedChangesGuard } from '@/hooks';
+import {
+  useAutosave,
+  useEditorPage,
+  useKeyboardShortcuts,
+  editorShortcuts,
+  useUnsavedChangesGuard,
+} from '@/hooks';
 import { useEditorStore } from '@/stores/editor';
 import type { ContentValue, SectionSchema } from '@reverso/core';
 import { Check, ChevronLeft, Loader2, Redo, Save, Undo } from 'lucide-react';
@@ -41,36 +46,33 @@ export function PageEditorPage() {
   } = useContent(slug || '');
   const updateContent = useUpdateContent();
 
-  const {
-    dirtyFields,
-    setFieldValue,
-    hasDirtyFields,
-    getDirtyFieldsData,
-    clearDirtyFields,
-    canUndo,
-    canRedo,
-    undo,
-    redo,
-  } = useEditorStore();
+  // Bind the global editor store to this slug: opening a page, switching slug
+  // and leaving the editor each start from a clean state (no dirty fields,
+  // no history, no stuck saving flag).
+  useEditorPage(slug);
 
-  const performSave = useCallback(async () => {
-    if (!slug || !hasDirtyFields()) return;
+  const { dirtyFields, setFieldValue, hasDirtyFields, canUndo, canRedo, undo, redo } =
+    useEditorStore();
 
-    await updateContent.mutateAsync({
-      pageSlug: slug,
-      data: getDirtyFieldsData(),
-    });
-    clearDirtyFields();
-  }, [slug, hasDirtyFields, getDirtyFieldsData, clearDirtyFields, updateContent]);
+  // `data` is the snapshot useAutosave took when the save started; the hook
+  // clears exactly those paths once this resolves, so edits typed while the
+  // request is in flight survive for the next save.
+  const performSave = useCallback(
+    async (data: Record<string, ContentValue>) => {
+      if (!slug) return;
+
+      await updateContent.mutateAsync({ pageSlug: slug, data });
+    },
+    [slug, updateContent]
+  );
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const { save, isSaving, lastSaved } = useAutosave({
-    onSave: async () => {
+    onSave: async (data) => {
       setSaveError(null);
-      await performSave();
+      await performSave(data);
     },
     onError: (error) => {
-      console.error('Save failed:', error);
       const message =
         (error as { message?: string } | null)?.message ?? 'Could not save your changes.';
       setSaveError(message);

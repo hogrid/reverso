@@ -37,6 +37,12 @@ export function parsePath(path: string): ParsedPath {
     if (!part || (part !== REPEATER_PLACEHOLDER && part.trim() === '')) {
       throw new Error(`Invalid path "${path}": contains empty segment at position ${i + 1}`);
     }
+    // A half-typed attribute (unclosed quote) makes the parser swallow the
+    // rest of the line into the path; whitespace inside a segment is never
+    // a real field name.
+    if (/\s/.test(part)) {
+      throw new Error(`Invalid path "${path}": segment ${i + 1} contains whitespace`);
+    }
   }
 
   const page = parts[0]!;

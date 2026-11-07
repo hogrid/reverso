@@ -354,8 +354,14 @@ content fields simply by adding markers to your code:
 
 Save the file. The watcher re-scans, the new field appears in the admin panel
 automatically, and **all existing content is preserved** — no restart, no
-migration step. Removing a marker removes the field; renaming a path is treated
-as a new field (the old content stays until you delete it).
+migration step. Removing or renaming a marker never deletes anything by itself:
+the old field (and its content) stays in the CMS and the CLI tells you it is no
+longer in your code. A half-typed attribute or a file with a syntax error
+therefore cannot wipe what editors wrote.
+
+```bash
+reverso scan --prune   # delete fields that are no longer in your code, with their content
+```
 
 > You can also trigger a one-off sync without watch mode by running
 > `reverso scan` in another terminal while `reverso dev` is running.

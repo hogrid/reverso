@@ -21,6 +21,7 @@ import {
   bulkContentUpdateSchema,
   contentUpdateSchema,
   localeQuerySchema,
+  pageContentPatchSchema,
   pathParamSchema,
   slugParamSchema,
 } from '../validation.js';
@@ -330,11 +331,14 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   /**
    * PATCH /content/page/:slug
-   * Update multiple content fields for a page.
+   * Update multiple content fields for a page (the editor's save).
+   * Every key must be a field of that page; unknown fields are an error
+   * rather than silently skipped, so a stale editor never reports "saved".
    * Requires: editor or admin role
    */
   fastify.patch<{
     Params: { slug: string };
+    Querystring: { locale?: string };
     Body: { data: Record<string, unknown> };
   }>('/content/page/:slug', {
     preHandler: fastify.requireAuth(['editor', 'admin']),
@@ -349,31 +353,76 @@ const contentRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      const { slug } = paramResult.data;
-      const { data } = request.body as { data: Record<string, unknown> };
-      const db = request.db;
-      const changedBy = request.user?.id;
-
-      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      const queryResult = localeQuerySchema.safeParse(request.query);
+      if (!queryResult.success) {
         return reply.status(400).send({
           success: false,
           error: 'Validation error',
-          message: 'Request body must contain a "data" object',
+          message: 'Invalid locale format',
         });
       }
 
-      const updates = Object.entries(data).map(([path, value]) => ({
-        path,
-        value: value as ContentValue,
-        changedBy,
-      }));
+      const bodyResult = pageContentPatchSchema.safeParse(request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: 'Request body must contain a "data" object of field path → value',
+        });
+      }
 
-      const results = await bulkUpdateContent(db, updates);
+      const { slug } = paramResult.data;
+      const { locale } = queryResult.data;
+      const { data } = bodyResult.data;
+      const db = request.db;
+      const changedBy = request.user?.id;
+
+      const page = await getPageBySlug(db, slug);
+      if (!page) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Not found',
+          message: `Page "${slug}" not found`,
+        });
+      }
+
+      const paths = Object.keys(data);
+      const foreign = paths.filter((path) => !path.startsWith(`${slug}.`));
+      if (foreign.length > 0) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: `Fields do not belong to page "${slug}": ${foreign.join(', ')}`,
+        });
+      }
+
+      const unknown: string[] = [];
+      for (const path of paths) {
+        if (!(await getFieldByPath(db, path))) unknown.push(path);
+      }
+      if (unknown.length > 0) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Validation error',
+          message: `Unknown fields (re-run the scan or reload the editor): ${unknown.join(', ')}`,
+        });
+      }
+
+      const results = await bulkUpdateContent(
+        db,
+        paths.map((path) => ({
+          path,
+          value: data[path] as ContentValue,
+          locale,
+          changedBy,
+        }))
+      );
 
       return {
         success: true,
         data: {
           page: slug,
+          locale,
           updated: results.length,
         },
       };

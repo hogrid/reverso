@@ -46,6 +46,88 @@ describe('Editor Store', () => {
       expect(useEditorStore.getState().history.length).toBe(0);
       expect(useEditorStore.getState().historyIndex).toBe(-1);
     });
+
+    it('should reset the saving flag, last-saved time and focus when opening a page', () => {
+      // A save that was in flight when the previous editor unmounted must not
+      // leave the next page with Save disabled or a stale "Saved at" label.
+      useEditorStore.setState({
+        isSaving: true,
+        lastSaved: new Date(),
+        focusedField: 'home.hero.title',
+      });
+
+      useEditorStore.getState().setCurrentPage('about');
+
+      const state = useEditorStore.getState();
+      expect(state.currentPage).toBe('about');
+      expect(state.isSaving).toBe(false);
+      expect(state.lastSaved).toBeNull();
+      expect(state.focusedField).toBeNull();
+    });
+
+    it('should discard dirty fields of page A when page B is opened, even for the same slug', () => {
+      const store = useEditorStore.getState();
+      store.setCurrentPage('home');
+      store.setFieldValue('home.hero.title', 'edited on A', 'original');
+
+      useEditorStore.getState().setCurrentPage('about');
+      expect(useEditorStore.getState().getDirtyFieldsData()).toEqual({});
+
+      // Re-opening the same page after leaving without saving starts clean too.
+      useEditorStore.getState().setFieldValue('about.hero.title', 'edited on B', 'original');
+      useEditorStore.getState().setCurrentPage('about');
+      expect(useEditorStore.getState().getDirtyFieldsData()).toEqual({});
+    });
+  });
+
+  describe('clearSavedFields', () => {
+    it('should clear only the paths whose dirty value still equals the saved snapshot', () => {
+      const store = useEditorStore.getState();
+      store.setFieldValue('home.hero.title', 'v1');
+      store.setFieldValue('home.hero.subtitle', 'sub');
+
+      // Snapshot taken when the save started.
+      const snapshot = useEditorStore.getState().getDirtyFieldsData();
+
+      // User keeps typing while the PATCH is in flight.
+      useEditorStore.getState().setFieldValue('home.hero.title', 'v2');
+      useEditorStore.getState().setFieldValue('home.cta.label', 'new field');
+
+      useEditorStore.getState().clearSavedFields(snapshot);
+
+      expect(useEditorStore.getState().getDirtyFieldsData()).toEqual({
+        'home.hero.title': 'v2',
+        'home.cta.label': 'new field',
+      });
+    });
+
+    it('should clear everything and stamp lastSaved when nothing changed during the save', () => {
+      const store = useEditorStore.getState();
+      store.setFieldValue('home.hero.title', 'v1');
+      const snapshot = useEditorStore.getState().getDirtyFieldsData();
+
+      useEditorStore.getState().clearSavedFields(snapshot);
+
+      expect(useEditorStore.getState().hasDirtyFields()).toBe(false);
+      expect(useEditorStore.getState().lastSaved).toBeInstanceOf(Date);
+    });
+
+    it('should keep a value that was edited and then edited back to a different reference', () => {
+      const store = useEditorStore.getState();
+      const saved = { url: '/a.png', alt: 'A' };
+      store.setFieldValue('home.hero.image', saved);
+      const snapshot = useEditorStore.getState().getDirtyFieldsData();
+
+      // Same content, new object: the user re-edited the field, keep it dirty.
+      useEditorStore.getState().setFieldValue('home.hero.image', { url: '/a.png', alt: 'A' });
+      useEditorStore.getState().clearSavedFields(snapshot);
+      expect(useEditorStore.getState().dirtyFields.has('home.hero.image')).toBe(true);
+
+      // Same reference as what was saved: cleared.
+      useEditorStore.getState().setFieldValue('home.hero.image', saved);
+      useEditorStore.getState().clearSavedFields(snapshot);
+      expect(useEditorStore.getState().dirtyFields.has('home.hero.image')).toBe(false);
+    });
   });
 
   describe('Dirty Fields', () => {

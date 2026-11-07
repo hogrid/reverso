@@ -69,6 +69,13 @@ describe('parsePath', () => {
     expect(() => parsePath('home..title')).toThrow('contains empty segment');
   });
 
+  it('throws for segments that contain whitespace (a half-typed attribute)', () => {
+    // An unclosed quote makes the scanner read the rest of the line as the
+    // path; that must never become a field.
+    expect(() => parsePath('home.hero.tit\n   data-reverso-type=')).toThrow(/whitespace/);
+    expect(() => parsePath('home.hero.my title')).toThrow(/whitespace/);
+  });
+
   it('throws for path with multiple $ placeholders', () => {
     expect(() => parsePath('home.$.$.title')).toThrow(
       'can only contain one $ repeater placeholder'

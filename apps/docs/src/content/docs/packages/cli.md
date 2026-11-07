@@ -50,7 +50,12 @@ reverso scan --dir ./src        # Custom directory
 reverso scan --verbose          # Detailed output
 reverso scan --watch            # Watch mode
 reverso scan --output schema.json # Export schema
+reverso scan --prune            # Delete fields no longer in your code, with their content
 ```
+
+A plain `scan` (and `reverso dev`) never deletes anything: fields that are no
+longer in your code stay on the server, their content untouched, and the CLI
+lists them. Run `reverso scan --prune` when you really want them gone.
 
 Output:
 ```

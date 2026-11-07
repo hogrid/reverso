@@ -82,7 +82,9 @@ export function buildCommand(program: Command): void {
         await createDatabaseSchema(runtime.databasePath);
         resetDatabaseInstance();
         const { db } = initDatabase({ url: runtime.databasePath });
-        await syncSchema(db, result.schema);
+        // `build` scans the whole source tree and fails on any read error, so
+        // what is missing here is really gone: prune it from the production DB.
+        await syncSchema(db, result.schema, { deleteRemoved: true });
         closeDatabase();
         spinner.succeed(`Database ready (${runtime.databaseSource}): ${runtime.databasePath}`);
 

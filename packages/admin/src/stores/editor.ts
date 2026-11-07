@@ -35,6 +35,12 @@ export interface EditorState {
   setFieldValue: (path: string, value: ContentValue, oldValue?: ContentValue) => void;
   markFieldClean: (path: string) => void;
   clearDirtyFields: () => void;
+  /**
+   * Mark the fields of a completed save as clean. Only paths whose current
+   * dirty value is still the value that was saved are cleared; anything the
+   * user changed while the request was in flight stays dirty for the next save.
+   */
+  clearSavedFields: (savedSnapshot: Record<string, ContentValue>) => void;
   hasDirtyFields: () => boolean;
   getDirtyFieldsData: () => Record<string, ContentValue>;
 
@@ -72,12 +78,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   validationErrors: new Map(),
 
   // Page actions
+  // Opening a page (or leaving one) always starts from a clean slate: dirty
+  // fields and history belong to the page they were made on, and a save that
+  // was still in flight when the previous editor unmounted must not leave the
+  // next page with Save disabled or a stale "Saved at" label.
   setCurrentPage: (slug) => {
     set({
       currentPage: slug,
       dirtyFields: new Map(),
       history: [],
       historyIndex: -1,
+      isSaving: false,
+      lastSaved: null,
+      focusedField: null,
       validationErrors: new Map(),
     });
   },
@@ -127,6 +140,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearDirtyFields: () => {
     set({
       dirtyFields: new Map(),
+      lastSaved: new Date(),
+    });
+  },
+
+  clearSavedFields: (savedSnapshot) => {
+    const newDirtyFields = new Map(get().dirtyFields);
+    for (const [path, savedValue] of Object.entries(savedSnapshot)) {
+      if (newDirtyFields.has(path) && Object.is(newDirtyFields.get(path), savedValue)) {
+        newDirtyFields.delete(path);
+      }
+    }
+    set({
+      dirtyFields: newDirtyFields,
       lastSaved: new Date(),
     });
   },
