@@ -32,6 +32,7 @@ import {
   updateForm,
   updateFormField,
   updateFormSubmissionStatus,
+  type UpdateFormInput,
 } from '@reverso/db';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { roleGuard } from '../plugins/auth.js';
@@ -270,7 +271,9 @@ const formsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const db = request.db;
       const { id } = paramResult.data;
 
-      const form = await updateForm(db, id, bodyResult.data);
+      // The db input type has no null for webhookUrl, but the column is
+      // nullable: null is how "remove the webhook" is stored.
+      const form = await updateForm(db, id, bodyResult.data as UpdateFormInput);
       if (!form) {
         return reply.status(404).send({
           success: false,

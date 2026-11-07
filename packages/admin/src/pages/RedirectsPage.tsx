@@ -1,3 +1,4 @@
+import { withToast } from '@/stores/toast';
 import {
   useBulkImportRedirects,
   useCreateRedirect,
@@ -7,14 +8,13 @@ import {
   useRedirects,
   useUpdateRedirect,
   type Redirect,
-  type RedirectsListResponse,
 } from '@/api/hooks/useRedirects';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -52,14 +52,11 @@ import { cn } from '@/lib/utils';
 import {
   ArrowRight,
   Check,
-  Download,
   ExternalLink,
   MoreHorizontal,
   Pencil,
-  Plus,
   Search,
   Trash2,
-  Upload,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -95,47 +92,48 @@ export function RedirectsPage() {
   );
 
   const handleCreate = async () => {
-    try {
-      await createRedirect.mutateAsync(newRedirectData);
-      setIsCreateDialogOpen(false);
-      setNewRedirectData({ fromPath: '', toPath: '', statusCode: 301 });
-    } catch (err) {
-      console.error('Failed to create redirect:', err);
-    }
+    await withToast(
+      async () => {
+        await createRedirect.mutateAsync(newRedirectData);
+        setIsCreateDialogOpen(false);
+        setNewRedirectData({ fromPath: '', toPath: '', statusCode: 301 });
+      },
+      { success: 'Redirect created', error: 'Failed to create redirect' }
+    );
   };
 
   const handleUpdate = async () => {
     if (!editingRedirect) return;
-    try {
-      await updateRedirect.mutateAsync({
-        id: editingRedirect.id,
-        data: newRedirectData,
-      });
-      setEditingRedirect(null);
-    } catch (err) {
-      console.error('Failed to update redirect:', err);
-    }
+    const id = editingRedirect.id;
+    await withToast(
+      async () => {
+        await updateRedirect.mutateAsync({ id, data: newRedirectData });
+        setEditingRedirect(null);
+      },
+      { success: 'Redirect updated', error: 'Failed to update redirect' }
+    );
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this redirect?')) {
-      try {
-        await deleteRedirect.mutateAsync(id);
-      } catch (err) {
-        console.error('Failed to delete redirect:', err);
-      }
+      await withToast(() => deleteRedirect.mutateAsync(id), {
+        success: 'Redirect deleted',
+        error: 'Failed to delete redirect',
+      });
     }
   };
 
   const handleToggleEnable = async (id: string, isEnabled: boolean) => {
-    try {
-      if (isEnabled) {
-        await disableRedirect.mutateAsync(id);
-      } else {
-        await enableRedirect.mutateAsync(id);
-      }
-    } catch (err) {
-      console.error('Failed to toggle redirect:', err);
+    if (isEnabled) {
+      await withToast(() => disableRedirect.mutateAsync(id), {
+        success: 'Redirect disabled',
+        error: 'Failed to disable redirect',
+      });
+    } else {
+      await withToast(() => enableRedirect.mutateAsync(id), {
+        success: 'Redirect enabled',
+        error: 'Failed to enable redirect',
+      });
     }
   };
 
@@ -157,14 +155,13 @@ export function RedirectsPage() {
       }
     }
 
-    try {
-      const result = await bulkImport.mutateAsync(redirects);
-      alert(`Imported ${result.created} redirects. Skipped ${result.skipped} duplicates.`);
-      setIsImportDialogOpen(false);
-      setImportText('');
-    } catch (err) {
-      console.error('Failed to import redirects:', err);
-    }
+    const result = await withToast(() => bulkImport.mutateAsync(redirects), {
+      success: (r) => `Imported ${r.created} redirects. Skipped ${r.skipped} duplicates.`,
+      error: 'Failed to import redirects',
+    });
+    if (!result) return;
+    setIsImportDialogOpen(false);
+    setImportText('');
   };
 
   const handleExport = () => {

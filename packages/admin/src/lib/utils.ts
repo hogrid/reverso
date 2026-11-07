@@ -211,3 +211,19 @@ export function parseOptions(optionsStr: string): Array<{ value: string; label: 
     return { value: trimmed, label: formatLabel(trimmed) };
   });
 }
+
+/**
+ * Hand a Blob to the browser as a file download via a temporary object URL.
+ */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Revoke on the next tick so the download has started.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}

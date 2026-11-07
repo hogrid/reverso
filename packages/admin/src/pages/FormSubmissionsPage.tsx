@@ -1,4 +1,6 @@
+import { withToast } from '@/stores/toast';
 import {
+  exportFormSubmissions,
   useDeleteSubmission,
   useForm,
   useFormSubmissions,
@@ -10,7 +12,7 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -38,17 +40,14 @@ import {
   Archive,
   ArrowLeft,
   Check,
-  Download,
   Eye,
   Inbox,
-  Mail,
   MoreHorizontal,
   ShieldAlert,
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { endpoints } from '@/api/endpoints';
 
 export function FormSubmissionsPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,28 +76,35 @@ export function FormSubmissionsPage() {
       : submissions.filter((s) => s.status === statusFilter);
 
   const handleStatusChange = async (submissionId: string, status: 'new' | 'read' | 'spam' | 'archived') => {
-    try {
-      await updateStatus.mutateAsync({ submissionId, status });
-    } catch (err) {
-      console.error('Failed to update status:', err);
-    }
+    await withToast(() => updateStatus.mutateAsync({ submissionId, status }), {
+      success: `Marked as ${status}`,
+      error: 'Failed to update status',
+    });
   };
 
   const handleDelete = async (submissionId: string) => {
     if (confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
-      try {
-        await deleteSubmission.mutateAsync(submissionId);
-        if (selectedSubmission?.id === submissionId) {
-          setSelectedSubmission(null);
-        }
-      } catch (err) {
-        console.error('Failed to delete submission:', err);
-      }
+      await withToast(
+        async () => {
+          await deleteSubmission.mutateAsync(submissionId);
+          if (selectedSubmission?.id === submissionId) {
+            setSelectedSubmission(null);
+          }
+        },
+        { success: 'Submission deleted', error: 'Failed to delete submission' }
+      );
     }
   };
 
-  const handleExport = () => {
-    window.open(endpoints.forms.exportSubmissions(id || ''), '_blank');
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    if (!id) return;
+    setIsExporting(true);
+    await withToast(() => exportFormSubmissions(id, form?.slug), {
+      success: 'Submissions exported',
+      error: 'Failed to export submissions',
+    });
+    setIsExporting(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -156,8 +162,8 @@ export function FormSubmissionsPage() {
             {form?.name || 'Form'} Submissions
           </h2>
         </div>
-        <Button variant="outline" className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]" onClick={handleExport}>
-          Export CSV
+        <Button variant="outline" className="h-10 px-5 text-[13px] font-medium border-[hsl(var(--border))]" onClick={handleExport} disabled={isExporting}>
+          {isExporting ? 'Exporting...' : 'Export CSV'}
         </Button>
       </div>
 

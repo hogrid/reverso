@@ -1,5 +1,11 @@
 import type { FileValue, ImageValue } from '@reverso/core';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { apiClient } from '../client';
 import { endpoints } from '../endpoints';
 
@@ -68,27 +74,54 @@ export function useMedia(filters: MediaFilters = {}) {
   });
 }
 
+/** One page of GET /media as the API returns it. */
+interface MediaPageResponse {
+  data?: MediaItem[];
+  meta?: { total?: number; limit?: number; offset?: number };
+}
+
+interface MediaPage {
+  items: MediaItem[];
+  total: number;
+  offset: number;
+}
+
 /**
- * Infinite query for media library
+ * Infinite media query: fetches subsequent offsets ("Load more") until the
+ * server-reported total is reached. Exposes the flattened `items` and `total`.
+ * Keeps the previous results visible while a new search loads, so the search
+ * box is never unmounted mid-typing.
  */
 export function useInfiniteMedia(filters: Omit<MediaFilters, 'page'> = {}) {
-  return useInfiniteQuery({
-    queryKey: ['media', 'infinite', filters],
-    queryFn: async ({ pageParam = 1 }) => {
+  const pageSize = filters.pageSize || 20;
+  const query = useInfiniteQuery({
+    queryKey: ['media', 'infinite', { ...filters, pageSize }],
+    queryFn: async ({ pageParam }): Promise<MediaPage> => {
       const params = new URLSearchParams();
       if (filters.search) params.set('search', filters.search);
       if (filters.mimeType) params.set('type', filters.mimeType);
-      const pageSize = filters.pageSize || 20;
       params.set('limit', String(pageSize));
-      params.set('offset', String(((pageParam as number) - 1) * pageSize));
+      params.set('offset', String(pageParam));
 
-      const url = `${endpoints.media.list()}?${params}`;
-      const response = await apiClient.get<MediaListResponse>(url);
-      return response.data;
+      const response = (await apiClient.get<MediaItem[]>(
+        `${endpoints.media.list()}?${params}`
+      )) as MediaPageResponse;
+      const items = response.data ?? [];
+      return { items, total: response.meta?.total ?? pageParam + items.length, offset: pageParam };
     },
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      const next = lastPage.offset + lastPage.items.length;
+      // Stop on an empty page too, so a shrinking library can't loop forever.
+      return lastPage.items.length > 0 && next < lastPage.total ? next : undefined;
+    },
+    placeholderData: keepPreviousData,
   });
+
+  const pages = query.data?.pages ?? [];
+  const items = pages.flatMap((page) => page.items);
+  const total = pages.at(-1)?.total ?? 0;
+  return { ...query, items, total };
 }
 
 /**
@@ -182,7 +215,11 @@ export function useBulkDeleteMedia() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      await apiClient.post(endpoints.media.bulk(), { action: 'delete', ids });
+      const response = await apiClient.post<{ deleted: number; missing: string[] }>(
+        endpoints.media.bulkDelete(),
+        { ids }
+      );
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['media'] });

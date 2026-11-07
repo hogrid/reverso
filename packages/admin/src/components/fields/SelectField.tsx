@@ -41,14 +41,16 @@ export function SelectField({ field, value, onChange, disabled }: FieldRendererP
     );
   }
 
-  // Select dropdown (default)
+  // Select dropdown (default). Radix SelectItem throws on value="" (reserved
+  // for "no selection"), which would crash the editor; drop those options.
+  const selectOptions = options.filter((option) => option.value !== '');
   return (
     <Select value={stringValue} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger id={field.path}>
         <SelectValue placeholder={field.placeholder || 'Select an option'} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((option) => (
+        {selectOptions.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}
           </SelectItem>

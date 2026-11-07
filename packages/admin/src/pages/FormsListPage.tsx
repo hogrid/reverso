@@ -1,8 +1,8 @@
 import { useCreateForm, useDeleteForm, useDuplicateForm, useForms, usePublishForm, useUnpublishForm } from '@/api/hooks/useForms';
+import { withToast } from '@/stores/toast';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { LoadingState } from '@/components/common/LoadingState';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -58,48 +58,49 @@ export function FormsListPage() {
   );
 
   const handleCreate = async () => {
-    try {
-      const form = await createForm.mutateAsync(newFormData);
-      setIsCreateDialogOpen(false);
-      setNewFormData({ name: '', slug: '', description: '' });
-      navigate(`/forms/${form.id}`);
-    } catch (err) {
-      console.error('Failed to create form:', err);
-    }
+    const form = await withToast(() => createForm.mutateAsync(newFormData), {
+      success: 'Form created',
+      error: 'Failed to create form',
+    });
+    if (!form) return;
+    setIsCreateDialogOpen(false);
+    setNewFormData({ name: '', slug: '', description: '' });
+    navigate(`/forms/${form.id}`);
   };
 
   const handleDuplicate = async () => {
     if (!duplicateFormId) return;
-    try {
-      const form = await duplicateForm.mutateAsync({ id: duplicateFormId, slug: duplicateSlug });
-      setIsDuplicateDialogOpen(false);
-      setDuplicateFormId(null);
-      setDuplicateSlug('');
-      navigate(`/forms/${form.id}`);
-    } catch (err) {
-      console.error('Failed to duplicate form:', err);
-    }
+    const form = await withToast(
+      () => duplicateForm.mutateAsync({ id: duplicateFormId, slug: duplicateSlug }),
+      { success: 'Form duplicated', error: 'Failed to duplicate form' }
+    );
+    if (!form) return;
+    setIsDuplicateDialogOpen(false);
+    setDuplicateFormId(null);
+    setDuplicateSlug('');
+    navigate(`/forms/${form.id}`);
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this form? This action cannot be undone.')) {
-      try {
-        await deleteForm.mutateAsync(id);
-      } catch (err) {
-        console.error('Failed to delete form:', err);
-      }
+      await withToast(() => deleteForm.mutateAsync(id), {
+        success: 'Form deleted',
+        error: 'Failed to delete form',
+      });
     }
   };
 
   const handleTogglePublish = async (id: string, isPublished: boolean) => {
-    try {
-      if (isPublished) {
-        await unpublishForm.mutateAsync(id);
-      } else {
-        await publishForm.mutateAsync(id);
-      }
-    } catch (err) {
-      console.error('Failed to toggle publish:', err);
+    if (isPublished) {
+      await withToast(() => unpublishForm.mutateAsync(id), {
+        success: 'Form unpublished',
+        error: 'Failed to unpublish form',
+      });
+    } else {
+      await withToast(() => publishForm.mutateAsync(id), {
+        success: 'Form published',
+        error: 'Failed to publish form',
+      });
     }
   };
 

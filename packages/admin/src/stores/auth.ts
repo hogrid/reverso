@@ -90,7 +90,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       isLoading: true,
       isSubmitting: false,
       error: null,
-      canRegister: true, // Default to true, will be checked on mount
+      // Closed until /auth/setup-status says otherwise, so the "create an
+      // account" toggle never flickers in for an installed site.
+      canRegister: false,
       needsSetup: null,
 
       login: async (email: string, password: string) => {
@@ -228,7 +230,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           if (ok) {
             set({
-              canRegister: data?.canRegister ?? true,
+              canRegister: data?.canRegister === true,
               needsSetup: data?.needsSetup ?? null,
             });
           }

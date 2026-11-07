@@ -34,7 +34,7 @@ export const endpoints = {
     get: (id: string) => `${API_BASE}/media/${id}`,
     upload: () => `${API_BASE}/media`,
     delete: (id: string) => `${API_BASE}/media/${id}`,
-    bulk: () => `${API_BASE}/media/bulk`,
+    bulkDelete: () => `${API_BASE}/media/bulk-delete`,
   },
 
   // Health check

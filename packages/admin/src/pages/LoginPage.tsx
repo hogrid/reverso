@@ -40,10 +40,14 @@ export function LoginPage() {
   // Fresh install: there is nobody to sign in as yet, so open straight in
   // "create your account" mode instead of making the user find the toggle.
   useEffect(() => {
-    if (needsSetup === true) {
+    if (needsSetup === true && canRegister) {
       setIsRegister(true);
     }
-  }, [needsSetup]);
+  }, [needsSetup, canRegister]);
+
+  // Fresh install, but this browser may not create the first admin (e.g. the
+  // server runs in a container or behind a proxy): explain how to proceed.
+  const bootstrapBlocked = needsSetup === true && !canRegister;
 
   if (isAuthenticated) {
     const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -81,6 +85,22 @@ export function LoginPage() {
             {isRegister ? 'Create your account' : 'Sign in to your account'}
           </p>
         </div>
+
+        {bootstrapBlocked && (
+          <div
+            aria-live="polite"
+            data-testid="bootstrap-notice"
+            className="space-y-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--subtle))] p-4 text-[13px]"
+          >
+            <p className="font-semibold">No admin account exists yet</p>
+            <p className="text-[hsl(var(--muted-foreground))]">
+              For security, the first admin can only be created from the machine running the
+              server (open the admin via <code className="font-mono">localhost</code> there, or
+              run <code className="font-mono">reverso init</code>), or by starting the server with{' '}
+              <code className="font-mono">REVERSO_ALLOW_BOOTSTRAP=true</code>.
+            </p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">

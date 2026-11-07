@@ -25,6 +25,7 @@ import {
   MAX_FILE_SIZE,
   idParamSchema,
   isAllowedMimeType,
+  mediaBulkDeleteSchema,
   mediaListQuerySchema,
   mediaUpdateSchema,
   paginationSchema,
@@ -64,6 +65,16 @@ const MIME_EXTENSIONS: Record<string, readonly string[]> = {
 
 const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   const uploadsDir = fastify.config?.uploadsDir || '.reverso/uploads';
+
+  /** Delete a stored upload, refusing paths that escape the uploads directory. */
+  function removeStoredFile(filename: string): void {
+    const filePath = join(uploadsDir, filename);
+    const resolvedPath = join(process.cwd(), filePath);
+    const resolvedUploadsDir = join(process.cwd(), uploadsDir);
+    if (resolvedPath.startsWith(resolvedUploadsDir) && existsSync(filePath)) {
+      unlinkSync(filePath);
+    }
+  }
 
   // Ensure uploads directory exists
   if (!existsSync(uploadsDir)) {
@@ -489,15 +500,7 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         });
       }
 
-      // Delete file from storage
-      const filePath = join(uploadsDir, media.filename);
-
-      // Verify path is within uploads directory before deleting
-      const resolvedPath = join(process.cwd(), filePath);
-      const resolvedUploadsDir = join(process.cwd(), uploadsDir);
-      if (resolvedPath.startsWith(resolvedUploadsDir) && existsSync(filePath)) {
-        unlinkSync(filePath);
-      }
+      removeStoredFile(media.filename);
 
       return {
         success: true,
@@ -508,6 +511,56 @@ const mediaRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       };
     } catch (error) {
       fastify.log.error(error, 'Failed to delete media');
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal error',
+        message: 'Failed to delete media',
+      });
+    }
+  });
+
+  /**
+   * POST /media/bulk-delete
+   * Delete several media items (rows and stored files) in one request.
+   * Body: { ids: string[] } (1..100). Unknown IDs are reported in `missing`.
+   * Requires: admin role only (same as single delete)
+   */
+  fastify.post<{ Body: { ids: string[] } }>('/media/bulk-delete', {
+    preHandler: fastify.requireAuth(['admin']),
+  }, async (request, reply) => {
+    const bodyResult = mediaBulkDeleteSchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation error',
+        message: bodyResult.error.issues[0]?.message ?? 'Invalid request body',
+      });
+    }
+
+    try {
+      const db = request.db;
+      const ids = [...new Set(bodyResult.data.ids)];
+      let deleted = 0;
+      const missing: string[] = [];
+
+      for (const id of ids) {
+        const media = await deleteMedia(db, id);
+        if (!media) {
+          missing.push(id);
+          continue;
+        }
+        deleted += 1;
+        try {
+          removeStoredFile(media.filename);
+        } catch (error) {
+          // The row is gone; a leftover file must not fail the whole batch.
+          fastify.log.warn({ err: error, filename: media.filename }, 'Failed to remove media file');
+        }
+      }
+
+      return { success: true, data: { deleted, missing } };
+    } catch (error) {
+      fastify.log.error(error, 'Failed to bulk delete media');
       return reply.status(500).send({
         success: false,
         error: 'Internal error',
