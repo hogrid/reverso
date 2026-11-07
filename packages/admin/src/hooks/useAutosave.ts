@@ -2,6 +2,14 @@ import { useEditorStore } from '@/stores/editor';
 import type { ContentValue } from '@reverso/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/**
+ * Identifies the save request that currently owns the global `isSaving`
+ * flag. The store is shared by every editor, and `useEditorPage` resets the
+ * flag when a page opens, so a request started on page A that settles after
+ * page B began its own save must not release B's flag.
+ */
+let latestSaveToken = 0;
+
 interface UseAutosaveOptions {
   /** Debounce delay in milliseconds (default: 2000) */
   debounceMs?: number;
@@ -77,6 +85,7 @@ export function useAutosave({
 
     cancel();
     setFailedOn(null);
+    const token = ++latestSaveToken;
     store.setIsSaving(true);
 
     try {
@@ -92,10 +101,12 @@ export function useAutosave({
         onError?.(error);
       }
     } finally {
-      // Always release the flag, even when this editor already unmounted:
-      // the store is global, and a stuck flag disables Save on every editor
-      // opened afterwards.
-      useEditorStore.getState().setIsSaving(false);
+      // Release the flag even when this editor already unmounted (a stuck
+      // flag disables Save on every editor opened afterwards), but only if no
+      // newer save has taken it over in the meantime.
+      if (latestSaveToken === token) {
+        useEditorStore.getState().setIsSaving(false);
+      }
     }
   }, [onSave, onError, cancel]);
 

@@ -291,6 +291,46 @@ describe('useAutosave', () => {
     expect(dirty()).toEqual({ 'about.hero.title': 'typed on B' });
   });
 
+  it('releases the saving flag only for the request that owns it', async () => {
+    const pendingA = deferred();
+    const onSaveA = vi.fn(() => pendingA.promise);
+    const hookA = renderAutosave(onSaveA);
+    await hookA.mount();
+    await inStore(() => useEditorStore.getState().setCurrentPage('home'));
+    await setField('home.hero.title', 'v1');
+    await tick();
+    expect(onSaveA).toHaveBeenCalledTimes(1);
+
+    // Leave A while its save is pending, open B and start saving B.
+    await hookA.unmount();
+    await inStore(() => useEditorStore.getState().setCurrentPage('about'));
+    const pendingB = deferred();
+    const onSaveB = vi.fn(() => pendingB.promise);
+    const hookB = renderAutosave(onSaveB);
+    await hookB.mount();
+    await setField('about.hero.title', 'b1');
+    await tick();
+    expect(onSaveB).toHaveBeenCalledTimes(1);
+    expect(useEditorStore.getState().isSaving).toBe(true);
+
+    // A settles first: B's request is still in flight, so the flag stays.
+    pendingA.resolve();
+    await flushPromises();
+    expect(useEditorStore.getState().isSaving).toBe(true);
+
+    // A second B save must not start while the first is running.
+    await act(async () => {
+      await hookB.result.current.save();
+    });
+    expect(onSaveB).toHaveBeenCalledTimes(1);
+
+    pendingB.resolve();
+    await flushPromises();
+    expect(useEditorStore.getState().isSaving).toBe(false);
+    expect(dirty()).toEqual({});
+    await hookB.unmount();
+  });
+
   it('does not call onSave when there is nothing dirty', async () => {
     const onSave = vi.fn(() => Promise.resolve());
     const hook = renderAutosave(onSave);
