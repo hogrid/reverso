@@ -120,8 +120,14 @@ export async function createServer(config: ServerConfig = {}): Promise<FastifyIn
   ) as ServerConfig;
   const opts = { ...defaultConfig(provided), ...provided };
 
+  // A hop count trusts exactly that many proxies closest to the server
+  // (Fastify takes it as a function of the hop index).
+  const hops = opts.trustProxy;
+  const trustProxy =
+    typeof hops === 'number' ? (_address: string, hop: number) => hop < hops : hops;
+
   const fastifyOptions: FastifyServerOptions = {
-    trustProxy: opts.trustProxy,
+    trustProxy,
     logger: opts.logger
       ? {
           transport: {
