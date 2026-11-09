@@ -33,13 +33,13 @@
   },
   "dependencies": {
     "@reverso/core": "workspace:*",
-    "chokidar": "^5.0.0",
-    "glob": "^13.0.7",
+    "chokidar": "^6.0.0",
+    "glob": "^14.0.4",
     "ts-morph": "^28.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   },
   "publishConfig": {
