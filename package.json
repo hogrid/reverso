@@ -43,7 +43,7 @@
     "test:e2e": "pnpm --filter @reverso/admin test:e2e"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.6",
+    "@biomejs/biome": "^2.6.7",
     "@changesets/cli": "^2.31.1",
     "@reverso/core": "workspace:^",
     "@types/node": "^26.6.6",
